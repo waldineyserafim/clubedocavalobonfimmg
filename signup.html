@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/css/custom.css">
+  <style>
+    .bg-primary { background-color: #264653 !important; }
+    .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
+    .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
+    .text-primary { color: #264653 !important; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  <main class="container" style="max-width: 560px; padding-top: 2rem;">
+    <h1 class="h4 mb-3">Criar conta</h1>
+    <p class="text-muted">Preencha seus dados. O CPF será usado posteriormente para acessar sua conta, serviços, produtos e classificados.</p>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="cpf">CPF</label>
+          <input id="cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="senha">Senha</label>
+          <input id="senha" type="password" class="form-control" placeholder="Crie sua senha">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="nome">Nome completo</label>
+          <input id="nome" class="form-control" placeholder="Seu nome completo">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="tel">Telefone</label>
+          <input id="tel" class="form-control" placeholder="(00) 00000-0000" inputmode="tel">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="end">Endereço</label>
+          <textarea id="end" class="form-control" rows="2" placeholder="Rua, número, bairro, cidade/UF"></textarea>
+        </div>
+
+        <button id="btnCriar" class="btn btn-primary w-100">Criar conta</button>
+        <p id="msg" class="text-center text-muted mt-3"></p>
+      </div>
+    </div>
+  </main>
+  <footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div>
+      <strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.
+    </div>
+    <div class="text-secondary small">© 2025 Clube do Cavalo. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+  <script type="module">
+    import { doSignupWithProfile, onlyDigits } from "./firebase.js";
+
+    // Validação e formatação simples de CPF
+    const cpfEl = document.getElementById("cpf");
+    const senhaEl = document.getElementById("senha");
+    const nomeEl = document.getElementById("nome");
+    const telEl = document.getElementById("tel");
+    const endEl = document.getElementById("end");
+    const btn = document.getElementById("btnCriar");
+    const msg = document.getElementById("msg");
+
+    function formatCPF(v) {
+      const d = onlyDigits(v).slice(0, 11);
+      const p1 = d.slice(0,3), p2=d.slice(3,6), p3=d.slice(6,9), p4=d.slice(9,11);
+      return [p1, p2 && '.'+p2, p3 && '.'+p3, p4 && '-'+p4].filter(Boolean).join('');
+    }
+    function isValidCPF(val) {
+      const cpf = onlyDigits(val);
+      if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+      let s=0; for(let i=0;i<9;i++) s+= +cpf[i]*(10-i);
+      let d1=(s*10)%11; if(d1===10) d1=0; if (d1!== +cpf[9]) return false;
+      s=0; for(let i=0;i<10;i++) s+= +cpf[i]*(11-i);
+      let d2=(s*10)%11; if(d2===10) d2=0; return d2=== +cpf[10];
+    }
+    cpfEl.addEventListener("input", () => cpfEl.value = formatCPF(cpfEl.value));
+
+    function mapErr(e) {
+      const c = e?.code || "";
+      if (c.includes("auth/email-already-in-use")) return "CPF já cadastrado.";
+      if (c.includes("auth/weak-password")) return "Senha fraca (use 6+ caracteres).";
+      if (c.includes("auth/invalid-email")) return "CPF inválido.";
+      return e?.message || "Erro ao criar conta.";
+    }
+
+    async function handleSignup() {
+      btn.disabled = true; msg.textContent = "Criando conta...";
+      try {
+        const cpf = cpfEl.value, senha = senhaEl.value;
+        const nome = nomeEl.value.trim(), telefone = telEl.value.trim(), endereco = endEl.value.trim();
+
+        if (!isValidCPF(cpf)) throw new Error("CPF inválido. Verifique e tente novamente.");
+        if (!senha || senha.length < 6) throw new Error("Crie uma senha com 6+ caracteres.");
+        if (!nome) throw new Error("Informe seu nome completo.");
+        if (!telefone) throw new Error("Informe seu telefone.");
+        if (!endereco) throw new Error("Informe seu endereço.");
+
+        await doSignupWithProfile({ cpf, password: senha, nome, telefone, endereco });
+
+        // Redireciona para a página de pagamento
+        window.location.href = "./pay.html";
+      } catch (e) {
+        alert(mapErr(e));
+        console.error(e);
+      } finally {
+        btn.disabled = false; msg.textContent = "";
+      }
+    }
+
+    btn.addEventListener("click", handleSignup);
+    [cpfEl, senhaEl, nomeEl, telEl, endEl].forEach(el => el.addEventListener("keydown", ev => {
+      if (ev.key === "Enter") handleSignup();
+    }));
+  </script>
+</body>
+</html>

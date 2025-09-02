@@ -1,0 +1,4 @@
+<script type="module">
+  import { requireAuth } from "./firebase.js";
+  requireAuth({ requiredRole: "admin" }); // só admin acessa
+</script>

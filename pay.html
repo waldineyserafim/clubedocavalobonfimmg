@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/css/custom.css">
+  <style>
+    .bg-primary { background-color: #264653 !important; }
+    .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
+    .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
+    .text-primary { color: #264653 !important; }
+  </style>
+</head>
+<body class="container">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+  <h1 class="h4 mb-3">Pagamento da Anuidade</h1>
+  <p class="text-muted">Conclua o pagamento para ativar sua associação.</p>
+
+  <div class="card">
+    <div class="card-body">
+      <p id="status" class="mb-3">Carregando seu status...</p>
+
+      <!-- Botão paga via link do MP -->
+      <button id="btnPagar" class="btn btn-primary w-100">Pagar agora</button>
+
+      <!-- Botão opcional para recarregar status depois do pagamento -->
+      <button id="btnRecarregar" class="btn btn-outline-secondary w-100 mt-2">Recarregar status</button>
+
+      <p class="text-muted mt-3" id="msg"></p>
+    </div>
+  </div>
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div>
+      <strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.
+    </div>
+    <div class="text-secondary small">© 2025 Clube do Cavalo. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+  <script type="module">
+    // Versões alinhadas com seu firebase.js (11.0.1)
+    import { auth, db } from "./firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+    // ====== CONFIG: link do Mercado Pago (seu link) ======
+    const MP_URL = "https://mpago.la/19sEAYt";
+
+    const statusEl = document.getElementById("status");
+    const btnPagar = document.getElementById("btnPagar");
+    const btnRecarregar = document.getElementById("btnRecarregar");
+    const msg = document.getElementById("msg");
+
+    let uid = null;
+
+    async function carregarStatus() {
+      if (!uid) return;
+      const snap = await getDoc(doc(db, "users", uid));
+      const data = snap.exists() ? snap.data() : {};
+      const status = data.status || "Anuidade Pendente";
+      statusEl.textContent = `Status atual: ${status}`;
+
+      if (status === "Ativo") {
+        btnPagar.disabled = true;
+        msg.textContent = "Sua anuidade está ativa. Obrigado!";
+      } else {
+        btnPagar.disabled = false;
+        msg.textContent = "Após pagar, aguarde a confirmação e clique em \"Recarregar status\".";
+      }
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "./login.html";
+        return;
+      }
+      uid = user.uid;
+      carregarStatus();
+    });
+
+    // Abre o Checkout Pro em nova aba (sem sair do site)
+    btnPagar.addEventListener("click", () => {
+      btnPagar.disabled = true;
+      msg.textContent = "Abrindo checkout do Mercado Pago...";
+      window.open(MP_URL, "_blank", "noopener"); // nova aba
+      // Reabilita o botão para o usuário poder clicar novamente se precisar
+      setTimeout(() => { btnPagar.disabled = false; }, 1500);
+    });
+
+    // Permite o usuário atualizar o status após concluir o pagamento
+    btnRecarregar.addEventListener("click", async () => {
+      btnRecarregar.disabled = true;
+      msg.textContent = "Atualizando status...";
+      try {
+        await carregarStatus();
+        msg.textContent = "Status atualizado.";
+      } finally {
+        setTimeout(() => { btnRecarregar.disabled = false; }, 800);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -5,29 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Clube do Cavalo - Bonfim MG</title>
   <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/custom.css">
   <style>
-    .bg-primary {
-      background-color: #264653 !important; /* Exemplo: roxo escuro */
-    }
-    .btn-primary {
-      background-color: #264653 !important;
-      border-color: #264653 !important;
-    }
-    .btn-outline-primary {
-      color: #264653 !important;
-      border-color: #264653 !important;
-    }
-    .text-primary {
-      color: #264653 !important;
-    }
+    .bg-primary { background-color: #264653 !important; }
+    .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
+    .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
+    .text-primary { color: #264653 !important; }
     .partner-logo {
       width: clamp(100px, 40vw, 190px);
       height: clamp(100px, 40vw, 190px);
-      object-fit: contain; /* use 'contain' se não quiser corte */
+      object-fit: contain;
     }
-
   </style>
 </head>
 <body>
@@ -43,11 +32,15 @@
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="dashboard.html">Área do Associado</a></li>
+        <!-- Botão fixo: sempre visível -->
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+        <!-- Botão condicional: aparece só para admin -->
+        <li class="nav-item d-none" id="dashboardBtn"><a class="btn btn-warning ms-lg-2" href="dashboard.html">Dashboard</a></li>
       </ul>
     </div>
   </div>
 </nav>
+
 <header class="bg-light py-5 border-bottom">
   <div class="container">
     <div class="row align-items-center g-4">
@@ -56,15 +49,16 @@
         <p class="lead">Eventos esportivos, cavalgadas, cursos e uma comunidade apaixonada por cavalos.</p>
         <div class="d-flex gap-3">
           <a href="events.html" class="btn btn-primary btn-lg">Próximos eventos</a>
-          <a href="dashboard.html" class="btn btn-outline-primary btn-lg">Associe-se</a>
+          <a href="signup.html" class="btn btn-outline-primary btn-lg">Associe-se</a>
         </div>
       </div>
       <div class="col-lg-5">
-        <img class="img-fluid" src=assets/img/logo_CCBMG.png alt="Logo CCBMG">
+        <img class="img-fluid" src="assets/img/logo_CCBMG.png" alt="Logo CCBMG">
       </div>
     </div>
   </div>
 </header>
+
 <section class="container py-5">
   <div class="row g-4">
     <div class="col-md-4">
@@ -90,38 +84,39 @@
         <div class="card-body">
           <h5 class="card-title">Associe-se</h5>
           <p class="card-text">Acesse a área do associado para atualizar cadastro e pagar mensalidades.</p>
-          <a href="dashboard.html" class="btn btn-outline-primary">Entrar</a>
+          <a href="login.html" class="btn btn-outline-primary">Entrar</a>
         </div>
       </div>
     </div>
   </div>
 </section>
+
 <section class="bg-body-secondary py-5">
-  
   <div class="container">
     <h2 class="h4 mb-4">Parceiros</h2>
     <div class="row g-4">
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\logoEquusProNutrition.png alt="Logo CCBMG">
+        <img class="img-fluid partner-logo" src="assets/parceiro/logoEquusProNutrition.png" alt="Equus ProNutrition">
       </div>
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\logoMuralhadePedra.jpg alt="Logo CCBMG">
+        <img class="img-fluid partner-logo" src="assets/parceiro/logoMuralhadePedra.jpg" alt="Muralha de Pedra">
       </div>
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\logoJulioAndrade.png alt="Logo CCBMG">
+        <img class="img-fluid partner-logo" src="assets/parceiro/logoJulioAndrade.png" alt="Julio Andrade">
       </div>
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\logoCalabar.png alt="Logo CCBMG">
+        <img class="img-fluid partner-logo" src="assets/parceiro/logoCalabar.png" alt="Calabar">
       </div>
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\duducatireiro.jpg >
+        <img class="img-fluid partner-logo" src="assets/parceiro/duducatireiro.jpg" alt="Dudu Catireiro">
       </div>
       <div class="col-6 col-md-3">
-        <img class="img-fluid partner-logo" src=assets\parceiro\camaramunicipal.png >
+        <img class="img-fluid partner-logo" src="assets/parceiro/camaramunicipal.png" alt="Câmara Municipal">
       </div>
     </div>
   </div>
 </section>
+
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div>
@@ -130,7 +125,24 @@
     <div class="text-secondary small">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
   </div>
 </footer>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-<script src="assets/js/main.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { requireAuth } from "./firebase.js";
+
+  requireAuth();
+
+  const dashboardBtn = document.getElementById("dashboardBtn");
+
+  const t = setInterval(() => {
+    if (window.__userRole) {
+      const role = String(window.__userRole).toLowerCase();
+      if (role === "admin") {
+        dashboardBtn.classList.remove("d-none");
+      }
+      clearInterval(t);
+    }
+  }, 50);
+</script>
 </body>
 </html>
