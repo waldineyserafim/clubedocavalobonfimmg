@@ -22,6 +22,11 @@
     .text-primary {
       color: #264653 !important;
     }
+        .partner-logo {
+      width: clamp(100px, 40vw, 190px);
+      height: clamp(100px, 40vw, 190px);
+      object-fit: contain; /* use 'contain' se não quiser corte */
+    }
   </style>
 </head>
 <body>
@@ -48,11 +53,21 @@
     <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
   </div>
   <p>Empresas e criatórios que apoiam o Clube do Cavalo.</p>
-  <div class="row row-cols-2 row-cols-md-4 g-4">
-    <div class="col"><div class="p-4 bg-white border rounded text-center">Parceiro a ser definido</div></div>
-    <div class="col"><div class="p-4 bg-white border rounded text-center">Parceiro a ser definido</div></div>
-    <div class="col"><div class="p-4 bg-white border rounded text-center">Parceiro a ser definido</div></div>
-    <div class="col"><div class="p-4 bg-white border rounded text-center">Parceiro a ser definido</div></div>
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logoEquusProNutrition.png alt="Logo CCBMG">
+      </div>
+      <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logoMuralhadePedra.jpg alt="Logo CCBMG">
+      </div>
+            <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logojulioandrade.png alt="Logo CCBMG">
+      </div>
+            <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logocalabar.png alt="Logo CCBMG">
+      </div>
+    </div>
   </div>
 </main>
 <footer class="mt-5 py-4 bg-body-tertiary border-top">

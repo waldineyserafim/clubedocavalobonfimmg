@@ -22,6 +22,12 @@
     .text-primary {
       color: #264653 !important;
     }
+    .partner-logo {
+      width: clamp(100px, 40vw, 190px);
+      height: clamp(100px, 40vw, 190px);
+      object-fit: contain; /* use 'contain' se não quiser corte */
+    }
+
   </style>
 </head>
 <body>
@@ -54,7 +60,7 @@
         </div>
       </div>
       <div class="col-lg-5">
-        <img class="img-fluid" src=assets/logo_CCBMG.png alt="Logo CCBMG">
+        <img class="img-fluid" src=assets/img/logo_CCBMG.png alt="Logo CCBMG">
       </div>
     </div>
   </div>
@@ -91,13 +97,22 @@
   </div>
 </section>
 <section class="bg-body-secondary py-5">
+  
   <div class="container">
     <h2 class="h4 mb-4">Parceiros</h2>
     <div class="row g-4">
-      <div class="col-6 col-md-3"><div class="p-3 bg-white border rounded text-center">Logo 1</div></div>
-      <div class="col-6 col-md-3"><div class="p-3 bg-white border rounded text-center">Logo 2</div></div>
-      <div class="col-6 col-md-3"><div class="p-3 bg-white border rounded text-center">Logo 3</div></div>
-      <div class="col-6 col-md-3"><div class="p-3 bg-white border rounded text-center">Logo 4</div></div>
+      <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logoEquusProNutrition.png alt="Logo CCBMG">
+      </div>
+      <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logoMuralhadePedra.jpg alt="Logo CCBMG">
+      </div>
+            <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logojulioandrade.png alt="Logo CCBMG">
+      </div>
+            <div class="col-6 col-md-3">
+        <img class="img-fluid partner-logo" src=assets\parceiro\logocalabar.png alt="Logo CCBMG">
+      </div>
     </div>
   </div>
 </section>
