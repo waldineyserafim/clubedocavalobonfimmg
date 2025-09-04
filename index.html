@@ -129,6 +129,14 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <!-- IMPORTANTE: não usar requireAuth aqui para evitar redirecionar quem não está logado -->
+<script>
+  // Esconde o Dashboard o mais cedo possível (antes do módulo carregar)
+  (function () {
+    var el = document.getElementById('dashboardBtn');
+    if (el) el.classList.add('d-none');
+  })();
+</script>
+
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
@@ -136,24 +144,50 @@
 
   const dashboardBtn = document.getElementById("dashboardBtn");
 
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      // Deslogado: home continua acessível, não mostra Dashboard
-      return;
-    }
+  // Garante estado seguro inicial
+  function hideDashboard() {
+    if (dashboardBtn) dashboardBtn.classList.add("d-none");
+  }
+  function showDashboard() {
+    if (dashboardBtn) dashboardBtn.classList.remove("d-none");
+  }
+
+  async function evaluateAndToggle(user) {
+    // Sem usuário: esconde
+    if (!user) { hideDashboard(); return; }
+
     try {
-      // Logado: busca role no Firestore
+      // Busca role no Firestore (sempre minúsculas na base ajuda)
       const ref = doc(db, "users", user.uid);
       const snap = await getDoc(ref);
       const role = (snap.exists() ? (snap.data().role || "") : "").toLowerCase();
-      if (role === "admin") {
-        dashboardBtn.classList.remove("d-none");
-      }
+
+      if (role === "admin") showDashboard();
+      else hideDashboard(); // <<< MUITO IMPORTANTE: esconder explicitamente
     } catch (e) {
-      // Em caso de erro, não mostra o botão (falha segura)
       console.error("Falha ao obter role:", e);
+      hideDashboard(); // falha segura
+    }
+  }
+
+  // 1) Estado de auth
+  onAuthStateChanged(auth, (user) => {
+    // Esconde por padrão, depois decide
+    hideDashboard();
+    evaluateAndToggle(user);
+  });
+
+  // 2) Volta do histórico (bfcache/back-forward): revalida
+  window.addEventListener("pageshow", (ev) => {
+    // Quando a página volta do cache, rechecamos a role
+    if (ev.persisted) {
+      hideDashboard();
+      evaluateAndToggle(auth.currentUser || null);
     }
   });
+
+  // 3) Defesa extra: revalida após pequeno atraso (caso fonts/cache atrasem o onAuthStateChanged)
+  setTimeout(() => evaluateAndToggle(auth.currentUser || null), 1000);
 </script>
 </body>
 </html>

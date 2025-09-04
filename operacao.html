@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Administração — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Gestão de associados, produtos, serviços e classificados.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css">
+  <style>
+    .bg-primary { background-color: #264653 !important; }
+    .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
+    .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
+    .text-primary { color: #264653 !important; }
+    .badge-role { background:#2a9d8f; }
+    .form-help { font-size:.875rem; color:#6c757d; }
+    .thumb { width: 72px; height: 72px; object-fit: cover; border-radius: .5rem; }
+    .card h6 { margin-bottom:.25rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="associado.html">Área do Associado</a></li>
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Entrar</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="bg-light py-4 border-bottom">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h3 mb-1">Painel de Administração</h1>
+      <p class="text-secondary mb-0">Gerencie associados, produtos, serviços e classificados.</p>
+    </div>
+    <div class="text-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none">admin</span>
+    </div>
+  </div>
+</header>
+
+<main class="container my-4">
+
+  <!-- Abas: 1) Associados 2) Produtos 3) Serviços 4) Classificados -->
+  <ul class="nav nav-tabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-associados" type="button">Associados</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button">Produtos</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-servicos" type="button">Serviços</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-classificados" type="button">Classificados</button></li>
+  </ul>
+
+  <div class="tab-content pt-3">
+
+    <!-- ====================== ASSOCIADOS ====================== -->
+    <div class="tab-pane fade show active" id="pane-associados">
+      <!-- Cadastro novo -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5>Cadastrar novo associado</h5>
+          <form id="formNewAssoc" class="row g-3 mt-1">
+            <div class="col-md-3">
+              <label class="form-label">CPF (somente números)</label>
+              <input type="text" class="form-control" id="naCPF" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Senha inicial</label>
+              <input type="password" class="form-control" id="naPass" required>
+              <div class="form-help">O associado poderá trocar depois.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nome completo</label>
+              <input type="text" class="form-control" id="naNome" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Telefone</label>
+              <input type="text" class="form-control" id="naTel">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Endereço</label>
+              <input type="text" class="form-control" id="naEnd">
+            </div>
+
+            <!-- Financeiro inicial (sem SALDO) -->
+            <div class="col-md-3">
+              <label class="form-label">Anuidade paga — Data</label>
+              <input type="date" class="form-control" id="naLastPayment">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Anuidade paga — Valor (R$)</label>
+              <input type="number" step="0.01" class="form-control" id="naPaidAmount" placeholder="ex.: 120.00">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Próxima data a pagar</label>
+              <input type="date" class="form-control" id="naNextDue">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button class="btn btn-primary w-100" type="submit">Criar associado</button>
+            </div>
+          </form>
+          <div id="naMsg" class="small mt-2"></div>
+        </div>
+      </div>
+
+      <!-- Busca + lista -->
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
+            <h5 class="mb-0">Associados</h5>
+            <div class="d-flex gap-2">
+              <input type="text" class="form-control" id="searchQuery" placeholder="Buscar por CPF ou Nome" style="max-width:300px">
+              <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
+              <button id="btnListAll" class="btn btn-outline-secondary">Listar todos (100)</button>
+            </div>
+          </div>
+
+          <div id="usersWrap" class="row g-3 mt-3">
+            <div class="col-12 text-center text-secondary">Use a busca ou liste todos.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====================== PRODUTOS ====================== -->
+    <div class="tab-pane fade" id="pane-produtos">
+      <!-- Formulário topo -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 id="prdFormTitle" class="mb-0">Cadastrar produto</h5>
+            <button id="prdNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
+          </div>
+          <form id="formProduct" class="mt-3">
+            <input type="hidden" id="prdId">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Título</label>
+                <input type="text" class="form-control" id="prdTitle" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Valor (R$)</label>
+                <input type="number" step="0.01" class="form-control" id="prdPrice" placeholder="ex.: 199.90">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Benefício</label>
+                <input type="text" class="form-control" id="prdBenefit">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Descrição</label>
+                <textarea class="form-control" id="prdDesc" rows="2"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">WhatsApp de Vendas</label>
+                <input type="text" class="form-control" id="prdWpp">
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="prdActive" checked>
+                  <label class="form-check-label" for="prdActive">Ativo</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Imagens (múltiplas)</label>
+                <input type="file" class="form-control" id="prdImages" accept="image/*" multiple>
+                <div class="form-help">Enviamos ao Storage e salvamos as URLs no Firestore.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">URLs atuais (separadas por vírgula)</label>
+                <input type="text" class="form-control" id="prdImagesUrls">
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-primary" type="submit">Salvar</button>
+              <span id="prdMsg" class="align-self-center text-success small"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Lista em cards com todas as infos -->
+      <div id="productsWrap" class="row g-3"></div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="showInactiveProducts">
+          <label class="form-check-label" for="showInactiveProducts">Exibir inativos</label>
+        </div>
+        <span id="prdListMsg" class="small text-secondary"></span>
+      </div>
+    </div>
+
+    <!-- ====================== SERVIÇOS ====================== -->
+    <div class="tab-pane fade" id="pane-servicos">
+      <!-- Formulário topo -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 id="svcFormTitle" class="mb-0">Cadastrar serviço</h5>
+            <button id="svcNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
+          </div>
+          <form id="formService" class="mt-3">
+            <input type="hidden" id="svcId">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Título</label>
+                <input type="text" class="form-control" id="svcTitle" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Benefício</label>
+                <input type="text" class="form-control" id="svcBenefit">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Descrição</label>
+                <textarea class="form-control" id="svcDesc" rows="2"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">WhatsApp do provedor</label>
+                <input type="text" class="form-control" id="svcWpp">
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="svcActive" checked>
+                  <label class="form-check-label" for="svcActive">Ativo</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Imagem</label>
+                <input type="file" class="form-control" id="svcImage" accept="image/*">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">URL atual (opcional)</label>
+                <input type="url" class="form-control" id="svcImageUrl">
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-primary" type="submit">Salvar</button>
+              <span id="svcMsg" class="align-self-center text-success small"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Lista em cards -->
+      <div id="servicesWrap" class="row g-3"></div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="showInactiveServices">
+          <label class="form-check-label" for="showInactiveServices">Exibir inativos</label>
+        </div>
+        <span id="svcListMsg" class="small text-secondary"></span>
+      </div>
+    </div>
+
+    <!-- ====================== CLASSIFICADOS ====================== -->
+    <div class="tab-pane fade" id="pane-classificados">
+      <!-- Form topo (sem campo de URL e sem toggles de aprovado/ativo) -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 id="clsFormTitle" class="mb-0">Cadastrar classificado</h5>
+            <button id="clsNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
+          </div>
+          <form id="formClassif" class="mt-3">
+            <input type="hidden" id="clsId">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Título</label>
+                <input type="text" class="form-control" id="clsTitle" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Valor (R$)</label>
+                <input type="number" step="0.01" class="form-control" id="clsPrice">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">WhatsApp de Contato</label>
+                <input type="text" class="form-control" id="clsWpp">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Descrição</label>
+                <textarea class="form-control" id="clsDesc" rows="2"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Imagens (múltiplas)</label>
+                <input type="file" class="form-control" id="clsImages" accept="image/*" multiple>
+              </div>
+            </div>
+            <div class="d-flex gap-2 mt-3">
+              <button class="btn btn-primary" type="submit">Salvar</button>
+              <span id="clsMsg" class="align-self-center text-success small"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Lista em cards -->
+      <div id="classifWrap" class="row g-3"></div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="showInactiveClassif">
+          <label class="form-check-label" for="showInactiveClassif">Exibir inativos</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="showUnapprovedOnly">
+          <label class="form-check-label" for="showUnapprovedOnly">Exibir apenas não aprovados</label>
+        </div>
+        <span id="clsListMsg" class="small text-secondary"></span>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.</div>
+    <div class="text-secondary small">© 2025 Clube do Cavalo - Bonfim MG.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script type="module">
+  import {
+    requireAuth, cpfToEmail, setFinanceSummary,
+    addMemberService, updateMemberService,
+    addMemberProduct, updateMemberProduct
+  } from "./firebase.js";
+  import { auth, db } from "./firebase.js";
+
+  import {
+    collection, getDocs, query, orderBy, where, limit,
+    doc, getDoc, setDoc, updateDoc, addDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signOut as signOutSec }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const storage = getStorage();
+  requireAuth({ requiredRole: ["Admin", "Master"] });
+
+  // App secundário para criar usuário sem sair da sessão
+  const secondaryApp = initializeApp(auth.app.options, "op-secondary");
+  const secAuth = getAuth(secondaryApp);
+
+  // Header — operador
+  const opNameEl = document.getElementById("opName");
+  const opRoleEl = document.getElementById("opRole");
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) return;
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const d = snap.exists() ? snap.data() : {};
+    opNameEl.textContent = d.nome || "Operador(a)";
+    const role = (d.role || "admin").toLowerCase();
+    opRoleEl.textContent = role;
+    opRoleEl.classList.remove("d-none");
+  });
+
+  // Helpers
+  const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+  const readUrls = (el)=> el.value.split(",").map(s=>s.trim()).filter(Boolean);
+
+  // Upload robusto (resolve “imagem não salvar” no Spark)
+  async function uploadMany(files, folder) {
+    const urls = [];
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) { alert("Envie apenas imagens."); continue; }
+      if (f.size > 5 * 1024 * 1024) { alert("Imagem acima de 5MB não permitida."); continue; }
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${f.name}`;
+      const r = sref(storage, path);
+      await new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(r, f, { contentType: f.type });
+        task.on("state_changed", null, reject, resolve);
+      });
+      urls.push(await getDownloadURL(r));
+    }
+    return urls;
+  }
+
+  /* ===================== ASSOCIADOS ===================== */
+  const formNewAssoc = document.getElementById("formNewAssoc");
+  const naCPF = document.getElementById("naCPF");
+  const naPass = document.getElementById("naPass");
+  const naNome = document.getElementById("naNome");
+  const naTel  = document.getElementById("naTel");
+  const naEnd  = document.getElementById("naEnd");
+  const naLastPayment = document.getElementById("naLastPayment");
+  const naPaidAmount  = document.getElementById("naPaidAmount");
+  const naNextDue     = document.getElementById("naNextDue");
+  const naMsg  = document.getElementById("naMsg");
+
+  formNewAssoc.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    naMsg.textContent = "Criando associado...";
+    try {
+      const email = cpfToEmail(naCPF.value);
+      const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
+      const uid = cred.user.uid;
+
+      await setDoc(doc(db, "users", uid), {
+        cpf: naCPF.value.trim(),
+        nome: naNome.value.trim(),
+        telefone: naTel.value.trim(),
+        endereco: naEnd.value.trim(),
+        role: "Associado",
+        ativo: true,
+        status: "Anuidade Pendente",
+        createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+      }, { merge: true });
+
+      // Sem SALDO
+      await setFinanceSummary(uid, {
+        lastPayment: naLastPayment.value || undefined,
+        lastAmount: naPaidAmount.value || undefined,
+        nextDue: naNextDue.value || undefined
+      });
+
+      naMsg.textContent = `Associado criado! UID: ${uid}`;
+      formNewAssoc.reset();
+      await signOutSec(secAuth);
+      listUsers("");
+    } catch (err) {
+      naMsg.textContent = "Erro: " + err.message;
+    }
+  });
+
+  const usersWrap = document.getElementById("usersWrap");
+  const searchQuery = document.getElementById("searchQuery");
+  document.getElementById("btnSearch").addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
+  document.getElementById("btnListAll").addEventListener("click", ()=> listUsers(""));
+
+  async function listUsers(term) {
+    usersWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
+    let docs = [];
+    if (!term) {
+      const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+      docs = snap.docs;
+    } else if (/^\d{5,}$/.test(term)) { // parece CPF
+      const snap = await getDocs(query(collection(db,"users"), where("cpf","==", term)));
+      docs = snap.docs;
+    } else {
+      const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+      const lower = term.toLowerCase();
+      docs = snap.docs.filter(d => (d.data().nome || "").toLowerCase().includes(lower));
+    }
+
+    if (!docs.length) { usersWrap.innerHTML = `<div class="col-12 text-center text-secondary">Nenhum associado encontrado.</div>`; return; }
+
+    usersWrap.innerHTML = "";
+    for (const d of docs) {
+      const u = d.data(); const uid = d.id;
+      let last = "—", next = "—", lastAmount = 0;
+      try {
+        const s = await getDoc(doc(db, "users", uid, "finance", "summary"));
+        if (s.exists()) {
+          const sd = s.data();
+          last = toDateStr(sd.lastPayment); next = toDateStr(sd.nextDue);
+          lastAmount = sd.lastAmount ?? 0;
+        }
+      } catch {}
+      usersWrap.insertAdjacentHTML("beforeend", renderUserCard({ uid, ...u, last, next, lastAmount }));
+    }
+    attachUserHandlers();
+  }
+
+  function toDateStr(v){
+    try { const d = v?.toDate ? v.toDate() : (v? new Date(v): null); return d? d.toISOString().slice(0,10) : ""; }
+    catch { return ""; }
+  }
+
+  // >>> Role-tag ANTES do status + sem campo SALDO
+  function renderUserCard(u) {
+    const ativo = (u.ativo !== false);
+    const role = (u.role || "associado").toLowerCase();
+    return `
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="mb-0">
+                ${u.nome || "Sem nome"}
+                <span class="badge badge-role ms-2 text-uppercase">${role}</span>
+                <span class="badge ${ativo?'bg-success':'bg-secondary'} ms-2">${ativo?'Ativo':'Inativo'}</span>
+              </h6>
+              <small class="text-secondary">UID: ${u.uid}</small>
+            </div>
+            <div class="row g-3 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">Nome</label>
+                <input type="text" class="form-control" data-uid="${u.uid}" data-field="nome" value="${u.nome || ''}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">CPF</label>
+                <input type="text" class="form-control" data-uid="${u.uid}" data-field="cpf" value="${u.cpf || ''}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Telefone</label>
+                <input type="text" class="form-control" data-uid="${u.uid}" data-field="telefone" value="${u.telefone || ''}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Endereço</label>
+                <input type="text" class="form-control" data-uid="${u.uid}" data-field="endereco" value="${u.endereco || ''}">
+              </div>
+              <div class="col-md-2">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" data-uid="${u.uid}" data-field="ativo" ${ativo?'checked':''}>
+                  <label class="form-check-label">Ativo</label>
+                </div>
+              </div>
+
+              <div class="col-md-2">
+                <label class="form-label">Último pagamento (data)</label>
+                <input type="date" class="form-control" data-uid="${u.uid}" data-field="lastPayment" value="${u.last}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Último pagamento (valor)</label>
+                <input type="number" step="0.01" class="form-control" data-uid="${u.uid}" data-field="lastAmount" value="${u.lastAmount ?? 0}">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Próximo pagamento</label>
+                <input type="date" class="form-control" data-uid="${u.uid}" data-field="nextDue" value="${u.next}">
+              </div>
+
+              <div class="col-md-2">
+                <button class="btn btn-outline-primary w-100 btn-save-profile" data-uid="${u.uid}">Salvar Perfil</button>
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-primary w-100 btn-save-fin" data-uid="${u.uid}">Salvar Financeiro</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function attachUserHandlers() {
+    document.querySelectorAll(".btn-save-profile").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const uid = e.target.dataset.uid;
+        const q = (f)=> document.querySelector(`[data-uid="${uid}"][data-field="${f}"]`);
+        const payload = {
+          nome: q("nome").value.trim(),
+          cpf: q("cpf").value.trim(),
+          telefone: q("telefone").value.trim(),
+          endereco: q("endereco").value.trim(),
+          ativo: q("ativo").checked
+        };
+        try { await updateDoc(doc(db,"users",uid), payload); e.target.textContent="Perfil salvo!"; setTimeout(()=>e.target.textContent="Salvar Perfil",1200); }
+        catch (err) { alert("Erro ao salvar perfil: "+err.message); }
+      });
+    });
+    document.querySelectorAll(".btn-save-fin").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        const uid = e.target.dataset.uid;
+        const q = (f)=> document.querySelector(`[data-uid="${uid}"][data-field="${f}"]`);
+        try {
+          await setFinanceSummary(uid, {
+            // balance REMOVIDO
+            lastPayment: q("lastPayment").value,
+            lastAmount: q("lastAmount").value,
+            nextDue: q("nextDue").value
+          });
+          e.target.textContent="Financeiro salvo!"; setTimeout(()=>e.target.textContent="Salvar Financeiro",1200);
+        } catch (err) { alert("Erro ao salvar financeiro: "+err.message); }
+      });
+    });
+  }
+
+  /* ===================== PRODUTOS ===================== */
+  const prdId = document.getElementById("prdId");
+  const prdFormTitle = document.getElementById("prdFormTitle");
+  const prdNewBtn = document.getElementById("prdNewBtn");
+  const formProduct = document.getElementById("formProduct");
+  const prdTitle = document.getElementById("prdTitle");
+  const prdBenefit = document.getElementById("prdBenefit");
+  const prdDesc = document.getElementById("prdDesc");
+  const prdWpp = document.getElementById("prdWpp");
+  const prdActive = document.getElementById("prdActive");
+  const prdImages = document.getElementById("prdImages");
+  const prdImagesUrls = document.getElementById("prdImagesUrls");
+  const prdPrice = document.getElementById("prdPrice");
+  const prdMsg = document.getElementById("prdMsg");
+  const productsWrap = document.getElementById("productsWrap");
+  const showInactiveProducts = document.getElementById("showInactiveProducts");
+
+  prdNewBtn.addEventListener("click", () => { prdId.value=""; formProduct.reset(); prdActive.checked=true; prdFormTitle.textContent="Cadastrar produto"; prdNewBtn.classList.add("d-none"); prdMsg.textContent=""; });
+
+  formProduct.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    prdMsg.textContent = "";
+    const title = prdTitle.value.trim();
+    const description = prdDesc.value.trim();
+    const benefit = prdBenefit.value.trim();
+    const whatsapp = prdWpp.value.trim();
+    const price = prdPrice.value ? Number(prdPrice.value) : null;
+    const active = prdActive.checked;
+
+    let images = readUrls(prdImagesUrls);
+    if (prdImages.files?.length) images = images.concat(await uploadMany([...prdImages.files], "uploads/products"));
+
+    try {
+      if (prdId.value) {
+        await updateMemberProduct(prdId.value, { title, description, benefit, whatsapp, price, imageUrls: images, active });
+        prdMsg.textContent = "Produto atualizado!";
+      } else {
+        const id = await addMemberProduct({ title, description, benefit, imageUrls: images, whatsapp, price });
+        await updateMemberProduct(id, { active });
+        prdMsg.textContent = `Produto salvo! ID: ${id}`;
+      }
+      prdNewBtn.classList.remove("d-none");
+      loadProducts();
+    } catch (err) { alert("Erro ao salvar produto: "+err.message); }
+  });
+
+  async function loadProducts() {
+    productsWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
+    try {
+      const snap = await getDocs(query(collection(db,"memberProducts"), orderBy("title")));
+      let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (!showInactiveProducts.checked) rows = rows.filter(r => r.active !== false);
+      if (!rows.length) { productsWrap.innerHTML = `<div class="col-12 text-center text-secondary">Nenhum produto.</div>`; return; }
+
+      productsWrap.innerHTML = rows.map(p => renderItemCard({
+        id:p.id, title:p.title, subtitle:p.benefit, desc:p.description, wpp:p.whatsapp, active:(p.active!==false),
+        price:p.price, images:p.imageUrls
+      }, "product")).join("");
+      attachProductCardHandlers(rows);
+    } catch { productsWrap.innerHTML = `<div class="col-12 text-center text-danger">Falha ao carregar.</div>`; }
+  }
+  function attachProductCardHandlers(rows){
+    document.querySelectorAll(".btn-edit-product").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        const id = e.target.dataset.id; const p = rows.find(x=>x.id===id); if(!p) return;
+        prdId.value=id; prdTitle.value=p.title||""; prdBenefit.value=p.benefit||""; prdDesc.value=p.description||"";
+        prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
+        prdImages.value=""; prdImagesUrls.value = Array.isArray(p.imageUrls)?p.imageUrls.join(", "):"";
+        prdFormTitle.textContent="Editar produto"; prdNewBtn.classList.remove("d-none");
+        window.scrollTo({ top: document.getElementById("pane-produtos").offsetTop-80, behavior:"smooth" });
+      });
+    });
+    document.querySelectorAll(".btn-toggle-product").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        try { await updateMemberProduct(id, { active: activating }); loadProducts(); }
+        catch(err){ alert("Erro ao atualizar: "+err.message); }
+      });
+    });
+  }
+  showInactiveProducts.addEventListener("change", loadProducts);
+
+  /* ===================== SERVIÇOS ===================== */
+  const svcId = document.getElementById("svcId");
+  const svcFormTitle = document.getElementById("svcFormTitle");
+  const svcNewBtn = document.getElementById("svcNewBtn");
+  const formService = document.getElementById("formService");
+  const svcTitle = document.getElementById("svcTitle");
+  const svcBenefit = document.getElementById("svcBenefit");
+  const svcDesc = document.getElementById("svcDesc");
+  const svcWpp = document.getElementById("svcWpp");
+  const svcActive = document.getElementById("svcActive");
+  const svcImage = document.getElementById("svcImage");
+  const svcImageUrl = document.getElementById("svcImageUrl");
+  const svcMsg = document.getElementById("svcMsg");
+  const servicesWrap = document.getElementById("servicesWrap");
+  const showInactiveServices = document.getElementById("showInactiveServices");
+
+  svcNewBtn.addEventListener("click", ()=>{ svcId.value=""; formService.reset(); svcActive.checked=true; svcFormTitle.textContent="Cadastrar serviço"; svcNewBtn.classList.add("d-none"); svcMsg.textContent=""; });
+
+  formService.addEventListener("submit", async (e)=>{
+    e.preventDefault(); svcMsg.textContent="";
+    const title=svcTitle.value.trim(), description=svcDesc.value.trim(), benefit=svcBenefit.value.trim(), whatsapp=svcWpp.value.trim(), active=svcActive.checked;
+    let imageUrl = svcImageUrl.value.trim();
+    if (svcImage.files?.length) { const [u] = await uploadMany([svcImage.files[0]], "uploads/services"); imageUrl = u; }
+    try {
+      if (svcId.value) { await updateMemberService(svcId.value,{title,description,benefit,whatsapp,imageUrl,active}); svcMsg.textContent="Serviço atualizado!"; }
+      else { const id = await addMemberService({title,description,benefit,imageUrl,whatsapp}); await updateMemberService(id,{active}); svcMsg.textContent=`Serviço salvo! ID: ${id}`; }
+      svcNewBtn.classList.remove("d-none"); loadServices();
+    } catch(err){ alert("Erro ao salvar serviço: "+err.message); }
+  });
+
+  async function loadServices() {
+    servicesWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
+    try {
+      const snap = await getDocs(query(collection(db,"memberServices"), orderBy("title")));
+      let rows = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      if (!showInactiveServices.checked) rows = rows.filter(r=>r.active!==false);
+      if (!rows.length){ servicesWrap.innerHTML=`<div class="col-12 text-center text-secondary">Nenhum serviço.</div>`; return; }
+      servicesWrap.innerHTML = rows.map(s => renderItemCard({
+        id:s.id, title:s.title, subtitle:s.benefit, desc:s.description, wpp:s.whatsapp, active:(s.active!==false),
+        images: s.imageUrl ? [s.imageUrl] : []
+      },"service")).join("");
+      attachServiceCardHandlers(rows);
+    } catch { servicesWrap.innerHTML = `<div class="col-12 text-center text-danger">Falha ao carregar.</div>`; }
+  }
+  function attachServiceCardHandlers(rows){
+    document.querySelectorAll(".btn-edit-service").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        const id = e.target.dataset.id; const s = rows.find(x=>x.id===id); if(!s) return;
+        svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
+        svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false); svcImage.value=""; svcImageUrl.value=s.imageUrl||"";
+        svcFormTitle.textContent="Editar serviço"; svcNewBtn.classList.remove("d-none");
+        window.scrollTo({ top: document.getElementById("pane-servicos").offsetTop-80, behavior:"smooth" });
+      });
+    });
+    document.querySelectorAll(".btn-toggle-service").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        try { await updateMemberService(id, { active: activating }); loadServices(); }
+        catch(err){ alert("Erro ao atualizar: "+err.message); }
+      });
+    });
+  }
+  showInactiveServices.addEventListener("change", loadServices);
+
+  /* ===================== CLASSIFICADOS ===================== */
+  const clsId = document.getElementById("clsId");
+  const clsFormTitle = document.getElementById("clsFormTitle");
+  const clsNewBtn = document.getElementById("clsNewBtn");
+  const formClassif = document.getElementById("formClassif");
+  const clsTitle = document.getElementById("clsTitle");
+  const clsPrice = document.getElementById("clsPrice");
+  const clsDesc = document.getElementById("clsDesc");
+  const clsWpp = document.getElementById("clsWpp");
+  const clsImages = document.getElementById("clsImages");
+  const clsMsg = document.getElementById("clsMsg");
+  const classifWrap = document.getElementById("classifWrap");
+  const showInactiveClassif = document.getElementById("showInactiveClassif");
+  const showUnapprovedOnly = document.getElementById("showUnapprovedOnly");
+
+  clsNewBtn.addEventListener("click", ()=>{ clsId.value=""; formClassif.reset(); clsFormTitle.textContent="Cadastrar classificado"; clsNewBtn.classList.add("d-none"); clsMsg.textContent=""; });
+
+  formClassif.addEventListener("submit", async (e)=>{
+    e.preventDefault(); clsMsg.textContent="";
+    const title=clsTitle.value.trim(), description=clsDesc.value.trim(), price=clsPrice.value?Number(clsPrice.value):null, whatsapp=clsWpp.value.trim();
+    let images = [];
+    if (clsImages.files?.length) images = images.concat(await uploadMany([...clsImages.files], "uploads/classifieds"));
+    try {
+      if (clsId.value) {
+        await updateDoc(doc(db,"memberClassifieds",clsId.value), {
+          title, description, price, whatsapp, imageUrls: images,
+          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+        });
+        clsMsg.textContent="Classificado atualizado!";
+      } else {
+        const ref = await addDoc(collection(db,"memberClassifieds"), {
+          title, description, price, whatsapp, imageUrls: images,
+          active: true,        // pode nascer ativo
+          approved: false,     // nasce PENDENTE (aprovação via botão no card)
+          createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp(),
+          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+        });
+        clsMsg.textContent = `Classificado salvo! ID: ${ref.id}`;
+      }
+      clsNewBtn.classList.remove("d-none"); loadClassif();
+    } catch(err){ alert("Erro ao salvar classificado: "+err.message); }
+  });
+
+  async function loadClassif() {
+    classifWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
+    try {
+      const snap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("title")));
+      let rows = snap.docs.map(d=>({id:d.id, ...d.data()}));
+
+      if (!showInactiveClassif.checked) rows = rows.filter(r=>r.active!==false);
+      if (showUnapprovedOnly.checked) rows = rows.filter(r=>r.approved!==true);
+
+      if (!rows.length){ classifWrap.innerHTML=`<div class="col-12 text-center text-secondary">Nenhum classificado.</div>`; return; }
+
+      classifWrap.innerHTML = rows.map(c => renderItemCard({
+        id:c.id, title:c.title, subtitle:c.price!=null?fmt.format(c.price):"", desc:c.description, wpp:c.whatsapp, active:(c.active!==false),
+        images: Array.isArray(c.imageUrls)?c.imageUrls:[], approved:(c.approved===true)
+      }, "classif", true)).join("");
+      attachClassifCardHandlers(rows);
+    } catch { classifWrap.innerHTML = `<div class="col-12 text-center text-danger">Falha ao carregar.</div>`; }
+  }
+  function attachClassifCardHandlers(rows){
+    document.querySelectorAll(".btn-edit-classif").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        const id = e.target.dataset.id; const c = rows.find(x=>x.id===id); if(!c) return;
+        clsId.value=id; clsTitle.value=c.title||""; clsDesc.value=c.description||""; clsWpp.value=c.whatsapp||"";
+        clsPrice.value=c.price??""; clsImages.value="";
+        clsFormTitle.textContent="Editar classificado"; clsNewBtn.classList.remove("d-none");
+        window.scrollTo({ top: document.getElementById("pane-classificados").offsetTop-80, behavior:"smooth" });
+      });
+    });
+    document.querySelectorAll(".btn-toggle-classif").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        try { await updateDoc(doc(db,"memberClassifieds",id), { active: activating }); loadClassif(); }
+        catch(err){ alert("Erro ao atualizar: "+err.message); }
+      });
+    });
+    document.querySelectorAll(".btn-approve-classif").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.target.dataset.id;
+        const action=e.target.dataset.action; // approve|reject
+        try {
+          await updateDoc(doc(db,"memberClassifieds",id), {
+            approved: action==="approve",
+            updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+          });
+          loadClassif();
+        }
+        catch(err){ alert("Erro ao aprovar/reprovar: "+err.message); }
+      });
+    });
+  }
+  showInactiveClassif.addEventListener("change", loadClassif);
+  showUnapprovedOnly.addEventListener("change", loadClassif);
+
+  // Render genérico de card (prod, svc, classif)
+  function renderItemCard(item, kind, showApprove=false) {
+    const imgs = (item.images||[]).slice(0,6).map(u=>`<img class="thumb me-2 mb-2" src="${u}" alt="">`).join("");
+    const statusBadge = item.active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>';
+    const approveBadge = (kind==="classif")
+      ? (item.approved ? '<span class="badge bg-info ms-2">Aprovado</span>' : '<span class="badge bg-warning text-dark ms-2">Pendente</span>')
+      : '';
+    const subtitle = (kind==="product" && item.price!=null) ? `${item.subtitle ? item.subtitle+' • ' : ''}${fmt.format(item.price)}`
+                     : (item.subtitle || "");
+    const editClass = kind==="product" ? "btn-edit-product"
+                    : kind==="service" ? "btn-edit-service"
+                    : "btn-edit-classif";
+    const toggleClass = kind==="product" ? "btn-toggle-product"
+                      : kind==="service" ? "btn-toggle-service"
+                      : "btn-toggle-classif";
+    const toggleAction = item.active ? "deactivate" : "activate";
+    const toggleText = item.active ? "Inativar" : "Ativar";
+
+    const approveBtns = showApprove ? `
+      <button class="btn btn-sm btn-outline-success btn-approve-classif" data-action="approve" data-id="${item.id}">Aprovar</button>
+      <button class="btn btn-sm btn-outline-danger btn-approve-classif" data-action="reject" data-id="${item.id}">Reprovar</button>
+    ` : "";
+
+    return `
+      <div class="col-md-6 col-xl-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">${item.title || "—"}</h6>
+                <div class="small text-secondary">${subtitle || "&nbsp;"}</div>
+              </div>
+              <div>${statusBadge}${approveBadge}</div>
+            </div>
+            <p class="mt-2 mb-2">${item.desc || ""}</p>
+            <div class="d-flex flex-wrap">${imgs}</div>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="small text-secondary">WhatsApp: ${item.wpp || "—"}</div>
+              <div class="d-flex gap-2">
+                ${approveBtns}
+                <button class="btn btn-sm btn-outline-primary ${editClass}" data-id="${item.id}">Editar</button>
+                <button class="btn btn-sm ${item.active?'btn-outline-secondary':'btn-outline-success'} ${toggleClass}" data-id="${item.id}" data-action="${toggleAction}">${toggleText}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // Inicializações
+  const productsInit = () => loadProducts();
+  const servicesInit = () => loadServices();
+  const classifInit  = () => loadClassif();
+  productsInit(); servicesInit(); classifInit();
+</script>
+</body>
+</html>

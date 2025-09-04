@@ -39,25 +39,26 @@
       <div class="card-body p-4">
         <h1 class="h4 text-center mb-4 text-primary">Área do Associado</h1>
 
-        <!-- ALTERADO: Campo de CPF no lugar do E-mail -->
+        <!-- CPF -->
         <div class="mb-3">
           <label for="cpf" class="form-label">CPF</label>
-          <input type="text" id="cpf" class="form-control" placeholder="000.000.000-00" 
-          inputmode="numeric" autocomplete="username" maxlength="14"/>
+          <input type="text" id="cpf" class="form-control" placeholder="000.000.000-00"
+                 inputmode="numeric" autocomplete="username" maxlength="14"/>
         </div>
 
         <div class="mb-3">
           <label for="password" class="form-label">Senha</label>
-          <input type="password" id="password" class="form-control" 
-          placeholder="Sua senha" autocomplete="current-password" />
+          <input type="password" id="password" class="form-control"
+                 placeholder="Sua senha" autocomplete="current-password" />
         </div>
 
         <button id="loginBtn" class="btn btn-primary w-100">Entrar</button>
         <p id="msg" class="text-muted mt-3 text-center"></p>
 
-        <a href="signup.html" class="btn btn-outline-secondary mt-2 w-100">Criar um conta</a>
-
+        <a href="signup.html" class="btn btn-outline-secondary mt-2 w-100">Criar uma conta</a>
         <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -70,110 +71,206 @@
   </div>
 </footer>
 
-  <script type="module">
-    import { doLogin } from "./firebase.js";
+<script type="module">
+  // Tente importar tudo do seu firebase.js. Se algum item não existir, ajusto abaixo.
+  import * as fb from "./firebase.js";
 
-    // ALTERADO: agora usamos cpfEl no lugar de emailEl
-    const cpfEl  = document.getElementById("cpf");
-    const passEl = document.getElementById("password");
-    const btn    = document.getElementById("loginBtn");
-    const msg    = document.getElementById("msg");
+  // ========= Helpers DOM =========
+  const cpfEl  = document.getElementById("cpf");
+  const passEl = document.getElementById("password");
+  const btn    = document.getElementById("loginBtn");
+  const msg    = document.getElementById("msg");
 
-    // ========= Utilitários de CPF (NOVO) =========
-    function onlyDigits(str) {
-      return (str || "").replace(/\D/g, "");
+  // ========= Utilitários de CPF =========
+  function onlyDigits(str){ return (str||"").replace(/\D/g,""); }
+  function formatCPF(value){
+    const d = onlyDigits(value).slice(0,11);
+    const p1 = d.slice(0,3), p2 = d.slice(3,6), p3 = d.slice(6,9), p4 = d.slice(9,11);
+    let out = "";
+    if(p1) out = p1;
+    if(p2) out += "." + p2;
+    if(p3) out += "." + p3;
+    if(p4) out += "-" + p4;
+    return out;
+  }
+  function isValidCPF(cpfDigits){
+    const cpf = onlyDigits(cpfDigits);
+    if(!cpf || cpf.length!==11) return false;
+    if(/^(\d)\1{10}$/.test(cpf)) return false;
+    let sum=0; for(let i=0;i<9;i++) sum += parseInt(cpf[i],10)*(10-i);
+    let d1=(sum*10)%11; if(d1===10)d1=0;
+    if(d1!==parseInt(cpf[9],10)) return false;
+    sum=0; for(let i=0;i<10;i++) sum += parseInt(cpf[i],10)*(11-i);
+    let d2=(sum*10)%11; if(d2===10)d2=0;
+    if(d2!==parseInt(cpf[10],10)) return false;
+    return true;
+  }
+  function cpfToEmail(cpfDigits){
+    const clean = onlyDigits(cpfDigits);
+    return `${clean}@cpf.local`;
+  }
+  cpfEl.addEventListener("input", () => {
+    const posBefore = cpfEl.selectionStart;
+    const before = cpfEl.value;
+    cpfEl.value = formatCPF(cpfEl.value);
+    const delta = cpfEl.value.length - before.length;
+    const newPos = Math.max(0, (posBefore||0)+delta);
+    try { cpfEl.selectionStart = cpfEl.selectionEnd = newPos; } catch(_) {}
+  });
+
+  // ========= Persistência: manter logado até sair =========
+  // Usa persistência LOCAL (sobrevive a recarregamentos)
+  async function ensureLocalPersistence(){
+    try {
+      if (fb?.setPersistence && fb?.browserLocalPersistence && fb?.auth) {
+        await fb.setPersistence(fb.auth, fb.browserLocalPersistence);
+      }
+    } catch (e) {
+      console.warn("Falha ao aplicar persistência local:", e);
+    }
+  }
+
+  // ========= Derivar status do perfil para decidir rota =========
+  // Aceita vários formatos de campos para ficar resiliente ao seu schema.
+  function deriveStatus(p){
+    const statusStr = String(p.status || p.situacao || p.sit || "")
+      .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+    const pendingByStatus  = /pend/.test(statusStr);
+    const inactiveByStatus = pendingByStatus || /inativ|suspens|bloquead/.test(statusStr);
+
+    // status manda: se indicar pendência/inativo => active = false
+    let active = !inactiveByStatus;
+
+    // flags booleanas nunca reativam; apenas podem derrubar
+    if (typeof p.isActive === "boolean") active = active && p.isActive;
+    if (typeof p.ativo    === "boolean") active = active && p.ativo;
+
+    const pending =
+      pendingByStatus ||
+      !!(p.pendenciasFinanceiras ?? p.hasPendingPayments ?? p.pendingPayments ?? p.pendencias ?? false);
+
+    return { active, pending };
+  }
+
+  // ========= Redirecionamento padronizado =========
+  function goToPay(reason="pending"){
+    const url = new URL("./pay.html", window.location.href);
+    url.searchParams.set("reason", reason);
+    window.location.href = url.toString();
+  }
+  function goToAssociado(){
+    window.location.href = "./pg_associado.html";
+  }
+  function goToSignup(){
+    window.location.href = "./signup.html";
+  }
+
+  // ========= Busca do perfil no Firestore =========
+  async function fetchUserProfile(uid){
+    if (!fb?.db || !fb?.doc || !fb?.getDoc) return null;
+    try {
+      const ref = fb.doc(fb.db, "users", uid);
+      const snap = await fb.getDoc(ref);
+      return snap.exists() ? snap.data() : null;
+    } catch (e) {
+      console.warn("Erro ao buscar perfil do usuário:", e);
+      return null;
+    }
+  }
+
+  // ========= Lógica de decisão pós-auth =========
+  async function routeAuthenticatedUser(user){
+    // Se não houver doc, consideramos "sem registro" -> signup
+    const profile = await fetchUserProfile(user.uid);
+    if (!profile) {
+      goToSignup();
+      return;
     }
 
-    function formatCPF(value) {
-      const d = onlyDigits(value).slice(0, 11);
-      const p1 = d.slice(0,3);
-      const p2 = d.slice(3,6);
-      const p3 = d.slice(6,9);
-      const p4 = d.slice(9,11);
-      let out = "";
-      if (p1) out = p1;
-      if (p2) out += "." + p2;
-      if (p3) out += "." + p3;
-      if (p4) out += "-" + p4;
-      return out;
+    const { active, pending } = deriveStatus(profile);
+
+    if (!active) {
+      goToPay("inactive");
+      return;
+    }
+    if (pending) {
+      goToPay("pending");
+      return;
     }
 
-    function isValidCPF(cpfDigits) {
-      const cpf = onlyDigits(cpfDigits);
-      if (!cpf || cpf.length !== 11) return false;
-      if (/^(\d)\1{10}$/.test(cpf)) return false;
-      let sum = 0;
-      for (let i = 0; i < 9; i++) sum += parseInt(cpf[i], 10) * (10 - i);
-      let d1 = (sum * 10) % 11; if (d1 === 10) d1 = 0;
-      if (d1 !== parseInt(cpf[9], 10)) return false;
-      sum = 0;
-      for (let i = 0; i < 10; i++) sum += parseInt(cpf[i], 10) * (11 - i);
-      let d2 = (sum * 10) % 11; if (d2 === 10) d2 = 0;
-      if (d2 !== parseInt(cpf[10], 10)) return false;
-      return true;
-    }
+    // Sem pendências e ativo
+    goToAssociado();
+  }
 
-    function cpfToEmail(cpfDigits) {
-      const clean = onlyDigits(cpfDigits);
-      return `${clean}@cpf.local`;
-    }
-
-    // Formatação automática conforme digita (NOVO)
-    cpfEl.addEventListener("input", () => {
-      const posBefore = cpfEl.selectionStart;
-      const valueBefore = cpfEl.value;
-      cpfEl.value = formatCPF(cpfEl.value);
-      const delta = cpfEl.value.length - valueBefore.length;
-      const newPos = Math.max(0, (posBefore || 0) + delta);
-      try {
-        cpfEl.selectionStart = cpfEl.selectionEnd = newPos;
-      } catch (_) { /* alguns browsers podem não permitir ajuste */ }
-    });
-
-    // ========= Fluxo de Login (ajustado) =========
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      msg.textContent = "Entrando...";
-      try {
-        const cpfRaw = cpfEl.value;
-        const senha  = passEl.value;
-
-        // Validação de CPF antes de prosseguir (NOVO)
-        if (!isValidCPF(cpfRaw)) {
-          msg.textContent = "";
-          alert("CPF inválido. Verifique e tente novamente.");
-          cpfEl.focus();
-          return;
-        }
-
-        // Mapeia CPF -> e-mail fictício para usar o Auth por e-mail/senha
-        const emailFake = cpfToEmail(cpfRaw);
-
-        // Mantém seu doLogin sem mudanças
-        const role = await doLogin(emailFake, senha);
-
-        // Redirecione conforme o papel, se quiser.
-        if (role === "admin") {
-          window.location.href = "./dashboard.html"; // ou ./admin.html
-        } else if (role === "operacional") {
-          window.location.href = "./dashboard.html"; // ou ./operacional.html
-        } else {
-          window.location.href = "./dashboard.html";
-        }
-      } catch (e) {
-        msg.textContent = "";
-        alert("Erro no login: " + (e?.message || e));
-      } finally {
-        btn.disabled = false;
+  // ========= Se já estiver logado ao abrir a página, pula o login =========
+  if (fb?.onAuthStateChanged && fb?.auth) {
+    fb.onAuthStateChanged(fb.auth, (user) => {
+      if (user) {
+        // Usuário autenticado: decide rota pelo status
+        routeAuthenticatedUser(user);
       }
     });
+  }
 
-    // Atalho: tecla Enter para enviar (ALTERADO: usa cpfEl)
-    [cpfEl, passEl].forEach(el => {
-      el.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter") btn.click();
-      });
+  // ========= Fluxo de Login =========
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    msg.textContent = "Entrando...";
+    try {
+      const cpfRaw = cpfEl.value;
+      const senha  = passEl.value;
+
+      if (!isValidCPF(cpfRaw)) {
+        msg.textContent = "";
+        alert("CPF inválido. Verifique e tente novamente.");
+        cpfEl.focus();
+        return;
+      }
+
+      const email = cpfToEmail(cpfRaw);
+
+      // Garante persistência local antes do sign-in
+      await ensureLocalPersistence();
+
+      // Se existir doLogin no seu firebase.js, use-o; senão, usa signInWithEmailAndPassword
+      if (typeof fb?.doLogin === "function") {
+        await fb.doLogin(email, senha); // assume que faz signIn internamente
+      } else if (fb?.signInWithEmailAndPassword && fb?.auth) {
+        await fb.signInWithEmailAndPassword(fb.auth, email, senha);
+      } else {
+        throw new Error("Funções de login não disponíveis. Exporte-as em firebase.js.");
+      }
+
+      // Pega usuário atual e decide rota
+      const user = fb?.auth?.currentUser;
+      if (user) {
+        await routeAuthenticatedUser(user);
+      } else {
+        // fallback: aguarda onAuthStateChanged fazer o redirecionamento
+        msg.textContent = "Autenticado. Redirecionando...";
+      }
+    } catch (e) {
+      msg.textContent = "";
+      const code = e?.code || "";
+      // Usuário inexistente -> criar conta
+      if (code === "auth/user-not-found") {
+        goToSignup();
+        return;
+      }
+      // Senha errada ou outros erros
+      alert("Erro no login: " + (e?.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // Enter para enviar
+  [cpfEl, passEl].forEach(el => {
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") btn.click();
     });
-  </script>
+  });
+</script>
 </body>
 </html>

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Área do Associado — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Área do associado com benefícios, produtos e classificados.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css">
+  <style>
+    :root{ --brand:#264653; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .badge-role{ background:var(--accent); }
+    .card{ border:1px solid rgba(0,0,0,.06); border-radius:14px; }
+    .card:hover{ transform:translateY(-2px); transition:.2s ease; box-shadow:0 8px 24px rgba(0,0,0,.08); }
+    .thumb{ height:140px; object-fit:cover; border-top-left-radius:14px; border-top-right-radius:14px; }
+    .grid{ row-gap:1rem; }
+    .badge-type{ text-transform:uppercase; letter-spacing:.02em; }
+    .search-wrap{ position:relative; }
+    .search-wrap input{ padding-left:2.25rem; }
+    .search-wrap .ico{ position:absolute; left:.75rem; top:50%; transform:translateY(-50%); opacity:.55; }
+    .empty-state{ border:1px dashed #ced4da; border-radius:.75rem; padding:1.25rem; text-align:center; color:#6c757d; }
+    .chip{ border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:999px; padding:.35rem .75rem; font-size:.85rem; display:inline-flex; gap:.5rem; align-items:center; }
+    .chip .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
+    .dot-ok{ background:#28a745; } .dot-warn{ background:#ffc107; } .dot-bad{ background:#dc3545; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+        <li class="nav-item d-none" id="dashboardBtn"><a class="btn btn-warning ms-lg-2" href="dashboard.html">Dashboard</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="bg-light py-4 border-bottom">
+  <div class="container d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+    <div>
+      <h1 class="h4 mb-1">Área do Associado</h1>
+      <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">...</strong></div>
+      <div class="mt-1"><span id="memberRole" class="badge badge-role d-none text-uppercase"></span></div>
+      <div class="mt-2 d-flex flex-wrap gap-2">
+        <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">Situação: —</span></span>
+        <span id="chipNextDue" class="chip d-none">Próxima anuidade: <strong id="chipNextDueText" class="ms-1">—</strong></span>
+        <span class="chip" id="chipCpfText">Seu número de associado é o próprio CPF.</span>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary" href="conta.html">Trocar senha</a>
+      <button id="logoutBtn" class="btn btn-primary">Sair</button>
+    </div>
+  </div>
+</header>
+
+<main class="container my-4">
+
+  <!-- Busca + Abas -->
+  <section class="mb-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md-7">
+        <div class="search-wrap">
+          <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="searchInput" type="search" class="form-control" placeholder="Buscar produtos, serviços e classificados...">
+        </div>
+      </div>
+      <div class="col-12 col-md-5 text-md-end">
+        <ul class="nav nav-pills justify-content-md-end" id="typeTabs">
+          <li class="nav-item"><button class="nav-link active" data-type="all">Todos <span class="badge text-bg-light ms-1" id="countAll">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-type="service">Serviços <span class="badge text-bg-light ms-1" id="countServices">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-type="product">Produtos <span class="badge text-bg-light ms-1" id="countProducts">0</span></button></li>
+          <li class="nav-item"><button class="nav-link" data-type="classified">Classificados <span class="badge text-bg-light ms-1" id="countClassifieds">0</span></button></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grid unificado -->
+  <section>
+    <div id="listLoading" class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <div class="mt-2 text-secondary">Carregando itens...</div>
+    </div>
+
+    <div id="listGrid" class="row grid d-none"></div>
+    <div id="listEmpty" class="empty-state d-none">Nada encontrado para seu filtro.</div>
+    <div id="listError" class="alert alert-danger d-none mt-3"></div>
+  </section>
+
+  <!-- (REMOVIDA) Situação financeira da unidade -->
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script type="module">
+  import { auth, db } from "./firebase.js";
+  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    collection, getDocs, query, orderBy, doc, getDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // ---------- Utils ----------
+  const fmtDate = (ts) => {
+    if (!ts) return "—";
+    try { const d = ts?.toDate ? ts.toDate() : new Date(ts); return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d); }
+    catch { return "—"; }
+  };
+  const fmtCPF = (cpfRaw) => {
+    const n = (cpfRaw || "").replace(/\D/g, ""); if (n.length!==11) return null;
+    return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");
+  };
+  const wpp = (phone, text) => {
+    const p = (phone||"").replace(/\D/g,""); const msg = encodeURIComponent(text||"");
+    return p ? `https://wa.me/${p}?text=${msg}` : `https://wa.me/?text=${msg}`;
+  };
+  const debouncer = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+  const norm = (s) => (s||"").toString().normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase();
+
+  // ---------- DOM ----------
+  const dashboardBtn = document.getElementById("dashboardBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const memberNameEl = document.getElementById("memberName");
+  const memberRoleEl = document.getElementById("memberRole");
+  const chipCpfText = document.getElementById("chipCpfText");
+  const chipPayStatus = document.getElementById("chipPayStatus");
+  const chipPayText = document.getElementById("chipPayText");
+  const chipPayDot = document.getElementById("chipPayDot");
+  const chipNextDue = document.getElementById("chipNextDue");
+  const chipNextDueText = document.getElementById("chipNextDueText");
+
+  const searchInput = document.getElementById("searchInput");
+  const typeTabs = document.getElementById("typeTabs");
+  const listLoading = document.getElementById("listLoading");
+  const listGrid = document.getElementById("listGrid");
+  const listEmpty = document.getElementById("listEmpty");
+  const listError = document.getElementById("listError");
+
+  const countAll = document.getElementById("countAll");
+  const countServices = document.getElementById("countServices");
+  const countProducts = document.getElementById("countProducts");
+  const countClassifieds = document.getElementById("countClassifieds");
+
+  // ---------- State ----------
+  let currentType = "all"; // all | service | product | classified
+  let items = []; // [{id,type,title,description,images,benefit,price,whatsapp,createdAt}]
+  let memberName = "associado";
+  let metaPhones = { salesPhone:"", financePhone:"" };
+
+  // ---------- Auth + Profile ----------
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = "login.html"; return; }
+
+    try {
+      const uref = doc(db, "users", user.uid);
+      const usnap = await getDoc(uref);
+      const u = usnap.exists() ? usnap.data() : {};
+      const role = (u.role || "associado").toLowerCase();
+      memberName = u.fullName || user.displayName || "associado";
+      memberNameEl.textContent = memberName;
+      memberRoleEl.textContent = role; memberRoleEl.classList.remove("d-none");
+      if (role === "admin") dashboardBtn.classList.remove("d-none");
+
+      const cpfFmt = fmtCPF(u.cpf);
+      chipCpfText.textContent = cpfFmt
+        ? `Seu número de associado é o seu CPF: ${cpfFmt}`
+        : `Seu número de associado é o próprio CPF.`;
+
+      metaPhones.salesPhone = u.salesPhone || "";
+      metaPhones.financePhone = u.financePhone || "";
+
+      // chips de pagamento (resumo)
+      loadPaymentChips(user.uid);
+
+      // carrega conteúdo unificado
+      await loadAllContent();
+      bindUI();
+      render();
+    } catch (e) {
+      console.error(e);
+      listLoading.classList.add("d-none");
+      listError.textContent = "Não foi possível carregar seus dados.";
+      listError.classList.remove("d-none");
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    try { await signOut(auth); } finally { window.location.href = "login.html"; }
+  });
+
+  async function loadPaymentChips(uid){
+    try{
+      const sumRef = doc(db, "users", uid, "finance", "summary");
+      const sumSnap = await getDoc(sumRef);
+      const summary = sumSnap.exists() ? sumSnap.data() : {};
+      const invRef = collection(db, "users", uid, "finance", "invoices");
+      const qRef = query(invRef, orderBy("dueDate", "desc"));
+      const invSnap = await getDocs(qRef);
+      const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+      let status = "Em dia";
+      const now = Date.now();
+      const hasOverdue = invoices.some(i=>{
+        const dueMs = i.dueDate?.toMillis ? i.dueDate.toMillis() : new Date(i.dueDate).getTime();
+        return (i.status||"").toLowerCase()!=="pago" && dueMs < now;
+      });
+      const hasOpen = invoices.some(i => (i.status||"").toLowerCase()==="em_aberto");
+      if (hasOverdue) status = "Atrasada"; else if (hasOpen) status = "Anuidade pendente";
+
+      const nextDue = summary.nextDue || invoices
+        .filter(i => (i.status||"").toLowerCase()!=="pago")
+        .map(i=>i.dueDate)
+        .sort((a,b)=>(a?.toMillis?.()??new Date(a).getTime()) - (b?.toMillis?.()??new Date(b).getTime()))[0];
+
+      chipPayStatus.classList.remove("d-none");
+      chipPayText.textContent = `Situação: ${status}`;
+      chipPayDot.classList.remove('dot-ok','dot-warn','dot-bad');
+      if (status==="Em dia") chipPayDot.classList.add('dot-ok');
+      else if (status==="Anuidade pendente") chipPayDot.classList.add('dot-warn');
+      else chipPayDot.classList.add('dot-bad');
+
+      chipNextDue.classList.remove("d-none");
+      chipNextDueText.textContent = fmtDate(nextDue);
+    }catch(e){ console.warn("chips pagamento:", e); }
+  }
+
+  // ---------- Load unified content ----------
+  async function loadAllContent(){
+    listError.classList.add("d-none");
+    listLoading.classList.remove("d-none");
+    items = [];
+
+    try{
+      // Serviços
+      try{
+        const sSnap = await getDocs(query(collection(db,"memberServices")));
+        const svc = sSnap.docs.map(d=>{
+          const v = d.data();
+          return {
+            id:d.id, type:"service",
+            title:v.title||"Serviço",
+            description:v.description||"",
+            benefit:v.benefit||"",
+            images:[v.imageUrl||"assets/img/placeholder_service.jpg"],
+            whatsapp:v.whatsapp||"",
+            createdAt:v.createdAt||null
+          };
+        });
+        items.push(...svc);
+      }catch(e){ console.warn("services:", e); }
+
+      // Produtos
+      try{
+        const pSnap = await getDocs(query(collection(db,"memberProducts")));
+        const prd = pSnap.docs.map(d=>{
+          const v = d.data();
+          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_product.jpg"];
+          return {
+            id:d.id, type:"product",
+            title:v.title||"Produto",
+            description:v.description||"",
+            benefit:v.benefit||"",
+            price:v.amount||v.price||null,
+            images:imgs, whatsapp:v.whatsapp||metaPhones.salesPhone||"",
+            createdAt:v.createdAt||null
+          };
+        });
+        items.push(...prd);
+      }catch(e){ console.warn("products:", e); }
+
+      // Classificados
+      try{
+        const cSnap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("createdAt","desc")));
+        const cls = cSnap.docs.map(d=>{
+          const v = d.data();
+          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_classified.jpg"];
+          return {
+            id:d.id, type:"classified",
+            title:v.title||"Classificado",
+            description:v.description||"",
+            price:v.amount||v.price||null,
+            images:imgs, whatsapp:v.whatsapp||v.contactPhone||"",
+            createdAt:v.createdAt||null, location:v.location||""
+          };
+        });
+        items.push(...cls);
+      }catch(e){ console.warn("classifieds:", e); }
+
+      // Sort: mais recentes primeiro se existir createdAt, senão por título
+      items.sort((a,b)=>{
+        const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (tb!==ta) return tb-ta;
+        return (a.title||"").localeCompare(b.title||"");
+      });
+
+      // Contagens
+      refreshCounts();
+
+      listLoading.classList.add("d-none");
+      listGrid.classList.remove("d-none");
+    }catch(e){
+      console.error(e);
+      listLoading.classList.add("d-none");
+      listError.textContent = "Não foi possível carregar os itens. Tente novamente.";
+      listError.classList.remove("d-none");
+    }
+  }
+
+  function refreshCounts(){
+    const cAll = items.length;
+    const cS = items.filter(i=>i.type==="service").length;
+    const cP = items.filter(i=>i.type==="product").length;
+    const cC = items.filter(i=>i.type==="classified").length;
+    countAll.textContent = cAll; countServices.textContent=cS; countProducts.textContent=cP; countClassifieds.textContent=cC;
+  }
+
+  // ---------- Render ----------
+  function render(){
+    const q = norm(searchInput.value);
+    const filtered = items.filter(i=>{
+      // filtro por tipo
+      if (currentType!=="all" && i.type!==currentType) return false;
+      // busca
+      if (!q) return true;
+      const hay = [
+        i.title, i.description, i.benefit, i.location,
+        (i.price!=null? String(i.price): "")
+      ].map(norm).join(" ");
+      return hay.includes(q);
+    });
+
+    listGrid.innerHTML = filtered.map((i, idx)=>card(i, idx)).join("");
+    listEmpty.classList.toggle("d-none", filtered.length>0);
+  }
+
+  function card(i, idx){
+    const badge = i.type==="service" ? "Serviço"
+                : i.type==="product" ? "Produto"
+                : "Classificado";
+    const badgeClass = i.type==="service" ? "text-bg-info"
+                      : i.type==="product" ? "text-bg-primary"
+                      : "text-bg-secondary";
+    const img = (i.images&&i.images[0]) || "assets/img/placeholder.jpg";
+    const price = (i.price!=null) ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` : "";
+    const benefit = i.benefit ? `<span class="badge text-bg-success me-1">Benefício: ${i.benefit}</span>` : "";
+    const btnLabel = i.type==="service" ? "Falar no WhatsApp"
+                    : i.type==="product" ? "Falar com Vendas"
+                    : "Falar com o Anunciante";
+    const msg = `Olá! Sou o ${memberName} do Clube do Cavalo de Bonfim MG e tenho interesse em "${i.title}". Pode me ajudar?`;
+    const link = wpp(i.whatsapp, msg);
+
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100">
+          <img src="${img}" class="thumb w-100" alt="${i.title}">
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start">
+              <h6 class="mb-1">${i.title}</h6>
+              <span class="badge badge-type ${badgeClass}">${badge}</span>
+            </div>
+            <p class="small text-secondary mb-2">${i.description||""}</p>
+            ${benefit}
+            ${price}
+            <a class="btn btn-sm btn-primary mt-auto" href="${link}" target="_blank" rel="noopener">${btnLabel}</a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------- UI bindings ----------
+  function bindUI(){
+    // tabs
+    typeTabs.querySelectorAll("button.nav-link").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        typeTabs.querySelectorAll("button.nav-link").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        currentType = btn.getAttribute("data-type");
+        render();
+      });
+    });
+    // search
+    searchInput.addEventListener("input", debouncer(()=>render(), 200));
+  }
+</script>
+</body>
+</html>
