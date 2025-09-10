@@ -3,74 +3,143 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Anti-cache leve para CSS/imagens -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <title>Painel Administração — Clube do Cavalo - Bonfim MG</title>
   <meta name="description" content="Gestão de associados, produtos, serviços e classificados.">
+
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/custom.css">
+
+  <!-- Se tiver um custom.css, mantenha (opcional) -->
+  <link rel="stylesheet" href="assets/css/custom.css?v=op-2025-09-10a">
+
   <style>
-    .bg-primary { background-color: #264653 !important; }
-    .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
-    .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
-    .text-primary { color: #264653 !important; }
-    .badge-role { background:#2a9d8f; }
-    .form-help { font-size:.875rem; color:#6c757d; }
-    .thumb { width: 72px; height: 72px; object-fit: cover; border-radius: .5rem; }
-    .card h6 { margin-bottom:.25rem; }
+    :root{
+      --brand:#111279;
+      --accent:#2a9d8f;
+    }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+
+    /* Navbar – evita quebra no mobile e garante botão alinhado à direita */
+    .navbar .container{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:.75rem;
+    }
+    .navbar-brand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Header compacto e sem espaço sobrando */
+    header { background:#f8f9fa; border-bottom:1px solid #e9ecef; }
+    header .container{ padding-top:1rem; padding-bottom:1rem; }
+    @media (min-width:768px){
+      header .container{ padding-top:1.25rem; padding-bottom:1.25rem; }
+    }
+
+    /* Tabs coláveis (ficam no topo ao rolar) */
+    .tabs-sticky{
+      position:sticky; top:56px; /* altura aproximada da navbar no mobile */
+      z-index: 1020; background:#fff; border-bottom:1px solid #e9ecef;
+    }
+    @media (min-width:992px){
+      .tabs-sticky{ top:64px; }
+    }
+
+    /* Cards e thumbs */
+    .badge-role{ background:var(--accent); }
+    .form-help{ font-size:.875rem; color:#6c757d; }
+    .thumb{ width:72px; height:72px; object-fit:cover; border-radius:.5rem; }
+    .card h6{ margin-bottom:.25rem; }
+
+    /* Layout dos controles nas listas (evita “buracos” no mobile) */
+    .toolbar-wrap{
+      display:flex; flex-direction:column; gap:.5rem;
+    }
+    @media (min-width:992px){
+      .toolbar-wrap{ flex-direction:row; align-items:center; justify-content:space-between; }
+    }
+
+    /* Espaçamento geral do main (sem sobras) */
+    main.container{
+      padding-top:1rem; padding-bottom:1.25rem;
+    }
+
+    /* Inputs grandes no mobile para facilitar toque */
+    @media (max-width:575.98px){
+      input.form-control, textarea.form-control, select.form-select{
+        font-size:16px; /* evita zoom no iOS */
+      }
+    }
   </style>
 </head>
 <body>
+
+<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container">
-    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+            aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
-        
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item">
+          <a class="nav-link" href="pg_associado.html">Área do Associado</a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
 
-<header class="bg-light py-4 border-bottom">
+<!-- HEADER -->
+<header>
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
     <div>
-      <h1 class="h3 mb-1">Painel de Administração</h1>
+      <h1 class="h4 h3-md mb-1">Painel de Administração</h1>
       <p class="text-secondary mb-0">Gerencie associados, produtos, serviços e classificados.</p>
     </div>
     <div class="text-end">
       <div class="small">Logado como: <strong id="opName">—</strong></div>
-      <span id="opRole" class="badge badge-role d-none">admin</span>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
     </div>
   </div>
 </header>
 
-<main class="container my-4">
+<!-- TABS (sticked) -->
+<div class="tabs-sticky">
+  <div class="container">
+    <ul class="nav nav-tabs" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-associados" type="button">Associados</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button">Produtos</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-servicos" type="button">Serviços</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-classificados" type="button">Classificados</button></li>
+    </ul>
+  </div>
+</div>
 
-  <!-- Abas: 1) Associados 2) Produtos 3) Serviços 4) Classificados -->
-  <ul class="nav nav-tabs" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-associados" type="button">Associados</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-produtos" type="button">Produtos</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-servicos" type="button">Serviços</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-classificados" type="button">Classificados</button></li>
-  </ul>
+<main class="container">
 
   <div class="tab-content pt-3">
 
     <!-- ====================== ASSOCIADOS ====================== -->
     <div class="tab-pane fade show active" id="pane-associados">
+
       <!-- Cadastro novo -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5>Cadastrar novo associado</h5>
-          <form id="formNewAssoc" class="row g-3 mt-1">
-            <div class="col-md-3">
+          <h5 class="mb-3">Cadastrar novo associado</h5>
+          <form id="formNewAssoc" class="row g-3">
+            <div class="col-sm-6 col-md-3">
               <label class="form-label">CPF (somente números)</label>
-              <input type="text" class="form-control" id="naCPF" required>
+              <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-md-3">
               <label class="form-label">Senha inicial</label>
               <input type="password" class="form-control" id="naPass" required>
               <div class="form-help">O associado poderá trocar depois.</div>
@@ -79,29 +148,29 @@
               <label class="form-label">Nome completo</label>
               <input type="text" class="form-control" id="naNome" required>
             </div>
-            <div class="col-md-4">
+            <div class="col-sm-6 col-md-4">
               <label class="form-label">Telefone</label>
               <input type="text" class="form-control" id="naTel">
             </div>
-            <div class="col-md-8">
+            <div class="col-sm-6 col-md-8">
               <label class="form-label">Endereço</label>
               <input type="text" class="form-control" id="naEnd">
             </div>
 
             <!-- Financeiro inicial (sem SALDO) -->
-            <div class="col-md-3">
+            <div class="col-sm-6 col-md-3">
               <label class="form-label">Anuidade paga — Data</label>
               <input type="date" class="form-control" id="naLastPayment">
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-md-3">
               <label class="form-label">Anuidade paga — Valor (R$)</label>
               <input type="number" step="0.01" class="form-control" id="naPaidAmount" placeholder="ex.: 120.00">
             </div>
-            <div class="col-md-3">
+            <div class="col-sm-6 col-md-3">
               <label class="form-label">Próxima data a pagar</label>
               <input type="date" class="form-control" id="naNextDue">
             </div>
-            <div class="col-md-3 d-flex align-items-end">
+            <div class="col-sm-6 col-md-3 d-flex align-items-end">
               <button class="btn btn-primary w-100" type="submit">Criar associado</button>
             </div>
           </form>
@@ -112,9 +181,9 @@
       <!-- Busca + lista -->
       <div class="card shadow-sm">
         <div class="card-body">
-          <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
+          <div class="toolbar-wrap">
             <h5 class="mb-0">Associados</h5>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
               <input type="text" class="form-control" id="searchQuery" placeholder="Buscar por CPF ou Nome" style="max-width:300px">
               <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
               <button id="btnListAll" class="btn btn-outline-secondary">Listar todos (100)</button>
@@ -131,9 +200,9 @@
     <!-- ====================== PRODUTOS ====================== -->
     <div class="tab-pane fade" id="pane-produtos">
       <!-- Formulário topo -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 id="prdFormTitle" class="mb-0">Cadastrar produto</h5>
             <button id="prdNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
           </div>
@@ -144,11 +213,11 @@
                 <label class="form-label">Título</label>
                 <input type="text" class="form-control" id="prdTitle" required>
               </div>
-              <div class="col-md-3">
+              <div class="col-sm-6 col-md-3">
                 <label class="form-label">Valor (R$)</label>
                 <input type="number" step="0.01" class="form-control" id="prdPrice" placeholder="ex.: 199.90">
               </div>
-              <div class="col-md-3">
+              <div class="col-sm-6 col-md-3">
                 <label class="form-label">Benefício</label>
                 <input type="text" class="form-control" id="prdBenefit">
               </div>
@@ -176,7 +245,7 @@
                 <input type="text" class="form-control" id="prdImagesUrls">
               </div>
             </div>
-            <div class="d-flex gap-2 mt-3">
+            <div class="d-flex gap-2 mt-3 flex-wrap">
               <button class="btn btn-primary" type="submit">Salvar</button>
               <span id="prdMsg" class="align-self-center text-success small"></span>
             </div>
@@ -184,9 +253,9 @@
         </div>
       </div>
 
-      <!-- Lista em cards com todas as infos -->
+      <!-- Lista -->
       <div id="productsWrap" class="row g-3"></div>
-      <div class="d-flex align-items-center gap-2 mt-2">
+      <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="showInactiveProducts">
           <label class="form-check-label" for="showInactiveProducts">Exibir inativos</label>
@@ -197,10 +266,9 @@
 
     <!-- ====================== SERVIÇOS ====================== -->
     <div class="tab-pane fade" id="pane-servicos">
-      <!-- Formulário topo -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 id="svcFormTitle" class="mb-0">Cadastrar serviço</h5>
             <button id="svcNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
           </div>
@@ -238,7 +306,7 @@
                 <input type="url" class="form-control" id="svcImageUrl">
               </div>
             </div>
-            <div class="d-flex gap-2 mt-3">
+            <div class="d-flex gap-2 mt-3 flex-wrap">
               <button class="btn btn-primary" type="submit">Salvar</button>
               <span id="svcMsg" class="align-self-center text-success small"></span>
             </div>
@@ -246,9 +314,8 @@
         </div>
       </div>
 
-      <!-- Lista em cards -->
       <div id="servicesWrap" class="row g-3"></div>
-      <div class="d-flex align-items-center gap-2 mt-2">
+      <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="showInactiveServices">
           <label class="form-check-label" for="showInactiveServices">Exibir inativos</label>
@@ -259,10 +326,9 @@
 
     <!-- ====================== CLASSIFICADOS ====================== -->
     <div class="tab-pane fade" id="pane-classificados">
-      <!-- Form topo (sem campo de URL e sem toggles de aprovado/ativo) -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 id="clsFormTitle" class="mb-0">Cadastrar classificado</h5>
             <button id="clsNewBtn" class="btn btn-sm btn-outline-secondary d-none" type="button">Novo</button>
           </div>
@@ -273,11 +339,11 @@
                 <label class="form-label">Título</label>
                 <input type="text" class="form-control" id="clsTitle" required>
               </div>
-              <div class="col-md-3">
+              <div class="col-sm-6 col-md-3">
                 <label class="form-label">Valor (R$)</label>
                 <input type="number" step="0.01" class="form-control" id="clsPrice">
               </div>
-              <div class="col-md-3">
+              <div class="col-sm-6 col-md-3">
                 <label class="form-label">WhatsApp de Contato</label>
                 <input type="text" class="form-control" id="clsWpp">
               </div>
@@ -290,7 +356,7 @@
                 <input type="file" class="form-control" id="clsImages" accept="image/*" multiple>
               </div>
             </div>
-            <div class="d-flex gap-2 mt-3">
+            <div class="d-flex gap-2 mt-3 flex-wrap">
               <button class="btn btn-primary" type="submit">Salvar</button>
               <span id="clsMsg" class="align-self-center text-success small"></span>
             </div>
@@ -298,9 +364,8 @@
         </div>
       </div>
 
-      <!-- Lista em cards -->
       <div id="classifWrap" class="row g-3"></div>
-      <div class="d-flex align-items-center gap-2 mt-2">
+      <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
         <div class="form-check">
           <input class="form-check-input" type="checkbox" id="showInactiveClassif">
           <label class="form-check-label" for="showInactiveClassif">Exibir inativos</label>
@@ -316,10 +381,10 @@
   </div>
 </main>
 
-<footer class="mt-5 py-4 bg-body-tertiary border-top">
+<footer class="mt-4 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div><strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.</div>
-    <div class="text-secondary small">© 2025 Clube do Cavalo - Bonfim MG.</div>
+    <div class="text-secondary small text-center text-md-end">© 2025 Clube do Cavalo - Bonfim MG.</div>
   </div>
 </footer>
 
@@ -345,6 +410,7 @@
   import { getAuth, createUserWithEmailAndPassword, signOut as signOutSec }
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
+  /* ========= Requer admin/master logado ========= */
   const storage = getStorage();
   requireAuth({ requiredRole: ["Admin", "Master"] });
 
@@ -369,7 +435,7 @@
   const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
   const readUrls = (el)=> el.value.split(",").map(s=>s.trim()).filter(Boolean);
 
-  // Upload robusto (resolve “imagem não salvar” no Spark)
+  // Upload robusto
   async function uploadMany(files, folder) {
     const urls = [];
     for (const f of files) {
@@ -477,7 +543,7 @@
     catch { return ""; }
   }
 
-  // >>> Role-tag ANTES do status + sem campo SALDO
+  // Role-tag ANTES do status + sem campo SALDO
   function renderUserCard(u) {
     const ativo = (u.ativo !== false);
     const role = (u.role || "associado").toLowerCase();
@@ -517,23 +583,23 @@
                 </div>
               </div>
 
-              <div class="col-md-2">
-                <label class="form-label">Último pagamento (data)</label>
+              <div class="col-sm-6 col-md-2">
+                <label class="form-label">Último pagto (data)</label>
                 <input type="date" class="form-control" data-uid="${u.uid}" data-field="lastPayment" value="${u.last}">
               </div>
-              <div class="col-md-2">
-                <label class="form-label">Último pagamento (valor)</label>
+              <div class="col-sm-6 col-md-2">
+                <label class="form-label">Último pagto (valor)</label>
                 <input type="number" step="0.01" class="form-control" data-uid="${u.uid}" data-field="lastAmount" value="${u.lastAmount ?? 0}">
               </div>
-              <div class="col-md-2">
-                <label class="form-label">Próximo pagamento</label>
+              <div class="col-sm-6 col-md-2">
+                <label class="form-label">Próximo pagto</label>
                 <input type="date" class="form-control" data-uid="${u.uid}" data-field="nextDue" value="${u.next}">
               </div>
 
-              <div class="col-md-2">
+              <div class="col-sm-6 col-md-2">
                 <button class="btn btn-outline-primary w-100 btn-save-profile" data-uid="${u.uid}">Salvar Perfil</button>
               </div>
-              <div class="col-md-2">
+              <div class="col-sm-6 col-md-2">
                 <button class="btn btn-primary w-100 btn-save-fin" data-uid="${u.uid}">Salvar Financeiro</button>
               </div>
             </div>
@@ -564,7 +630,6 @@
         const q = (f)=> document.querySelector(`[data-uid="${uid}"][data-field="${f}"]`);
         try {
           await setFinanceSummary(uid, {
-            // balance REMOVIDO
             lastPayment: q("lastPayment").value,
             lastAmount: q("lastAmount").value,
             nextDue: q("nextDue").value
@@ -592,7 +657,10 @@
   const productsWrap = document.getElementById("productsWrap");
   const showInactiveProducts = document.getElementById("showInactiveProducts");
 
-  prdNewBtn.addEventListener("click", () => { prdId.value=""; formProduct.reset(); prdActive.checked=true; prdFormTitle.textContent="Cadastrar produto"; prdNewBtn.classList.add("d-none"); prdMsg.textContent=""; });
+  prdNewBtn.addEventListener("click", () => {
+    prdId.value=""; formProduct.reset(); prdActive.checked=true;
+    prdFormTitle.textContent="Cadastrar produto"; prdNewBtn.classList.add("d-none"); prdMsg.textContent="";
+  });
 
   formProduct.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -631,7 +699,7 @@
 
       productsWrap.innerHTML = rows.map(p => renderItemCard({
         id:p.id, title:p.title, subtitle:p.benefit, desc:p.description, wpp:p.whatsapp, active:(p.active!==false),
-        price:p.price, images:p.imageUrls
+        price:p.price, images:Array.isArray(p.imageUrls)?p.imageUrls:[]
       }, "product")).join("");
       attachProductCardHandlers(rows);
     } catch { productsWrap.innerHTML = `<div class="col-12 text-center text-danger">Falha ao carregar.</div>`; }
@@ -644,7 +712,7 @@
         prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
         prdImages.value=""; prdImagesUrls.value = Array.isArray(p.imageUrls)?p.imageUrls.join(", "):"";
         prdFormTitle.textContent="Editar produto"; prdNewBtn.classList.remove("d-none");
-        window.scrollTo({ top: document.getElementById("pane-produtos").offsetTop-80, behavior:"smooth" });
+        window.scrollTo({ top: document.getElementById("pane-produtos").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
     });
     document.querySelectorAll(".btn-toggle-product").forEach(btn=>{
@@ -673,7 +741,10 @@
   const servicesWrap = document.getElementById("servicesWrap");
   const showInactiveServices = document.getElementById("showInactiveServices");
 
-  svcNewBtn.addEventListener("click", ()=>{ svcId.value=""; formService.reset(); svcActive.checked=true; svcFormTitle.textContent="Cadastrar serviço"; svcNewBtn.classList.add("d-none"); svcMsg.textContent=""; });
+  svcNewBtn.addEventListener("click", ()=>{
+    svcId.value=""; formService.reset(); svcActive.checked=true;
+    svcFormTitle.textContent="Cadastrar serviço"; svcNewBtn.classList.add("d-none"); svcMsg.textContent="";
+  });
 
   formService.addEventListener("submit", async (e)=>{
     e.preventDefault(); svcMsg.textContent="";
@@ -708,7 +779,7 @@
         svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
         svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false); svcImage.value=""; svcImageUrl.value=s.imageUrl||"";
         svcFormTitle.textContent="Editar serviço"; svcNewBtn.classList.remove("d-none");
-        window.scrollTo({ top: document.getElementById("pane-servicos").offsetTop-80, behavior:"smooth" });
+        window.scrollTo({ top: document.getElementById("pane-servicos").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
     });
     document.querySelectorAll(".btn-toggle-service").forEach(btn=>{
@@ -736,7 +807,10 @@
   const showInactiveClassif = document.getElementById("showInactiveClassif");
   const showUnapprovedOnly = document.getElementById("showUnapprovedOnly");
 
-  clsNewBtn.addEventListener("click", ()=>{ clsId.value=""; formClassif.reset(); clsFormTitle.textContent="Cadastrar classificado"; clsNewBtn.classList.add("d-none"); clsMsg.textContent=""; });
+  clsNewBtn.addEventListener("click", ()=>{
+    clsId.value=""; formClassif.reset();
+    clsFormTitle.textContent="Cadastrar classificado"; clsNewBtn.classList.add("d-none"); clsMsg.textContent="";
+  });
 
   formClassif.addEventListener("submit", async (e)=>{
     e.preventDefault(); clsMsg.textContent="";
@@ -753,8 +827,8 @@
       } else {
         const ref = await addDoc(collection(db,"memberClassifieds"), {
           title, description, price, whatsapp, imageUrls: images,
-          active: true,        // pode nascer ativo
-          approved: false,     // nasce PENDENTE (aprovação via botão no card)
+          active: true,
+          approved: false,
           createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp(),
           updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
         });
@@ -789,7 +863,7 @@
         clsId.value=id; clsTitle.value=c.title||""; clsDesc.value=c.description||""; clsWpp.value=c.whatsapp||"";
         clsPrice.value=c.price??""; clsImages.value="";
         clsFormTitle.textContent="Editar classificado"; clsNewBtn.classList.remove("d-none");
-        window.scrollTo({ top: document.getElementById("pane-classificados").offsetTop-80, behavior:"smooth" });
+        window.scrollTo({ top: document.getElementById("pane-classificados").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
     });
     document.querySelectorAll(".btn-toggle-classif").forEach(btn=>{
@@ -822,7 +896,7 @@
     const imgs = (item.images||[]).slice(0,6).map(u=>`<img class="thumb me-2 mb-2" src="${u}" alt="">`).join("");
     const statusBadge = item.active ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>';
     const approveBadge = (kind==="classif")
-      ? (item.approved ? '<span class="badge bg-info ms-2">Aprovado</span>' : '<span class="badge bg-warning text-dark ms-2">Pendente</span>')
+      ? (item.approved ? '<span class="badge bg-info text-dark ms-2">Aprovado</span>' : '<span class="badge bg-warning text-dark ms-2">Pendente</span>')
       : '';
     const subtitle = (kind==="product" && item.price!=null) ? `${item.subtitle ? item.subtitle+' • ' : ''}${fmt.format(item.price)}`
                      : (item.subtitle || "");
@@ -841,7 +915,7 @@
     ` : "";
 
     return `
-      <div class="col-md-6 col-xl-4">
+      <div class="col-12 col-md-6 col-xl-4">
         <div class="card h-100 shadow-sm">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
@@ -853,7 +927,7 @@
             </div>
             <p class="mt-2 mb-2">${item.desc || ""}</p>
             <div class="d-flex flex-wrap">${imgs}</div>
-            <div class="d-flex justify-content-between align-items-center mt-2">
+            <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
               <div class="small text-secondary">WhatsApp: ${item.wpp || "—"}</div>
               <div class="d-flex gap-2">
                 ${approveBtns}
@@ -871,6 +945,14 @@
   const servicesInit = () => loadServices();
   const classifInit  = () => loadClassif();
   productsInit(); servicesInit(); classifInit();
+
+  // Acessibilidade/UX: ao trocar de aba, rola página para abaixo do topo fixo
+  document.querySelectorAll('[data-bs-toggle="tab"]').forEach(btn=>{
+    btn.addEventListener('shown.bs.tab', ()=>{
+      const y = document.querySelector('.tabs-sticky').getBoundingClientRect().top + window.scrollY - 1;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    });
+  });
 </script>
 </body>
 </html>
