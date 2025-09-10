@@ -119,7 +119,6 @@
   });
 
   // ========= Persistência: manter logado até sair =========
-  // Usa persistência LOCAL (sobrevive a recarregamentos)
   async function ensureLocalPersistence(){
     try {
       if (fb?.setPersistence && fb?.browserLocalPersistence && fb?.auth) {
@@ -131,7 +130,6 @@
   }
 
   // ========= Derivar status do perfil para decidir rota =========
-  // Aceita vários formatos de campos para ficar resiliente ao seu schema.
   function deriveStatus(p){
     const statusStr = String(p.status || p.situacao || p.sit || "")
       .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -139,10 +137,8 @@
     const pendingByStatus  = /pend/.test(statusStr);
     const inactiveByStatus = pendingByStatus || /inativ|suspens|bloquead/.test(statusStr);
 
-    // status manda: se indicar pendência/inativo => active = false
     let active = !inactiveByStatus;
 
-    // flags booleanas nunca reativam; apenas podem derrubar
     if (typeof p.isActive === "boolean") active = active && p.isActive;
     if (typeof p.ativo    === "boolean") active = active && p.ativo;
 
@@ -181,33 +177,52 @@
 
   // ========= Lógica de decisão pós-auth =========
   async function routeAuthenticatedUser(user){
-    // Se não houver doc, consideramos "sem registro" -> signup
     const profile = await fetchUserProfile(user.uid);
-    if (!profile) {
-      goToSignup();
-      return;
-    }
+    if (!profile) { goToSignup(); return; }
 
     const { active, pending } = deriveStatus(profile);
+    if (!active)  { goToPay("inactive"); return; }
+    if (pending)  { goToPay("pending");  return; }
 
-    if (!active) {
-      goToPay("inactive");
-      return;
-    }
-    if (pending) {
-      goToPay("pending");
-      return;
-    }
-
-    // Sem pendências e ativo
     goToAssociado();
   }
 
-  // ========= Se já estiver logado ao abrir a página, pula o login =========
+  // ========= NEW: suporte a ?logout=1 (forçar troca de usuário) =========
+  const qs = new URLSearchParams(location.search);                           // NEW
+  const requestedLogout = qs.get("logout") === "1";                          // NEW
+  if (requestedLogout) {                                                     // NEW
+    try {
+      // Marca para não redirecionar automaticamente nesse ciclo
+      sessionStorage.setItem("suppressAutoRedirect", "1");                   // NEW
+      // Se estiver logado, encerra a sessão
+      if (fb?.auth && typeof fb?.onAuthStateChanged === "function") {
+        fb.onAuthStateChanged(fb.auth, async (user) => {                     // NEW
+          try {
+            if (user && typeof fb?.signOut === "function") {
+              await fb.signOut(fb.auth);                                     // NEW
+            }
+          } catch (e) {
+            console.warn("Falha ao encerrar sessão no logout forçado:", e);  // NEW
+          } finally {
+            // Limpa o parâmetro da URL e foca o campo CPF
+            const clean = new URL(location.href);                            // NEW
+            clean.searchParams.delete("logout");                             // NEW
+            history.replaceState({}, "", clean.pathname);                    // NEW
+            setTimeout(() => cpfEl?.focus(), 0);                             // NEW
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Erro no fluxo de logout forçado:", e);                   // NEW
+    }
+  }
+
+  // ========= CHANGED: Se já estiver logado ao abrir a página, pula o login (exceto se suppress) =========
   if (fb?.onAuthStateChanged && fb?.auth) {
     fb.onAuthStateChanged(fb.auth, (user) => {
+      const suppress = sessionStorage.getItem("suppressAutoRedirect") === "1"; // CHANGED
+      if (suppress) return;                                                   // CHANGED: não redireciona quando viemos de logout=1
       if (user) {
-        // Usuário autenticado: decide rota pelo status
         routeAuthenticatedUser(user);
       }
     });
@@ -230,35 +245,31 @@
 
       const email = cpfToEmail(cpfRaw);
 
-      // Garante persistência local antes do sign-in
       await ensureLocalPersistence();
 
-      // Se existir doLogin no seu firebase.js, use-o; senão, usa signInWithEmailAndPassword
       if (typeof fb?.doLogin === "function") {
-        await fb.doLogin(email, senha); // assume que faz signIn internamente
+        await fb.doLogin(email, senha);
       } else if (fb?.signInWithEmailAndPassword && fb?.auth) {
         await fb.signInWithEmailAndPassword(fb.auth, email, senha);
       } else {
         throw new Error("Funções de login não disponíveis. Exporte-as em firebase.js.");
       }
 
-      // Pega usuário atual e decide rota
       const user = fb?.auth?.currentUser;
       if (user) {
+        // Limpa eventual suppress da visita anterior
+        sessionStorage.removeItem("suppressAutoRedirect");                    // NEW
         await routeAuthenticatedUser(user);
       } else {
-        // fallback: aguarda onAuthStateChanged fazer o redirecionamento
         msg.textContent = "Autenticado. Redirecionando...";
       }
     } catch (e) {
       msg.textContent = "";
       const code = e?.code || "";
-      // Usuário inexistente -> criar conta
       if (code === "auth/user-not-found") {
         goToSignup();
         return;
       }
-      // Senha errada ou outros erros
       alert("Erro no login: " + (e?.message || e));
     } finally {
       btn.disabled = false;

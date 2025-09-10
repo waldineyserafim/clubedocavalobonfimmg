@@ -12,48 +12,6 @@
     .btn-primary { background-color: #264653 !important; border-color: #264653 !important; }
     .btn-outline-primary { color: #264653 !important; border-color: #264653 !important; }
     .text-primary { color: #264653 !important; }
-
-    /* (1) Logo no header ao lado do nome */
-    .brand-logo{
-      height: 36px;
-      width: auto;
-      margin-right: .5rem;
-      object-fit: contain;
-      filter: brightness(0) invert(1); /* deixa legível no fundo escuro */
-    }
-    @media (min-width: 992px){
-      .brand-logo{ height: 42px; }
-    }
-
-    /* (2) Carrossel com CTAs sobrepostos */
-    .hero-carousel{
-      max-height: 520px;
-      overflow: hidden;
-    }
-    .hero-carousel .carousel-item{
-      height: 520px;
-    }
-    .hero-carousel .carousel-item img{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .hero-cta{
-      position: absolute;
-      left: 50%;
-      bottom: 2.5rem;
-      transform: translateX(-50%);
-      z-index: 5;
-      display: flex;
-      gap: .75rem;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .hero-cta .btn{
-      box-shadow: 0 0.5rem 1rem rgba(0,0,0,.25);
-    }
-
-    /* Parceiros (mantido) */
     .partner-logo {
       width: clamp(100px, 40vw, 190px);
       height: clamp(100px, 40vw, 190px);
@@ -62,14 +20,9 @@
   </style>
 </head>
 <body>
-<!-- NAVBAR / HEADER -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container">
-    <a class="navbar-brand d-flex align-items-center fw-bold" href="index.html">
-      <!-- (1) Logo à esquerda do nome -->
-      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo Clube do Cavalo">
-      <span>Clube do Cavalo - Bonfim MG</span>
-    </a>
+    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -81,6 +34,7 @@
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <!-- Sempre visível -->
         <li class="nav-item">
+          <!-- CHANGED: força logout para permitir trocar de usuário -->
           <a class="btn btn-light text-primary ms-lg-3" href="login.html?logout=1">Área do Associado</a>
         </li>
       </ul>
@@ -88,64 +42,31 @@
   </div>
 </nav>
 
-<!-- HERO / BEM-VINDO -->
-<header class="bg-light py-2 border-bottom">
+<header class="bg-light py-5 border-bottom">
   <div class="container">
     <div class="row align-items-center g-4">
-      <div class="col-lg-10">
-        <h1 class="display-5 fw-bold mb-3">Bem-vindo ao Clube do Cavalo de Bonfim MG</h1>
-        <p class="lead mb-0">Eventos esportivos, cavalgadas, cursos e uma comunidade apaixonada por cavalos.</p>
+      <div class="col-lg-7">
+        <h1 class="display-5 fw-bold">Bem-vindo ao Clube do Cavalo - Bonfim MG</h1>
+        <p class="lead">Eventos esportivos, cavalgadas, cursos e uma comunidade apaixonada por cavalos.</p>
+        <div class="d-flex gap-3">
+          <a href="events.html" class="btn btn-primary btn-lg">Próximos eventos</a>
+          <a href="signup.html" class="btn btn-outline-primary btn-lg">Associe-se</a>
+        </div>
       </div>
-      <div class="col-lg-2">
+      <div class="col-lg-5">
         <img class="img-fluid" src="assets/img/logo_CCBMG.png" alt="Logo CCBMG">
       </div>
     </div>
   </div>
 </header>
 
-<!-- (2) CARROSSEL DE BANNERS COM BOTÕES SOBREPOSTOS -->
-<section class="position-relative">
-  <div id="bannerCarousel" class="carousel slide hero-carousel" data-bs-ride="carousel">
-    <div class="carousel-indicators">
-      <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-      <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-      <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-    </div>
-    <div class="carousel-inner">
-      <!-- Troque as imagens conforme seus banners -->
-      <div class="carousel-item active">
-        <img src="assets/banners/banner1.png" class="d-block w-100" alt="Banner 1">
-      </div>
-      <div class="carousel-item">
-        <img src="assets/banners/banner2.png" class="d-block w-100" alt="Banner 2">
-      </div>
-      <div class="carousel-item">
-        <img src="assets/banners/banner3.png" class="d-block w-100" alt="Banner 3">
-      </div>
-    </div>
-    <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev">
-      <span class="carousel-control-prev-icon" aria-hidden="true"></span><span class="visually-hidden">Anterior</span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next">
-      <span class="carousel-control-next-icon" aria-hidden="true"></span><span class="visually-hidden">Próximo</span>
-    </button>
-  </div>
-
-  <!-- CTAs sobre o carrossel (mantidos, porém agora sobrepostos) -->
-  <div class="hero-cta">
-    <a href="events.html" class="btn btn-primary btn-lg">Próximos eventos</a>
-    <a href="signup.html" class="btn btn-outline-primary btn-lg bg-white">Associe-se</a>
-  </div>
-</section>
-
-<!-- (3) 3 BOXES (mantidas) -->
 <section class="container py-5">
   <div class="row g-4">
     <div class="col-md-4">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
           <h5 class="card-title">Calendário de Eventos</h5>
-          <p class="card-text">Competições, leilões, clínicas e cavalgadas regionais.</p>
+        <p class="card-text">Competições, leilões, clínicas e cavalgadas regionais.</p>
           <a href="events.html" class="btn btn-outline-primary">Ver agenda</a>
         </div>
       </div>
@@ -171,7 +92,6 @@
   </div>
 </section>
 
-<!-- (4) PARCEIROS (mantido) -->
 <section class="bg-body-secondary py-5">
   <div class="container">
     <h2 class="h4 mb-4">Parceiros</h2>
@@ -197,52 +117,6 @@
     </div>
   </div>
 </section>
-
-<!-- (5) REDES SOCIAIS & CONTATO -->
-<section class="py-5">
-  <div class="container">
-
-    <!-- Linha dos títulos (fora das caixas) -->
-    <div class="d-flex flex-column flex-lg-row align-items-baseline justify-content-between mb-3">
-      <h2 class="h4 mb-2 mb-lg-0">Redes Sociais & Contato</h2>
-      <h2 class="h4 mb-0">📍 Onde estamos</h2>
-    </div>
-
-    <div class="row g-4">
-      <!-- Coluna Redes sociais -->
-      <div class="col-lg-6">
-        <div class="p-4 border rounded-3 h-100">
-          <h3 class="h5 mb-3">Siga o Clube</h3>
-          <ul class="list-unstyled mb-0">
-            <li class="mb-2">Instagram: <a href="https://www.instagram.com/clube_do_cavalo_de_bonfim_mg/" target="_blank" rel="noopener">/@clubedocavalobonfimmg</a></li>
-            <li class="mb-2">E-mail: <a href="mailto:contato@clubedocavalo.com.br">contato@clubedocavalo.com.br</a></li>
-            <li class="mb-2">WhatsApp: <a href="https://wa.me/5531991297695" target="_blank" rel="noopener">+55 (31) 99129-7695</a></li>
-            <!--
-            <li class="mb-2">Facebook: <a href="#" target="_blank" rel="noopener">facebook.com/clubedocavalobonfimmg</a></li>
-            <li class="mb-2">YouTube: <a href="#" target="_blank" rel="noopener">youtube.com/@clubedocavalo</a></li>
-            -->
-          </ul>
-        </div>
-      </div>
-
-      <!-- Coluna Onde estamos -->
-      <div class="col-lg-6">
-        <!-- Título já está fora da caixa (na linha de títulos acima) -->
-        <div class="p-4 border rounded-3 h-100">
-          <p class="h6 mb-2">Antiga Escola Melo Viana</p>
-          <p class="mb-2">Rua Doutor Melo Viana, número 183 - Sala 08</p>
-          <p class="mb-2">Bairro Centro, Bonfim</p>
-          <p class="mb-2">CEP: 35480-000</p>
-          <div class="ratio ratio-16x9">
-            <img src="assets/img/meloviana.png" alt="Mapa de Bonfim MG" class="w-100 h-100" style="object-fit: cover;">
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-
 
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
@@ -271,39 +145,55 @@
 
   const dashboardBtn = document.getElementById("dashboardBtn");
 
-  function hideDashboard() { if (dashboardBtn) dashboardBtn.classList.add("d-none"); }
-  function showDashboard() { if (dashboardBtn) dashboardBtn.classList.remove("d-none"); }
+  // Garante estado seguro inicial
+  function hideDashboard() {
+    if (dashboardBtn) dashboardBtn.classList.add("d-none");
+  }
+  function showDashboard() {
+    if (dashboardBtn) dashboardBtn.classList.remove("d-none");
+  }
 
   async function evaluateAndToggle(user) {
+    // Sem usuário: esconde
     if (!user) { hideDashboard(); return; }
+
     try {
+      // Busca role e status/ativo no Firestore
       const ref = doc(db, "users", user.uid);
       const snap = await getDoc(ref);
       const data = snap.exists() ? snap.data() : {};
+
       const role   = String(data.role   || "").toLowerCase();
-      const status = String(data.status || "").toLowerCase();
+      const status = String(data.status || "").toLowerCase();   // ex.: "Anuidade Pendente"
       const ativo  = !!data.ativo;
+
+      // CHANGED: só mostra Dashboard se for admin e NÃO estiver bloqueado por pagamento/inatividade
       const isBlocked = !ativo || status.includes("pendente");
       if (role === "admin" && !isBlocked) showDashboard();
-      else hideDashboard();
+      else hideDashboard(); // falha segura
     } catch (e) {
       console.error("Falha ao obter dados do usuário:", e);
-      hideDashboard();
+      hideDashboard(); // falha segura
     }
   }
 
+  // 1) Estado de auth
   onAuthStateChanged(auth, (user) => {
+    // Esconde por padrão, depois decide
     hideDashboard();
     evaluateAndToggle(user);
   });
 
+  // 2) Volta do histórico (bfcache/back-forward): revalida
   window.addEventListener("pageshow", (ev) => {
+    // Quando a página volta do cache, rechecamos a role
     if (ev.persisted) {
       hideDashboard();
       evaluateAndToggle(auth.currentUser || null);
     }
   });
 
+  // 3) Defesa extra: revalida após pequeno atraso (caso fonts/cache atrasem o onAuthStateChanged)
   setTimeout(() => evaluateAndToggle(auth.currentUser || null), 1000);
 </script>
 </body>

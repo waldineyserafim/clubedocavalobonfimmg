@@ -88,7 +88,6 @@ export async function getUserProfile(uid) {
 }
 
 // 4.2) (Novo) Derivar status ativo/pendente de forma resiliente
-// 4.2) (ATUALIZADO) Derivar status ativo/pendente de forma resiliente
 export async function getUserStatus(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) return { active: false, pending: false, profile: null };
@@ -96,24 +95,18 @@ export async function getUserStatus(uid) {
   const statusStr = String(profile.status ?? profile.situacao ?? profile.sit ?? "")
     .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
-  // qualquer coisa contendo "pend" (pendente, pendência, etc.) conta como pendente
   const pendingByStatus  = /pend/.test(statusStr);
-  // status que derrubam o ativo
   const inactiveByStatus = pendingByStatus || /inativ|suspens|bloquead/.test(statusStr);
 
-  // Regra: status manda! Se status indicar pendência/inativo, ACTIVE = false
   let active = !inactiveByStatus;
 
-  // Se existirem flags booleanas, elas só podem "derrubar" e nunca "reativar"
   if (typeof profile.isActive === "boolean") active = active && profile.isActive;
   if (typeof profile.ativo    === "boolean") active = active && profile.ativo;
 
-  // Pendente: por status OU por flags no doc
   let pending =
     pendingByStatus ||
     !!(profile.pendenciasFinanceiras ?? profile.hasPendingPayments ?? profile.pendingPayments ?? profile.pendencias ?? false);
 
-  // Se ainda não detectou, checa resumo financeiro (balance > 0)
   if (!pending) {
     try {
       const summaryRef = doc(db, "users", uid, "finance", "summary");
@@ -143,11 +136,7 @@ export async function doLoginCPF(cpf, password) {
   return doLogin(email, password);
 }
 
-/* 6) CADASTRO padrão (via tela pública de signup)
-   - Gera e-mail local pelo CPF
-   - Cria doc em users com role/status iniciais
-   - Salva também o "email" no perfil (útil p/ tela de Operação)
-*/
+/* 6) CADASTRO padrão (via tela pública de signup) */
 export async function doSignupWithProfile({ cpf, password, nome, telefone, endereco }) {
   const email = cpfToEmail(cpf);
 
@@ -156,7 +145,7 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
 
   await setDoc(doc(db, "users", uid), {
     cpf: onlyDigits(cpf),
-    email, // salva o e-mail "local" no perfil
+    email,
     nome: (nome || "").trim(),
     telefone: (telefone || "").trim(),
     endereco: (endereco || "").trim(),
@@ -171,7 +160,6 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
 }
 
 // 7) GUARDA DE ROTA (protege páginas e/ou exige papel)
-// Agora aceita string OU array de strings em requiredRole
 export function requireAuth(options = {}) {
   const { requiredRole } = options;
 
@@ -188,7 +176,6 @@ export function requireAuth(options = {}) {
       cacheRole(role);
     }
 
-    // Se a página exigir papel específico, pode ser string ou array
     if (requiredRole) {
       const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
       const ok = required.map(norm).includes(norm(role));
@@ -198,8 +185,6 @@ export function requireAuth(options = {}) {
       }
     }
 
-    // Exponha para uso na página
-    // Exemplos de papéis agora: "Master" | "Admin" | "Associado"
     window.__userRole = role;
     window.__userEmail = user.email || "";
     window.__userUid  = user.uid;
@@ -211,23 +196,17 @@ export function requireAuth(options = {}) {
 export function doLogout() {
   return signOut(auth).then(() => {
     clearCachedRole();
-    redirect("./login.html");
+    redirect("./login.html?logout=1"); // garante tela limpa p/ trocar de usuário
   });
 }
 
-// 9) Helper para redirecionar respeitando base path do GitHub Pages
+// 9) Helper para redirecionar
 function redirect(relativePath) {
   window.location.href = relativePath;
 }
 
 /* =========================================================================
    === FUNÇÕES DE DADOS PARA "OPERAÇÃO" (Serviços, Produtos, Classificados, Financeiro) ===
-   Coleções:
-   - memberServices             (catálogo de serviços)
-   - memberProducts             (catálogo de produtos)
-   - memberClassifieds          (classificados dos associados)
-   - users/{uid}/finance/summary       (doc único)
-   - users/{uid}/finance/invoices/*    (subcoleção)
    ======================================================================== */
 
 // ===== Helpers de tipo/parse =====
@@ -246,7 +225,7 @@ const toNumberOrNull = (v) => {
 const toTimestamp = (v) => {
   if (!v) return null;
   if (v instanceof Date) return Timestamp.fromDate(v);
-  const d = new Date(v); // aceita "YYYY-MM-DD" ou ISO
+  const d = new Date(v);
   return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
 };
 
@@ -284,7 +263,7 @@ export async function addMemberProduct({ title, description, benefit, imageUrls,
     title: toStr(title),
     description: toStr(description),
     benefit: toStr(benefit),
-    imageUrls: strArray(imageUrls),   // aceita string "url1, url2" ou array
+    imageUrls: strArray(imageUrls),
     whatsapp: onlyDigits(whatsapp),
     price: toNumberOrNull(price),
     active: !!active,
@@ -339,28 +318,20 @@ export async function updateMemberClassified(id, partial) {
 }
 
 // ===== Financeiro =====
-// Atualiza (ou cria) o summary do usuário
 export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, lastAmount } = {}) {
   const ref = doc(db, "users", uid, "finance", "summary");
-  const payload = {
-    updatedAt: serverTimestamp()
-  };
+  const payload = { updatedAt: serverTimestamp() };
   const bn = toNumberOrNull(balance);
   if (bn !== null) payload.balance = bn;
-
   const la = toNumberOrNull(lastAmount);
   if (la !== null) payload.lastAmount = la;
-
   const lp = toTimestamp(lastPayment);
   if (lp) payload.lastPayment = lp;
-
   const nd = toTimestamp(nextDue);
   if (nd) payload.nextDue = nd;
-
   await setDoc(ref, payload, { merge: true });
 }
 
-// Cria fatura
 export async function addInvoice(uid, { dueDate, amount, status }) {
   const invRef = collection(db, "users", uid, "finance", "invoices");
   const payload = {
@@ -374,7 +345,6 @@ export async function addInvoice(uid, { dueDate, amount, status }) {
   return ref.id;
 }
 
-// Atualiza fatura
 export async function updateInvoice(uid, invoiceId, partial) {
   const ref = doc(db, "users", uid, "finance", "invoices", invoiceId);
   const patch = { updatedAt: serverTimestamp() };
@@ -386,7 +356,6 @@ export async function updateInvoice(uid, invoiceId, partial) {
 
 /* ====== Usuários: consultas para a tela de Operação ====== */
 
-// Busca UID por CPF (para a tela de operação)
 export async function findUserUidByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return null;
@@ -396,14 +365,12 @@ export async function findUserUidByCPF(cpf) {
   return snap.docs[0].id;
 }
 
-// Listar até 100 usuários ordenados por nome (para carregar grid)
 export async function listUsersByName(limitTo = 100) {
   const qRef = query(collection(db, "users"), orderBy("nome"), limit(limitTo));
   const snap = await getDocs(qRef);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// Buscar por nome (prefixo)
 export async function searchUsersByNamePrefix(term, limitTo = 100) {
   const t = (term || "").trim();
   if (!t) return listUsersByName(limitTo);
@@ -412,7 +379,6 @@ export async function searchUsersByNamePrefix(term, limitTo = 100) {
   return all.filter(u => (u.nome || "").toLowerCase().includes(lower)).slice(0, limitTo);
 }
 
-// Buscar por CPF exato
 export async function searchUsersByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return [];
@@ -424,12 +390,85 @@ export async function searchUsersByCPF(cpf) {
 // utilitários exportados
 export { Timestamp, serverTimestamp };
 
-// (Novo) Re-export explicitamente o que a login.html precisa usar direto
+// (Novo) Re-export explícito p/ login.html
 export {
   setPersistence,
   browserLocalPersistence,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   doc,
-  getDoc
+  getDoc,
+  signOut
 };
+
+/* ============================
+   === Helpers do botão Administração (NOVOS) ===
+   ============================ */
+
+// NEW: devolve a role atual (usa cache, senão busca no Firestore)
+export async function getCurrentRole() {
+  if (auth?.currentUser?.uid) {
+    let role = loadCachedRole();
+    if (!role) {
+      role = await fetchRoleByUid(auth.currentUser.uid);
+      cacheRole(role);
+    }
+    return String(role || "associado").toLowerCase();
+  }
+  return "associado";
+}
+
+// NEW: mostra/oculta o botão Administração (link para operacao.html) somente p/ admin
+// Ex.: setupAdminButton('#adminBtn')  ou  setupAdminButton(document.getElementById('adminBtn'))
+export function setupAdminButton(target, { href = 'operacao.html', label = 'Administração' } = {}) {
+  const el = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!el) return;
+
+  const hide = () => el.classList.add('d-none');
+  const show = () => el.classList.remove('d-none');
+
+  // Se for <li> com <a> dentro (como no seu HTML), ajusta o link e o texto
+  const ensureAnchor = () => {
+    let a = el.tagName === 'A' ? el : el.querySelector('a');
+    if (!a) return;
+    a.href = href;
+    a.textContent = label;
+  };
+
+  hide(); // estado inicial seguro
+
+  onAuthStateChanged(auth, async (user) => {
+    hide();
+    if (!user) return;
+    try {
+      const role = await getCurrentRole();
+      if (role === 'admin') {
+        ensureAnchor();
+        show();
+      }
+    } catch (e) {
+      console.warn('setupAdminButton:', e);
+      hide();
+    }
+  });
+
+  // Revalida em navegação pelo histórico (bfcache)
+  window.addEventListener('pageshow', () => {
+    if (auth.currentUser) {
+      getCurrentRole().then(r => {
+        if (r === 'admin') { ensureAnchor(); show(); } else { hide(); }
+      }).catch(() => hide());
+    } else {
+      hide();
+    }
+  });
+
+  // Defesa extra após pequeno atraso
+  setTimeout(() => {
+    if (auth.currentUser) {
+      getCurrentRole().then(r => {
+        if (r === 'admin') { ensureAnchor(); show(); } else { hide(); }
+      }).catch(() => hide());
+    }
+  }, 800);
+}

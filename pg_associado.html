@@ -39,8 +39,11 @@
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
-        <li class="nav-item d-none" id="dashboardBtn"><a class="btn btn-warning ms-lg-2" href="dashboard.html">Dashboard</a></li>
+        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="pg_associado.html">Área do Associado</a></li>
+        <!-- Só aparece para admin/master -->
+        <li class="nav-item d-none" id="adminBtn">
+          <a class="btn btn-warning ms-lg-2" href="operacao.html">Administração</a>
+        </li>
       </ul>
     </div>
   </div>
@@ -50,7 +53,7 @@
   <div class="container d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
     <div>
       <h1 class="h4 mb-1">Área do Associado</h1>
-      <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">...</strong></div>
+      <div class="text-secondary small">Bem-vindo(a), <strong id="memberName"></strong></div>
       <div class="mt-1"><span id="memberRole" class="badge badge-role d-none text-uppercase"></span></div>
       <div class="mt-2 d-flex flex-wrap gap-2">
         <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">Situação: —</span></span>
@@ -66,8 +69,6 @@
 </header>
 
 <main class="container my-4">
-
-  <!-- Busca + Abas -->
   <section class="mb-3">
     <div class="row g-2 align-items-center">
       <div class="col-12 col-md-7">
@@ -87,7 +88,6 @@
     </div>
   </section>
 
-  <!-- Grid unificado -->
   <section>
     <div id="listLoading" class="text-center py-5">
       <div class="spinner-border text-primary" role="status"></div>
@@ -98,8 +98,6 @@
     <div id="listEmpty" class="empty-state d-none">Nada encontrado para seu filtro.</div>
     <div id="listError" class="alert alert-danger d-none mt-3"></div>
   </section>
-
-  <!-- (REMOVIDA) Situação financeira da unidade -->
 </main>
 
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
@@ -114,29 +112,99 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    collection, getDocs, query, orderBy, doc, getDoc
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { collection, getDocs, query, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // ---------- Helpers de acesso ----------
+  const ADMIN_UIDS = new Set([ /* "UID-ADMIN-AQUI" */ ]);
+  const MASTER_UIDS = new Set([ /* "UID-MASTER-AQUI" */ ]);
+
+  function toRoleSet(roleField) {
+    if (!roleField) return new Set();
+    if (Array.isArray(roleField)) {
+      return new Set(roleField.map(r => String(r).trim().toLowerCase()).filter(Boolean));
+    }
+    return new Set(
+      String(roleField)
+        .toLowerCase()
+        .split(/[,;|/ ]+/g)
+        .map(s => s.trim())
+        .filter(Boolean)
+    );
+  }
+
+  // ---------- Helpers de nome ----------
+  function looksLikeCPF(value) {
+    if (!value) return false;
+    const only = String(value).replace(/\D/g, "");
+    if (only.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(only)) return true; // 000.../111... etc.
+    return true; // 11 dígitos -> trata como CPF
+  }
+
+  function properCase(s) {
+    return String(s)
+      .trim()
+      .toLowerCase()
+      .replace(/(^|\s|-|\/)\p{L}/gu, m => m.toUpperCase());
+  }
+
+  function getPreferredName(u, user) {
+    const firstLast = [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim() || null;
+    const emailPrefix = user?.email ? user.email.split("@")[0] : "";
+
+    const candidates = [
+      u?.nome,        // campo em pt-BR no seu Firestore
+      u?.fullName,
+      u?.name,
+      firstLast,
+      user?.displayName,
+      u?.nickname,
+      u?.givenName,
+      u?.surname,
+      /^[A-Za-z].*/.test(emailPrefix) ? emailPrefix : null,
+    ].filter(Boolean);
+
+    for (const raw of candidates) {
+      if (looksLikeCPF(raw)) continue;
+      if (/^\d{8,}$/.test(String(raw).trim())) continue;
+      return properCase(raw);
+    }
+    return "associado";
+  }
+
+  async function hasAdminAccess(user, userDocData) {
+    if (ADMIN_UIDS.has(user.uid) || MASTER_UIDS.has(user.uid)) return true;
+    try {
+      const token = await user.getIdTokenResult(true);
+      if (token?.claims?.admin || token?.claims?.master) return true;
+    } catch (e) { console.warn("Falha ao ler custom claims:", e); }
+    const roles = toRoleSet(userDocData?.role || "associado");
+    return roles.has("admin") || roles.has("master");
+  }
 
   // ---------- Utils ----------
   const fmtDate = (ts) => {
     if (!ts) return "—";
-    try { const d = ts?.toDate ? ts.toDate() : new Date(ts); return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d); }
-    catch { return "—"; }
+    try {
+      const d = ts?.toDate ? ts.toDate() : new Date(ts);
+      return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
+    } catch { return "—"; }
   };
   const fmtCPF = (cpfRaw) => {
-    const n = (cpfRaw || "").replace(/\D/g, ""); if (n.length!==11) return null;
+    const n = (cpfRaw || "").replace(/\D/g, "");
+    if (n.length!==11) return null;
     return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");
   };
   const wpp = (phone, text) => {
-    const p = (phone||"").replace(/\D/g,""); const msg = encodeURIComponent(text||"");
+    const p = (phone||"").replace(/\D/g,"");
+    const msg = encodeURIComponent(text||"");
     return p ? `https://wa.me/${p}?text=${msg}` : `https://wa.me/?text=${msg}`;
   };
   const debouncer = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
   const norm = (s) => (s||"").toString().normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase();
 
   // ---------- DOM ----------
-  const dashboardBtn = document.getElementById("dashboardBtn");
+  const adminBtn = document.getElementById("adminBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const memberNameEl = document.getElementById("memberName");
   const memberRoleEl = document.getElementById("memberRole");
@@ -146,22 +214,20 @@
   const chipPayDot = document.getElementById("chipPayDot");
   const chipNextDue = document.getElementById("chipNextDue");
   const chipNextDueText = document.getElementById("chipNextDueText");
-
   const searchInput = document.getElementById("searchInput");
   const typeTabs = document.getElementById("typeTabs");
   const listLoading = document.getElementById("listLoading");
   const listGrid = document.getElementById("listGrid");
   const listEmpty = document.getElementById("listEmpty");
   const listError = document.getElementById("listError");
-
   const countAll = document.getElementById("countAll");
   const countServices = document.getElementById("countServices");
   const countProducts = document.getElementById("countProducts");
   const countClassifieds = document.getElementById("countClassifieds");
 
   // ---------- State ----------
-  let currentType = "all"; // all | service | product | classified
-  let items = []; // [{id,type,title,description,images,benefit,price,whatsapp,createdAt}]
+  let currentType = "all";
+  let items = [];
   let memberName = "associado";
   let metaPhones = { salesPhone:"", financePhone:"" };
 
@@ -173,11 +239,19 @@
       const uref = doc(db, "users", user.uid);
       const usnap = await getDoc(uref);
       const u = usnap.exists() ? usnap.data() : {};
-      const role = (u.role || "associado").toLowerCase();
-      memberName = u.fullName || user.displayName || "associado";
+
+      if (await hasAdminAccess(user, u)) adminBtn?.classList.remove("d-none");
+      else adminBtn?.classList.add("d-none");
+
+      // Nome preferido (usa 'nome' do Firestore e ignora CPF)
+      memberName = getPreferredName(u, user);
       memberNameEl.textContent = memberName;
-      memberRoleEl.textContent = role; memberRoleEl.classList.remove("d-none");
-      if (role === "admin") dashboardBtn.classList.remove("d-none");
+
+      // Badge de papel (visual)
+      const roles = toRoleSet(u.role || "associado");
+      const roleForBadge = roles.size ? Array.from(roles).join(" / ") : "associado";
+      memberRoleEl.textContent = roleForBadge;
+      memberRoleEl.classList.remove("d-none");
 
       const cpfFmt = fmtCPF(u.cpf);
       chipCpfText.textContent = cpfFmt
@@ -187,10 +261,10 @@
       metaPhones.salesPhone = u.salesPhone || "";
       metaPhones.financePhone = u.financePhone || "";
 
-      // chips de pagamento (resumo)
+      // Resumo de pagamento
       loadPaymentChips(user.uid);
 
-      // carrega conteúdo unificado
+      // Conteúdo
       await loadAllContent();
       bindUI();
       render();
@@ -304,7 +378,7 @@
         items.push(...cls);
       }catch(e){ console.warn("classifieds:", e); }
 
-      // Sort: mais recentes primeiro se existir createdAt, senão por título
+      // Sort
       items.sort((a,b)=>{
         const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
@@ -312,9 +386,7 @@
         return (a.title||"").localeCompare(b.title||"");
       });
 
-      // Contagens
       refreshCounts();
-
       listLoading.classList.add("d-none");
       listGrid.classList.remove("d-none");
     }catch(e){
@@ -337,9 +409,7 @@
   function render(){
     const q = norm(searchInput.value);
     const filtered = items.filter(i=>{
-      // filtro por tipo
       if (currentType!=="all" && i.type!==currentType) return false;
-      // busca
       if (!q) return true;
       const hay = [
         i.title, i.description, i.benefit, i.location,
@@ -389,7 +459,6 @@
 
   // ---------- UI bindings ----------
   function bindUI(){
-    // tabs
     typeTabs.querySelectorAll("button.nav-link").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         typeTabs.querySelectorAll("button.nav-link").forEach(b=>b.classList.remove("active"));
@@ -398,7 +467,6 @@
         render();
       });
     });
-    // search
     searchInput.addEventListener("input", debouncer(()=>render(), 200));
   }
 </script>
