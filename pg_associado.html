@@ -87,7 +87,7 @@
         </li>
         <!-- Só aparece para admin/master -->
         <li class="nav-item d-none" id="adminBtn">
-          <a class="btn btn-warning ms-lg-2" href="operacao.html">Administração</a>
+          <a class="btn btn-warning text-dark ms-4" href="operacao.html">Administração</a>
         </li>
       </ul>
     </div>
@@ -108,7 +108,7 @@
       </div>
     </div>
     <div class="d-flex gap-2 flex-shrink-0">
-      <a class="btn btn-outline-primary" href="conta.html">Trocar senha</a>
+      <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changePasswordModal" id="openChangePasswordBtn">Trocar senha</button>
       <button id="logoutBtn" class="btn btn-primary">Sair</button>
     </div>
   </div>
@@ -164,6 +164,15 @@
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { collection, getDocs, query, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import {
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  reauthenticateWithPopup,
+  GoogleAuthProvider} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { OAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+
 
   // ---------- Helpers de acesso ----------
   const ADMIN_UIDS = new Set([ /* "UID-ADMIN-AQUI" */ ]);
@@ -498,6 +507,225 @@
     });
     searchInput.addEventListener("input", debouncer(()=>render(), 200));
   }
+  // ===== Troca de senha (sem e-mail) =====
+const changePasswordModalEl = document.getElementById("changePasswordModal");
+const changePasswordForm    = document.getElementById("changePasswordForm");
+const cpInfo    = document.getElementById("cpInfo");
+const cpError   = document.getElementById("cpError");
+const cpSuccess = document.getElementById("cpSuccess");
+
+const groupCurrentPassword = document.getElementById("groupCurrentPassword");
+const currentPassword = document.getElementById("currentPassword");
+const newPassword     = document.getElementById("newPassword");
+const confirmPassword = document.getElementById("confirmPassword");
+
+const federatedBlock  = document.getElementById("federatedBlock");
+const reauthPopupBtn  = document.getElementById("reauthPopupBtn");
+const savePasswordBtn = document.getElementById("savePasswordBtn");
+
+let currentUserEmail = "";
+let isPasswordProvider = false;   // true: email/senha | false: federado (Google/Apple)
+let reauthOK = false;             // marca se já reautenticou (federado)
+
+function clearMsgs() {
+  [cpInfo, cpError, cpSuccess].forEach(el => { el.classList.add("d-none"); el.textContent = ""; });
+}
+
+function senhaForteMin(s) {
+  return typeof s === "string" && s.length >= 6;
+}
+
+changePasswordModalEl?.addEventListener("show.bs.modal", () => {
+  clearMsgs();
+  changePasswordForm.reset();
+  reauthOK = false;
+
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  currentUserEmail = user.email || "";
+
+  const providers = (user.providerData || []).map(p => p.providerId);
+  // password = e-mail/senha; senão, é federado (google.com, apple.com, etc.)
+  isPasswordProvider = providers.includes("password");
+
+  if (isPasswordProvider) {
+    // Mostra campo de senha atual; esconde bloco federado
+    groupCurrentPassword.classList.remove("d-none");
+    federatedBlock.classList.add("d-none");
+    cpInfo.textContent = "Informe sua senha atual e a nova senha.";
+    cpInfo.classList.remove("d-none");
+  } else {
+    // Senha atual não existe — precisa revalidar via popup do provedor
+    groupCurrentPassword.classList.add("d-none");
+    federatedBlock.classList.remove("d-none");
+    cpInfo.textContent = "Revalide sua sessão no provedor para definir uma nova senha sem e-mail.";
+    cpInfo.classList.remove("d-none");
+  }
+});
+
+// Revalidar (contas federadas) — NÃO envia e-mail; abre popup do provedor
+reauthPopupBtn?.addEventListener("click", async () => {
+  clearMsgs();
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  try {
+    // Detecta o provedor primário e escolhe o provider adequado
+    const p = (user.providerData || [])[0]?.providerId || "";
+    let provider;
+    if (p === "google.com") {
+      provider = new GoogleAuthProvider();
+    } else if (p === "apple.com") {
+      provider = new OAuthProvider("apple.com");
+    } else {
+      // fallback: tente Google (ajuste se usar outros provedores)
+      provider = new GoogleAuthProvider();
+    }
+
+    await reauthenticateWithPopup(user, provider);
+    reauthOK = true;
+    cpSuccess.textContent = "Sessão revalidada com sucesso. Agora defina a nova senha e salve.";
+    cpSuccess.classList.remove("d-none");
+  } catch (err) {
+    cpError.textContent = traduzErroAuth(err);
+    cpError.classList.remove("d-none");
+  }
+});
+
+changePasswordForm?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  clearMsgs();
+
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  const nova = newPassword.value.trim();
+  const conf = confirmPassword.value.trim();
+  if (nova !== conf) {
+    cpError.textContent = "A confirmação não confere com a nova senha.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+  if (!senhaForteMin(nova)) {
+    cpError.textContent = "A nova senha precisa ter pelo menos 6 caracteres.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  savePasswordBtn.disabled = true;
+
+  try {
+    if (isPasswordProvider) {
+      // Reautenticar com a senha atual
+      const curr = (currentPassword.value || "").trim();
+      if (!curr) {
+        throw new Error("auth/missing-current-password");
+      }
+      const cred = EmailAuthProvider.credential(currentUserEmail, curr);
+      await reauthenticateWithCredential(user, cred);
+      await updatePassword(user, nova);
+    } else {
+      // Federado: precisa ter reautenticado via popup primeiro
+      if (!reauthOK) {
+        cpInfo.textContent = "Clique em “Revalidar sessão” antes de salvar a nova senha.";
+        cpInfo.classList.remove("d-none");
+        savePasswordBtn.disabled = false;
+        return;
+      }
+      await updatePassword(user, nova);
+    }
+
+    cpSuccess.textContent = "Senha alterada com sucesso!";
+    cpSuccess.classList.remove("d-none");
+
+    // Fecha modal após 1,5s (opcional)
+    setTimeout(() => {
+      const modal = bootstrap.Modal.getInstance(changePasswordModalEl);
+      modal?.hide();
+    }, 1500);
+
+  } catch (err) {
+    cpError.textContent = traduzErroAuth(err);
+    cpError.classList.remove("d-none");
+  } finally {
+    savePasswordBtn.disabled = false;
+  }
+});
+
+function traduzErroAuth(err) {
+  const code = String(err?.code || "").toLowerCase();
+  if (code.includes("auth/wrong-password")) return "Senha atual incorreta.";
+  if (code.includes("auth/invalid-credential")) return "Credenciais inválidas.";
+  if (code.includes("auth/missing-current-password")) return "Informe sua senha atual.";
+  if (code.includes("auth/requires-recent-login")) return "Por segurança, revalide sua sessão e tente novamente.";
+  if (code.includes("auth/weak-password")) return "A nova senha é fraca. Use ao menos 6 caracteres.";
+  if (code.includes("popup-closed-by-user")) return "Popup fechado antes de concluir a revalidação.";
+  if (err?.message) return err.message;
+  return "Ocorreu um erro. Tente novamente.";
+}
+
 </script>
+<!-- MODAL: Trocar senha (sem e-mail) -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="changePasswordForm">
+      <div class="modal-header">
+        <h5 class="modal-title" id="changePasswordLabel">Trocar senha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="cpInfo" class="alert alert-info d-none small mb-3"></div>
+        <div id="cpError" class="alert alert-danger d-none small mb-3"></div>
+        <div id="cpSuccess" class="alert alert-success d-none small mb-3"></div>
+
+        <!-- Mostrado apenas para contas de e-mail/senha -->
+        <div class="mb-3" id="groupCurrentPassword">
+          <label class="form-label">Senha atual</label>
+          <input type="password" class="form-control" id="currentPassword" autocomplete="current-password">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Nova senha</label>
+          <input type="password" class="form-control" id="newPassword" autocomplete="new-password" required>
+          <div class="form-text">Mínimo de 6 caracteres.</div>
+        </div>
+
+        <div class="mb-1">
+          <label class="form-label">Confirmar nova senha</label>
+          <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password" required>
+        </div>
+
+        <!-- Mostrado apenas para contas federadas (Google/Apple/etc.) -->
+        <div class="mt-3 d-none" id="federatedBlock">
+          <p class="small text-secondary mb-2">
+            Sua conta usa um provedor externo (ex.: Google/Apple). Primeiro vamos revalidar seu login em um popup; em seguida, definiremos a nova senha aqui mesmo, sem e-mail.
+          </p>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="reauthPopupBtn">Revalidar sessão</button>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="savePasswordBtn">
+          Salvar nova senha
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 </body>
 </html>

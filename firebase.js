@@ -1,6 +1,7 @@
 // firebase.js
 // IMPORTS (via CDN do Firebase modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+
 import {
   getAuth,
   setPersistence,
@@ -24,8 +25,6 @@ import {
   where,
   orderBy,
   limit,
-  startAt,
-  endAt,
   Timestamp
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
@@ -53,7 +52,8 @@ export function cpfToEmail(cpfDigits) {
   const clean = onlyDigits(cpfDigits).slice(0, 11);
   return `${clean}@cpf.local`;
 }
-// normaliza acentos/caixa para comparar papéis
+
+// normaliza acentos/caixa e reduz a 3 papeis conhecidos
 const norm = (s) =>
   (s || "")
     .normalize("NFD")
@@ -61,10 +61,17 @@ const norm = (s) =>
     .trim()
     .toLowerCase();
 
+const mapRole = (r) => {
+  const n = norm(r);
+  if (n.includes("master")) return "master";
+  if (n.includes("admin")) return "admin";
+  return "associado";
+};
+
 // 3) CACHE DE PAPEL EM SESSION STORAGE (entre páginas)
 const ROLE_KEY = "userRole";
-function cacheRole(role) { sessionStorage.setItem(ROLE_KEY, role); }
-function loadCachedRole() { return sessionStorage.getItem(ROLE_KEY); }
+function cacheRole(role) { sessionStorage.setItem(ROLE_KEY, mapRole(role)); }
+function loadCachedRole() { return mapRole(sessionStorage.getItem(ROLE_KEY)); }
 function clearCachedRole() { sessionStorage.removeItem(ROLE_KEY); }
 
 // 4) BUSCAR PAPEL NO FIRESTORE PELO UID
@@ -74,12 +81,12 @@ async function fetchRoleByUid(uid) {
   const snap = await getDoc(ref);
   if (snap.exists()) {
     const data = snap.data();
-    return (data.role || "associado");
+    return mapRole(data.role || "associado");
   }
   return "associado";
 }
 
-// 4.1) (Novo) Buscar perfil completo
+// 4.1) Buscar perfil completo
 export async function getUserProfile(uid) {
   if (!uid) return null;
   const ref = doc(db, "users", uid);
@@ -87,7 +94,7 @@ export async function getUserProfile(uid) {
   return snap.exists() ? snap.data() : null;
 }
 
-// 4.2) (Novo) Derivar status ativo/pendente de forma resiliente
+// 4.2) Derivar status ativo/pendente de forma resiliente
 export async function getUserStatus(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) return { active: false, pending: false, profile: null };
@@ -127,6 +134,8 @@ export async function doLogin(email, password) {
   const uid = auth.currentUser?.uid;
   const role = await fetchRoleByUid(uid);
   cacheRole(role);
+  // dispara listeners (se houver)
+  __emitRoleChange(role);
   return role;
 }
 
@@ -156,7 +165,46 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
   }, { merge: true });
 
   cacheRole("associado");
+  __emitRoleChange("associado");
   return { uid };
+}
+
+/* ============================
+   Controle de Role em tempo real
+   ============================ */
+const roleListeners = new Set();
+function __emitRoleChange(role) {
+  const r = mapRole(role);
+  for (const cb of roleListeners) {
+    try { cb(r); } catch {}
+  }
+}
+export function attachRoleChangeListener(cb) {
+  if (typeof cb === "function") {
+    roleListeners.add(cb);
+    return () => roleListeners.delete(cb);
+  }
+  return () => {};
+}
+
+export function hasAnyRole(role, roles) {
+  const r = mapRole(role);
+  return (Array.isArray(roles) ? roles : [roles]).map(mapRole).includes(r);
+}
+export function isAdminOrMaster(role) {
+  const r = mapRole(role);
+  return r === "admin" || r === "master";
+}
+export async function canViewAllUsers() {
+  // usa cache se houver, senão busca
+  let r = loadCachedRole();
+  if (!r || r === "associado") {
+    if (auth?.currentUser?.uid) {
+      r = await fetchRoleByUid(auth.currentUser.uid);
+      cacheRole(r);
+    }
+  }
+  return isAdminOrMaster(r);
 }
 
 // 7) GUARDA DE ROTA (protege páginas e/ou exige papel)
@@ -171,32 +219,34 @@ export function requireAuth(options = {}) {
 
     // pega papel (cache → firestore)
     let role = loadCachedRole();
-    if (!role) {
+    if (!role || role === "associado") {
       role = await fetchRoleByUid(user.uid);
       cacheRole(role);
+      __emitRoleChange(role);
     }
 
     if (requiredRole) {
       const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-      const ok = required.map(norm).includes(norm(role));
+      const ok = required.map(mapRole).includes(mapRole(role));
       if (!ok) {
-        redirect("./dashboard.html"); // altere se tiver outra rota
+        // redireciona para a página principal pública/associado (ajuste se necessário)
+        redirect("./index.html");
         return;
       }
     }
 
-    window.__userRole = role;
+    // expõe no window (legado/apoio)
+    window.__userRole = mapRole(role);
     window.__userEmail = user.email || "";
     window.__userUid  = user.uid;
   });
 }
 
-
 // 8) LOGOUT
 export function doLogout() {
   return signOut(auth).then(() => {
     clearCachedRole();
-    redirect("./login.html?logout=1"); // garante tela limpa p/ trocar de usuário
+    redirect("./login.html?logout=1");
   });
 }
 
@@ -354,8 +404,9 @@ export async function updateInvoice(uid, invoiceId, partial) {
   await updateDoc(ref, patch);
 }
 
-/* ====== Usuários: consultas para a tela de Operação ====== */
-
+/* ====== Usuários: consultas para a tela de Operação ======
+   Observação: a **regra de segurança** do Firestore deve reforçar que
+   apenas admin/master podem ler a coleção inteira de "users". */
 export async function findUserUidByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return null;
@@ -390,7 +441,7 @@ export async function searchUsersByCPF(cpf) {
 // utilitários exportados
 export { Timestamp, serverTimestamp };
 
-// (Novo) Re-export explícito p/ login.html
+// Re-exports úteis p/ login.html (compatibilidade)
 export {
   setPersistence,
   browserLocalPersistence,
@@ -402,24 +453,24 @@ export {
 };
 
 /* ============================
-   === Helpers do botão Administração (NOVOS) ===
+   === Helpers do botão Administração (ATUALIZADOS) ===
    ============================ */
 
-// NEW: devolve a role atual (usa cache, senão busca no Firestore)
+// devolve a role atual (usa cache, senão busca no Firestore) sempre normalizada
 export async function getCurrentRole() {
   if (auth?.currentUser?.uid) {
     let role = loadCachedRole();
     if (!role) {
       role = await fetchRoleByUid(auth.currentUser.uid);
       cacheRole(role);
+      __emitRoleChange(role);
     }
-    return String(role || "associado").toLowerCase();
+    return mapRole(role || "associado");
   }
   return "associado";
 }
 
-// NEW: mostra/oculta o botão Administração (link para operacao.html) somente p/ admin
-// Ex.: setupAdminButton('#adminBtn')  ou  setupAdminButton(document.getElementById('adminBtn'))
+// mostra/oculta o botão Administração (link para operacao.html) para admin **ou** master
 export function setupAdminButton(target, { href = 'operacao.html', label = 'Administração' } = {}) {
   const el = typeof target === 'string' ? document.querySelector(target) : target;
   if (!el) return;
@@ -442,7 +493,7 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
     if (!user) return;
     try {
       const role = await getCurrentRole();
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'master') {
         ensureAnchor();
         show();
       }
@@ -456,7 +507,7 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
   window.addEventListener('pageshow', () => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {
-        if (r === 'admin') { ensureAnchor(); show(); } else { hide(); }
+        if (r === 'admin' || r === 'master') { ensureAnchor(); show(); } else { hide(); }
       }).catch(() => hide());
     } else {
       hide();
@@ -467,7 +518,7 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
   setTimeout(() => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {
-        if (r === 'admin') { ensureAnchor(); show(); } else { hide(); }
+        if (r === 'admin' || r === 'master') { ensureAnchor(); show(); } else { hide(); }
       }).catch(() => hide());
     }
   }, 800);

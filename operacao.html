@@ -43,7 +43,7 @@
 
     /* Tabs coláveis (ficam no topo ao rolar) */
     .tabs-sticky{
-      position:sticky; top:56px; /* altura aproximada da navbar no mobile */
+      position:sticky; top:56px;
       z-index: 1020; background:#fff; border-bottom:1px solid #e9ecef;
     }
     @media (min-width:992px){
@@ -56,7 +56,7 @@
     .thumb{ width:72px; height:72px; object-fit:cover; border-radius:.5rem; }
     .card h6{ margin-bottom:.25rem; }
 
-    /* Layout dos controles nas listas (evita “buracos” no mobile) */
+    /* Layout dos controles nas listas */
     .toolbar-wrap{
       display:flex; flex-direction:column; gap:.5rem;
     }
@@ -64,17 +64,39 @@
       .toolbar-wrap{ flex-direction:row; align-items:center; justify-content:space-between; }
     }
 
-    /* Espaçamento geral do main (sem sobras) */
-    main.container{
-      padding-top:1rem; padding-bottom:1.25rem;
-    }
+    main.container{ padding-top:1rem; padding-bottom:1.25rem; }
 
-    /* Inputs grandes no mobile para facilitar toque */
     @media (max-width:575.98px){
       input.form-control, textarea.form-control, select.form-select{
         font-size:16px; /* evita zoom no iOS */
       }
     }
+
+    /* === Tabela-resumo de usuários (somente 3 colunas) === */
+    .users-header, .user-row{
+      display:grid; grid-template-columns: 1fr 160px 160px; gap:12px; align-items:center;
+    }
+    .users-header{
+      font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem;
+    }
+    .user-row{
+      padding:.5rem 0; border-bottom:1px dashed #e9ecef;
+    }
+    .user-name{
+      background:none; border:0; padding:0; text-align:left; font-weight:600;
+      color:#0d6efd; cursor:pointer;
+    }
+    .user-status .badge{ min-width:90px; }
+    .user-details{
+      border-left:3px solid #e9ecef;
+      margin-left:.25rem; padding-left:.75rem;
+    }
+    @media (max-width:767.98px){
+      .users-header, .user-row{ grid-template-columns: 1fr 110px 110px; }
+      .user-details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
+    }
+
+    .btn-new-assoc{ display:inline-flex; align-items:center; gap:.5rem; }
   </style>
 </head>
 <body>
@@ -89,8 +111,11 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item">
+        <li class="nav-item me-2">
           <a class="nav-link" href="pg_associado.html">Área do Associado</a>
+        </li>
+        <li class="nav-item">
+          <button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button>
         </li>
       </ul>
     </div>
@@ -124,57 +149,65 @@
 </div>
 
 <main class="container">
-
   <div class="tab-content pt-3">
 
     <!-- ====================== ASSOCIADOS ====================== -->
     <div class="tab-pane fade show active" id="pane-associados">
 
-      <!-- Cadastro novo -->
+      <!-- Cadastro novo (COLAPSADO por padrão) -->
       <div class="card shadow-sm mb-3">
         <div class="card-body">
-          <h5 class="mb-3">Cadastrar novo associado</h5>
-          <form id="formNewAssoc" class="row g-3">
-            <div class="col-sm-6 col-md-3">
-              <label class="form-label">CPF (somente números)</label>
-              <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
-            </div>
-            <div class="col-sm-6 col-md-3">
-              <label class="form-label">Senha inicial</label>
-              <input type="password" class="form-control" id="naPass" required>
-              <div class="form-help">O associado poderá trocar depois.</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Nome completo</label>
-              <input type="text" class="form-control" id="naNome" required>
-            </div>
-            <div class="col-sm-6 col-md-4">
-              <label class="form-label">Telefone</label>
-              <input type="text" class="form-control" id="naTel">
-            </div>
-            <div class="col-sm-6 col-md-8">
-              <label class="form-label">Endereço</label>
-              <input type="text" class="form-control" id="naEnd">
-            </div>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">Associados</h5>
+            <button class="btn btn-primary btn-new-assoc" type="button" data-bs-toggle="collapse" data-bs-target="#newAssocCollapse" aria-expanded="false">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-plus" viewBox="0 0 16 16"><path d="M6 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m4.5 3a.5.5 0 0 1 .5.5V13h1.5a.5.5 0 0 1 0 1H11v1.5a.5.5 0 0 1-1 0V14H8.5a.5.5 0 0 1 0-1H10v-1.5a.5.5 0 0 1 .5-.5M1 13c0-2 4-3 5-3s5 1 5 3v1H1z"/></svg>
+              Cadastrar novo associado
+            </button>
+          </div>
 
-            <!-- Financeiro inicial (sem SALDO) -->
-            <div class="col-sm-6 col-md-3">
-              <label class="form-label">Anuidade paga — Data</label>
-              <input type="date" class="form-control" id="naLastPayment">
-            </div>
-            <div class="col-sm-6 col-md-3">
-              <label class="form-label">Anuidade paga — Valor (R$)</label>
-              <input type="number" step="0.01" class="form-control" id="naPaidAmount" placeholder="ex.: 120.00">
-            </div>
-            <div class="col-sm-6 col-md-3">
-              <label class="form-label">Próxima data a pagar</label>
-              <input type="date" class="form-control" id="naNextDue">
-            </div>
-            <div class="col-sm-6 col-md-3 d-flex align-items-end">
-              <button class="btn btn-primary w-100" type="submit">Criar associado</button>
-            </div>
-          </form>
-          <div id="naMsg" class="small mt-2"></div>
+          <div id="newAssocCollapse" class="collapse mt-3">
+            <form id="formNewAssoc" class="row g-3">
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">CPF (somente números)</label>
+                <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Senha inicial</label>
+                <input type="password" class="form-control" id="naPass" required>
+                <div class="form-help">O associado poderá trocar depois.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Nome completo</label>
+                <input type="text" class="form-control" id="naNome" required>
+              </div>
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="naTel">
+              </div>
+              <div class="col-sm-6 col-md-8">
+                <label class="form-label">Endereço</label>
+                <input type="text" class="form-control" id="naEnd">
+              </div>
+
+              <!-- Financeiro inicial (sem SALDO) -->
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Anuidade paga — Data</label>
+                <input type="date" class="form-control" id="naLastPayment">
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Anuidade paga — Valor (R$)</label>
+                <input type="number" step="0.01" class="form-control" id="naPaidAmount" placeholder="ex.: 120.00">
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Próxima data a pagar</label>
+                <input type="date" class="form-control" id="naNextDue">
+              </div>
+              <div class="col-sm-6 col-md-3 d-flex align-items-end">
+                <button class="btn btn-primary w-100" type="submit">Criar associado</button>
+              </div>
+            </form>
+            <div id="naMsg" class="small mt-2"></div>
+          </div>
         </div>
       </div>
 
@@ -182,16 +215,22 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="toolbar-wrap">
-            <h5 class="mb-0">Associados</h5>
-            <div class="d-flex gap-2 flex-wrap">
+            <div class="d-flex gap-2 flex-wrap align-items-center">
               <input type="text" class="form-control" id="searchQuery" placeholder="Buscar por CPF ou Nome" style="max-width:300px">
               <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
               <button id="btnListAll" class="btn btn-outline-secondary">Listar todos (100)</button>
             </div>
           </div>
 
-          <div id="usersWrap" class="row g-3 mt-3">
-            <div class="col-12 text-center text-secondary">Use a busca ou liste todos.</div>
+          <!-- Cabeçalho das 3 colunas -->
+          <div class="users-header mt-3">
+            <div>Nome</div>
+            <div>Perfil</div>
+            <div>Status</div>
+          </div>
+
+          <div id="usersWrap" class="mt-2">
+            <div class="text-center text-secondary py-3">Use a busca ou liste todos.</div>
           </div>
         </div>
       </div>
@@ -199,7 +238,6 @@
 
     <!-- ====================== PRODUTOS ====================== -->
     <div class="tab-pane fade" id="pane-produtos">
-      <!-- Formulário topo -->
       <div class="card shadow-sm mb-3">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -253,7 +291,6 @@
         </div>
       </div>
 
-      <!-- Lista -->
       <div id="productsWrap" class="row g-3"></div>
       <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
         <div class="form-check">
@@ -407,12 +444,12 @@
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signOut as signOutSec }
+  import { getAuth, createUserWithEmailAndPassword, signOut as signOutSec, signOut }
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   /* ========= Requer admin/master logado ========= */
   const storage = getStorage();
-  requireAuth({ requiredRole: ["Admin", "Master"] });
+  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
 
   // App secundário para criar usuário sem sair da sessão
   const secondaryApp = initializeApp(auth.app.options, "op-secondary");
@@ -421,14 +458,48 @@
   // Header — operador
   const opNameEl = document.getElementById("opName");
   const opRoleEl = document.getElementById("opRole");
+  let currentRole = "";
+
+  // NORMALIZA papel (aceita strings diversas)
+  const normalizeRole = (r) => String(r || "").trim().toLowerCase();
+
+  // Lê/obtém o papel atual com cache local — com FALLBACK para "admin"
+  async function getCurrentRole() {
+    if (currentRole) return currentRole;
+    const user = auth.currentUser;
+    if (!user) return "";
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const roleDoc = snap.exists() ? snap.data().role : "";
+      const normalized = normalizeRole(roleDoc);
+      // Fallback importante: se não vier papel no doc, assume "admin"
+      currentRole = normalized || "admin";
+      return currentRole;
+    } catch {
+      // Em caso de erro de leitura, mantém acesso para admin por segurança operacional
+      currentRole = "admin";
+      return currentRole;
+    }
+  }
+
   auth.onAuthStateChanged(async (user) => {
     if (!user) return;
     const snap = await getDoc(doc(db, "users", user.uid));
     const d = snap.exists() ? snap.data() : {};
     opNameEl.textContent = d.nome || "Operador(a)";
-    const role = (d.role || "admin").toLowerCase();
+    const role = normalizeRole(d.role) || "admin"; // mesmo fallback aqui
+    currentRole = role;
     opRoleEl.textContent = role;
     opRoleEl.classList.remove("d-none");
+
+    // IMPORTANTE: carrega a lista já com o papel certo carregado
+    listUsers("");
+  });
+
+  // === LOGOUT ===
+  document.getElementById("btnLogout")?.addEventListener("click", async ()=>{
+    try { await signOut(auth); location.href = "login.html"; }
+    catch(e){ alert("Não foi possível sair: " + e.message); }
   });
 
   // Helpers
@@ -464,7 +535,7 @@
   const naNextDue     = document.getElementById("naNextDue");
   const naMsg  = document.getElementById("naMsg");
 
-  formNewAssoc.addEventListener("submit", async (e) => {
+  formNewAssoc?.addEventListener("submit", async (e) => {
     e.preventDefault();
     naMsg.textContent = "Criando associado...";
     try {
@@ -483,7 +554,6 @@
         createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
       }, { merge: true });
 
-      // Sem SALDO
       await setFinanceSummary(uid, {
         lastPayment: naLastPayment.value || undefined,
         lastAmount: naPaidAmount.value || undefined,
@@ -501,25 +571,62 @@
 
   const usersWrap = document.getElementById("usersWrap");
   const searchQuery = document.getElementById("searchQuery");
-  document.getElementById("btnSearch").addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
-  document.getElementById("btnListAll").addEventListener("click", ()=> listUsers(""));
+  document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
+  document.getElementById("btnListAll")?.addEventListener("click", ()=> listUsers(""));
 
   async function listUsers(term) {
-    usersWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
-    let docs = [];
-    if (!term) {
-      const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
-      docs = snap.docs;
-    } else if (/^\d{5,}$/.test(term)) { // parece CPF
-      const snap = await getDocs(query(collection(db,"users"), where("cpf","==", term)));
-      docs = snap.docs;
-    } else {
-      const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
-      const lower = term.toLowerCase();
-      docs = snap.docs.filter(d => (d.data().nome || "").toLowerCase().includes(lower));
+    if (!usersWrap) return;
+    usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
+
+    const roleNow = normalizeRole(await getCurrentRole());
+    const canSeeAll = (roleNow === "admin" || roleNow === "master");
+
+    if (!canSeeAll) {
+      try {
+        const user = auth.currentUser;
+        if (!user) { usersWrap.innerHTML = `<div class="text-center text-danger py-3">Sessão inválida.</div>`; return; }
+        const snap = await getDoc(doc(db,"users", user.uid));
+        if (!snap.exists()) { usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Seu perfil não foi encontrado.</div>`; return; }
+
+        let last = "—", next = "—", lastAmount = 0;
+        try {
+          const s = await getDoc(doc(db, "users", user.uid, "finance", "summary"));
+          if (s.exists()) {
+            const sd = s.data();
+            last = toDateStr(sd.lastPayment); next = toDateStr(sd.nextDue);
+            lastAmount = sd.lastAmount ?? 0;
+          }
+        } catch {}
+        usersWrap.innerHTML = "";
+        usersWrap.insertAdjacentHTML("beforeend", renderUserRow({ uid: user.uid, ...snap.data(), last, next, lastAmount }));
+        attachUserHandlers();
+        return;
+      } catch (e) {
+        usersWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao carregar seu perfil.</div>`;
+        return;
+      }
     }
 
-    if (!docs.length) { usersWrap.innerHTML = `<div class="col-12 text-center text-secondary">Nenhum associado encontrado.</div>`; return; }
+    // ADMIN/MASTER: listagem/busca normal
+    let docs = [];
+    try {
+      if (!term) {
+        const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+        docs = snap.docs;
+      } else if (/^\d{5,}$/.test(term)) { // parece CPF
+        const snap = await getDocs(query(collection(db,"users"), where("cpf","==", term)));
+        docs = snap.docs;
+      } else {
+        const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+        const lower = term.toLowerCase();
+        docs = snap.docs.filter(d => (d.data().nome || "").toLowerCase().includes(lower));
+      }
+    } catch (e) {
+      usersWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao consultar usuários.</div>`;
+      return;
+    }
+
+    if (!docs.length) { usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`; return; }
 
     usersWrap.innerHTML = "";
     for (const d of docs) {
@@ -533,7 +640,7 @@
           lastAmount = sd.lastAmount ?? 0;
         }
       } catch {}
-      usersWrap.insertAdjacentHTML("beforeend", renderUserCard({ uid, ...u, last, next, lastAmount }));
+      usersWrap.insertAdjacentHTML("beforeend", renderUserRow({ uid, ...u, last, next, lastAmount }));
     }
     attachUserHandlers();
   }
@@ -543,69 +650,78 @@
     catch { return ""; }
   }
 
-  // Role-tag ANTES do status + sem campo SALDO
-  function renderUserCard(u) {
+  // Linha compacta + detalhes colapsáveis
+  function renderUserRow(u) {
     const ativo = (u.ativo !== false);
-    const role = (u.role || "associado").toLowerCase();
-    return `
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="mb-0">
-                ${u.nome || "Sem nome"}
-                <span class="badge badge-role ms-2 text-uppercase">${role}</span>
-                <span class="badge ${ativo?'bg-success':'bg-secondary'} ms-2">${ativo?'Ativo':'Inativo'}</span>
-              </h6>
-              <small class="text-secondary">UID: ${u.uid}</small>
+    const role = normalizeRole(u.role || "associado");
+    const status = u.status || (ativo ? "Ativo" : "Inativo");
+    const uidSafe = String(u.uid).replace(/[^a-zA-Z0-9_-]/g,'');
+    const collapseId = `u-${uidSafe}`;
+
+    const rowHeader = `
+      <div class="user-row">
+        <button class="user-name" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
+          ${u.nome || "Sem nome"}
+        </button>
+        <div class="text-uppercase small"><span class="badge badge-role">${role}</span></div>
+        <div class="user-status">
+          <span class="badge ${ativo ? 'bg-success' : 'bg-secondary'}">${status}</span>
+        </div>
+      </div>
+    `;
+
+    const details = `
+      <div id="${collapseId}" class="collapse">
+        <div class="user-details">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label">Nome</label>
+              <input type="text" class="form-control" data-uid="${u.uid}" data-field="nome" value="${u.nome || ''}">
             </div>
-            <div class="row g-3 align-items-end">
-              <div class="col-md-3">
-                <label class="form-label">Nome</label>
-                <input type="text" class="form-control" data-uid="${u.uid}" data-field="nome" value="${u.nome || ''}">
+            <div class="col-md-2">
+              <label class="form-label">CPF</label>
+              <input type="text" class="form-control" data-uid="${u.uid}" data-field="cpf" value="${u.cpf || ''}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Telefone</label>
+              <input type="text" class="form-control" data-uid="${u.uid}" data-field="telefone" value="${u.telefone || ''}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Endereço</label>
+              <input type="text" class="form-control" data-uid="${u.uid}" data-field="endereco" value="${u.endereco || ''}">
+            </div>
+            <div class="col-md-2">
+              <div class="form-check mt-4">
+                <input class="form-check-input" type="checkbox" data-uid="${u.uid}" data-field="ativo" ${ativo?'checked':''}>
+                <label class="form-check-label">Ativo</label>
               </div>
-              <div class="col-md-2">
-                <label class="form-label">CPF</label>
-                <input type="text" class="form-control" data-uid="${u.uid}" data-field="cpf" value="${u.cpf || ''}">
-              </div>
-              <div class="col-md-2">
-                <label class="form-label">Telefone</label>
-                <input type="text" class="form-control" data-uid="${u.uid}" data-field="telefone" value="${u.telefone || ''}">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Endereço</label>
-                <input type="text" class="form-control" data-uid="${u.uid}" data-field="endereco" value="${u.endereco || ''}">
-              </div>
-              <div class="col-md-2">
-                <div class="form-check mt-4">
-                  <input class="form-check-input" type="checkbox" data-uid="${u.uid}" data-field="ativo" ${ativo?'checked':''}>
-                  <label class="form-check-label">Ativo</label>
-                </div>
-              </div>
+            </div>
 
-              <div class="col-sm-6 col-md-2">
-                <label class="form-label">Último pagto (data)</label>
-                <input type="date" class="form-control" data-uid="${u.uid}" data-field="lastPayment" value="${u.last}">
-              </div>
-              <div class="col-sm-6 col-md-2">
-                <label class="form-label">Último pagto (valor)</label>
-                <input type="number" step="0.01" class="form-control" data-uid="${u.uid}" data-field="lastAmount" value="${u.lastAmount ?? 0}">
-              </div>
-              <div class="col-sm-6 col-md-2">
-                <label class="form-label">Próximo pagto</label>
-                <input type="date" class="form-control" data-uid="${u.uid}" data-field="nextDue" value="${u.next}">
-              </div>
+            <div class="col-sm-6 col-md-2">
+              <label class="form-label">Último pagto (data)</label>
+              <input type="date" class="form-control" data-uid="${u.uid}" data-field="lastPayment" value="${u.last || ''}">
+            </div>
+            <div class="col-sm-6 col-md-2">
+              <label class="form-label">Último pagto (valor)</label>
+              <input type="number" step="0.01" class="form-control" data-uid="${u.uid}" data-field="lastAmount" value="${u.lastAmount ?? 0}">
+            </div>
+            <div class="col-sm-6 col-md-2">
+              <label class="form-label">Próximo pagto</label>
+              <input type="date" class="form-control" data-uid="${u.uid}" data-field="nextDue" value="${u.next || ''}">
+            </div>
 
-              <div class="col-sm-6 col-md-2">
-                <button class="btn btn-outline-primary w-100 btn-save-profile" data-uid="${u.uid}">Salvar Perfil</button>
-              </div>
-              <div class="col-sm-6 col-md-2">
-                <button class="btn btn-primary w-100 btn-save-fin" data-uid="${u.uid}">Salvar Financeiro</button>
-              </div>
+            <div class="col-sm-6 col-md-2">
+              <button class="btn btn-outline-primary w-100 btn-save-profile" data-uid="${u.uid}">Salvar Perfil</button>
+            </div>
+            <div class="col-sm-6 col-md-2">
+              <button class="btn btn-primary w-100 btn-save-fin" data-uid="${u.uid}">Salvar Financeiro</button>
             </div>
           </div>
         </div>
-      </div>`;
+      </div>
+    `;
+
+    return rowHeader + details;
   }
 
   function attachUserHandlers() {
@@ -657,12 +773,12 @@
   const productsWrap = document.getElementById("productsWrap");
   const showInactiveProducts = document.getElementById("showInactiveProducts");
 
-  prdNewBtn.addEventListener("click", () => {
+  prdNewBtn?.addEventListener("click", () => {
     prdId.value=""; formProduct.reset(); prdActive.checked=true;
     prdFormTitle.textContent="Cadastrar produto"; prdNewBtn.classList.add("d-none"); prdMsg.textContent="";
   });
 
-  formProduct.addEventListener("submit", async (e) => {
+  formProduct?.addEventListener("submit", async (e) => {
     e.preventDefault();
     prdMsg.textContent = "";
     const title = prdTitle.value.trim();
@@ -690,6 +806,7 @@
   });
 
   async function loadProducts() {
+    if (!productsWrap) return;
     productsWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
     try {
       const snap = await getDocs(query(collection(db,"memberProducts"), orderBy("title")));
@@ -707,7 +824,7 @@
   function attachProductCardHandlers(rows){
     document.querySelectorAll(".btn-edit-product").forEach(btn=>{
       btn.addEventListener("click",(e)=>{
-        const id = e.target.dataset.id; const p = rows.find(x=>x.id===id); if(!p) return;
+        const id = e.currentTarget.dataset.id; const p = rows.find(x=>x.id===id); if(!p) return;
         prdId.value=id; prdTitle.value=p.title||""; prdBenefit.value=p.benefit||""; prdDesc.value=p.description||"";
         prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
         prdImages.value=""; prdImagesUrls.value = Array.isArray(p.imageUrls)?p.imageUrls.join(", "):"";
@@ -717,13 +834,13 @@
     });
     document.querySelectorAll(".btn-toggle-product").forEach(btn=>{
       btn.addEventListener("click", async (e)=>{
-        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        const id=e.currentTarget.dataset.id; const activating=e.currentTarget.dataset.action==="activate";
         try { await updateMemberProduct(id, { active: activating }); loadProducts(); }
         catch(err){ alert("Erro ao atualizar: "+err.message); }
       });
     });
   }
-  showInactiveProducts.addEventListener("change", loadProducts);
+  showInactiveProducts?.addEventListener("change", loadProducts);
 
   /* ===================== SERVIÇOS ===================== */
   const svcId = document.getElementById("svcId");
@@ -741,12 +858,12 @@
   const servicesWrap = document.getElementById("servicesWrap");
   const showInactiveServices = document.getElementById("showInactiveServices");
 
-  svcNewBtn.addEventListener("click", ()=>{
+  svcNewBtn?.addEventListener("click", ()=>{
     svcId.value=""; formService.reset(); svcActive.checked=true;
     svcFormTitle.textContent="Cadastrar serviço"; svcNewBtn.classList.add("d-none"); svcMsg.textContent="";
   });
 
-  formService.addEventListener("submit", async (e)=>{
+  formService?.addEventListener("submit", async (e)=>{
     e.preventDefault(); svcMsg.textContent="";
     const title=svcTitle.value.trim(), description=svcDesc.value.trim(), benefit=svcBenefit.value.trim(), whatsapp=svcWpp.value.trim(), active=svcActive.checked;
     let imageUrl = svcImageUrl.value.trim();
@@ -759,6 +876,7 @@
   });
 
   async function loadServices() {
+    if (!servicesWrap) return;
     servicesWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
     try {
       const snap = await getDocs(query(collection(db,"memberServices"), orderBy("title")));
@@ -775,7 +893,7 @@
   function attachServiceCardHandlers(rows){
     document.querySelectorAll(".btn-edit-service").forEach(btn=>{
       btn.addEventListener("click",(e)=>{
-        const id = e.target.dataset.id; const s = rows.find(x=>x.id===id); if(!s) return;
+        const id = e.currentTarget.dataset.id; const s = rows.find(x=>x.id===id); if(!s) return;
         svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
         svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false); svcImage.value=""; svcImageUrl.value=s.imageUrl||"";
         svcFormTitle.textContent="Editar serviço"; svcNewBtn.classList.remove("d-none");
@@ -784,13 +902,13 @@
     });
     document.querySelectorAll(".btn-toggle-service").forEach(btn=>{
       btn.addEventListener("click", async (e)=>{
-        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        const id=e.currentTarget.dataset.id; const activating=e.currentTarget.dataset.action==="activate";
         try { await updateMemberService(id, { active: activating }); loadServices(); }
         catch(err){ alert("Erro ao atualizar: "+err.message); }
       });
     });
   }
-  showInactiveServices.addEventListener("change", loadServices);
+  showInactiveServices?.addEventListener("change", loadServices);
 
   /* ===================== CLASSIFICADOS ===================== */
   const clsId = document.getElementById("clsId");
@@ -807,12 +925,12 @@
   const showInactiveClassif = document.getElementById("showInactiveClassif");
   const showUnapprovedOnly = document.getElementById("showUnapprovedOnly");
 
-  clsNewBtn.addEventListener("click", ()=>{
+  clsNewBtn?.addEventListener("click", ()=>{
     clsId.value=""; formClassif.reset();
     clsFormTitle.textContent="Cadastrar classificado"; clsNewBtn.classList.add("d-none"); clsMsg.textContent="";
   });
 
-  formClassif.addEventListener("submit", async (e)=>{
+  formClassif?.addEventListener("submit", async (e)=>{
     e.preventDefault(); clsMsg.textContent="";
     const title=clsTitle.value.trim(), description=clsDesc.value.trim(), price=clsPrice.value?Number(clsPrice.value):null, whatsapp=clsWpp.value.trim();
     let images = [];
@@ -839,6 +957,7 @@
   });
 
   async function loadClassif() {
+    if (!classifWrap) return;
     classifWrap.innerHTML = `<div class="col-12 text-center text-secondary">Carregando...</div>`;
     try {
       const snap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("title")));
@@ -859,7 +978,7 @@
   function attachClassifCardHandlers(rows){
     document.querySelectorAll(".btn-edit-classif").forEach(btn=>{
       btn.addEventListener("click",(e)=>{
-        const id = e.target.dataset.id; const c = rows.find(x=>x.id===id); if(!c) return;
+        const id = e.currentTarget.dataset.id; const c = rows.find(x=>x.id===id); if(!c) return;
         clsId.value=id; clsTitle.value=c.title||""; clsDesc.value=c.description||""; clsWpp.value=c.whatsapp||"";
         clsPrice.value=c.price??""; clsImages.value="";
         clsFormTitle.textContent="Editar classificado"; clsNewBtn.classList.remove("d-none");
@@ -868,15 +987,15 @@
     });
     document.querySelectorAll(".btn-toggle-classif").forEach(btn=>{
       btn.addEventListener("click", async (e)=>{
-        const id=e.target.dataset.id; const activating=e.target.dataset.action==="activate";
+        const id=e.currentTarget.dataset.id; const activating=e.currentTarget.dataset.action==="activate";
         try { await updateDoc(doc(db,"memberClassifieds",id), { active: activating }); loadClassif(); }
         catch(err){ alert("Erro ao atualizar: "+err.message); }
       });
     });
     document.querySelectorAll(".btn-approve-classif").forEach(btn=>{
       btn.addEventListener("click", async (e)=>{
-        const id=e.target.dataset.id;
-        const action=e.target.dataset.action; // approve|reject
+        const id=e.currentTarget.dataset.id;
+        const action=e.currentTarget.dataset.action; // approve|reject
         try {
           await updateDoc(doc(db,"memberClassifieds",id), {
             approved: action==="approve",
@@ -888,8 +1007,8 @@
       });
     });
   }
-  showInactiveClassif.addEventListener("change", loadClassif);
-  showUnapprovedOnly.addEventListener("change", loadClassif);
+  showInactiveClassif?.addEventListener("change", loadClassif);
+  showUnapprovedOnly?.addEventListener("change", loadClassif);
 
   // Render genérico de card (prod, svc, classif)
   function renderItemCard(item, kind, showApprove=false) {
@@ -940,7 +1059,7 @@
       </div>`;
   }
 
-  // Inicializações
+  // Inicializações imediatas (produtos/serviços/classificados)
   const productsInit = () => loadProducts();
   const servicesInit = () => loadServices();
   const classifInit  = () => loadClassif();
