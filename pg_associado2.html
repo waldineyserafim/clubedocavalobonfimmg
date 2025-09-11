@@ -14,7 +14,7 @@
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- versionado para bustar cache -->
-  <link rel="stylesheet" href="assets/css/custom.css?v=assoc-2025-09-10b">
+  <link rel="stylesheet" href="assets/css/custom.css?v=assoc-2025-09-10a">
 
   <style>
     :root{ --brand:#111279; --accent:#2a9d8f; }
@@ -26,7 +26,7 @@
     .text-primary{ color:var(--brand)!important; }
     .badge-role{ background:var(--accent); }
 
-    /* ===== Navbar ===== */
+    /* ===== Navbar: sempre clicável e sem quebra ===== */
     .navbar{ position:relative; z-index:1020; }
     .navbar .container{ justify-content:space-between; flex-wrap:nowrap; }
     .navbar-toggler{ margin-left:auto; }
@@ -44,7 +44,7 @@
     .search-wrap input{ padding-left:2.25rem; }
     .search-wrap .ico{ position:absolute; left:.75rem; top:50%; transform:translateY(-50%); opacity:.55; }
 
-    /* ===== Abas responsivas ===== */
+    /* ===== Abas responsivas (roláveis no mobile) ===== */
     #typeTabs{ gap:.25rem; }
     @media (max-width: 575.98px){
       #typeTabs{ overflow:auto; white-space:nowrap; flex-wrap:nowrap; }
@@ -58,7 +58,7 @@
     .chip .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
     .dot-ok{ background:#28a745; } .dot-warn{ background:#ffc107; } .dot-bad{ background:#dc3545; }
 
-    /* ===== Layout ===== */
+    /* ===== Layout sem “buracos” ===== */
     header{ padding-top:1.25rem!important; padding-bottom:1rem!important; }
     main{ margin-top:1rem!important; margin-bottom:1.25rem!important; }
     #listLoading{ padding:1.25rem 0; }
@@ -107,15 +107,9 @@
         <span class="chip" id="chipCpfText">Seu número de associado é o próprio CPF.</span>
       </div>
     </div>
-    <div class="d-flex flex-column flex-sm-row gap-2 flex-shrink-0 text-end">
-      <!-- Botão só para ASSOCIADO -->
-      <button class="btn btn-outline-primary d-none" id="btnNewClassified" data-bs-toggle="modal" data-bs-target="#classifiedModal">
-        Novo classificado
-      </button>
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changePasswordModal" id="openChangePasswordBtn">Trocar senha</button>
-        <button id="logoutBtn" class="btn btn-primary">Sair</button>
-      </div>
+    <div class="d-flex gap-2 flex-shrink-0">
+      <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#changePasswordModal" id="openChangePasswordBtn">Trocar senha</button>
+      <button id="logoutBtn" class="btn btn-primary">Sair</button>
     </div>
   </div>
 </header>
@@ -169,17 +163,18 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { collection, getDocs, query, orderBy, doc, getDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { collection, getDocs, query, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import {
-    updatePassword,
-    reauthenticateWithCredential,
-    EmailAuthProvider,
-    reauthenticateWithPopup,
-    GoogleAuthProvider
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  reauthenticateWithPopup,
+  GoogleAuthProvider} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { OAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
-  /* ================== Helpers de acesso / roles ================== */
+
+
+  // ---------- Helpers de acesso ----------
   const ADMIN_UIDS = new Set([ /* "UID-ADMIN-AQUI" */ ]);
   const MASTER_UIDS = new Set([ /* "UID-MASTER-AQUI" */ ]);
 
@@ -189,23 +184,13 @@
     return new Set(String(roleField).toLowerCase().split(/[,;|/ ]+/g).map(s => s.trim()).filter(Boolean));
   }
 
-  async function hasAdminAccess(user, userDocData) {
-    if (ADMIN_UIDS.has(user.uid) || MASTER_UIDS.has(user.uid)) return true;
-    try {
-      const token = await user.getIdTokenResult(true);
-      if (token?.claims?.admin || token?.claims?.master) return true;
-    } catch (e) { console.warn("Falha ao ler custom claims:", e); }
-    const roles = toRoleSet(userDocData?.role || "associado");
-    return roles.has("admin") || roles.has("master");
-  }
-
-  /* ================== Helpers de UI / dados ================== */
+  // ---------- Helpers de nome ----------
   function looksLikeCPF(value) {
     if (!value) return false;
     const only = String(value).replace(/\D/g, "");
     if (only.length !== 11) return false;
-    if (/^(\d)\1{10}$/.test(only)) return true;
-    return true;
+    if (/^(\d)\1{10}$/.test(only)) return true; // 000.../111..., etc
+    return true; // 11 dígitos -> trata como CPF
   }
   function properCase(s) {
     return String(s).trim().toLowerCase().replace(/(^|\s|-|\/)\p{L}/gu, m => m.toUpperCase());
@@ -222,6 +207,18 @@
     }
     return "associado";
   }
+
+  async function hasAdminAccess(user, userDocData) {
+    if (ADMIN_UIDS.has(user.uid) || MASTER_UIDS.has(user.uid)) return true;
+    try {
+      const token = await user.getIdTokenResult(true);
+      if (token?.claims?.admin || token?.claims?.master) return true;
+    } catch (e) { console.warn("Falha ao ler custom claims:", e); }
+    const roles = toRoleSet(userDocData?.role || "associado");
+    return roles.has("admin") || roles.has("master");
+  }
+
+  // ---------- Utils ----------
   const fmtDate = (ts) => {
     if (!ts) return "—";
     try { const d = ts?.toDate ? ts.toDate() : new Date(ts);
@@ -241,7 +238,7 @@
   const debouncer = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
   const norm = (s) => (s||"").toString().normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase();
 
-  /* ================== DOM refs ================== */
+  // ---------- DOM ----------
   const adminBtn = document.getElementById("adminBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const memberNameEl = document.getElementById("memberName");
@@ -263,36 +260,23 @@
   const countProducts = document.getElementById("countProducts");
   const countClassifieds = document.getElementById("countClassifieds");
 
-  // Modal Novo Classificado
-  const classifiedModalEl = document.getElementById("classifiedModal");
-  const classifiedForm = document.getElementById("classifiedForm");
-  const clsTitle = document.getElementById("clsTitle");
-  const clsPrice = document.getElementById("clsPrice");
-  const clsContact = document.getElementById("clsContact");
-  const clsDesc = document.getElementById("clsDesc");
-  const clsFeedback = document.getElementById("clsFeedback");
-  const btnNewClassified = document.getElementById("btnNewClassified");
-
-  /* ================== Estado ================== */
+  // ---------- Estado ----------
   let currentType = "all";
   let items = [];
   let memberName = "associado";
   let metaPhones = { salesPhone:"", financePhone:"" };
-  let currentUser = null;
-  let currentUserRoles = new Set();
 
-  // Fecha o menu mobile ao clicar
+  // Fecha o menu mobile ao clicar em itens (evita overlay travando clique)
   document.querySelectorAll('#nav a.nav-link, #nav .btn').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', ()=> {
       const collapse = document.getElementById('nav');
       if (collapse?.classList.contains('show')) new bootstrap.Collapse(collapse).hide();
     });
   });
 
-  /* ================== Auth + Perfil ================== */
+  // ---------- Auth + Profile ----------
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = "login.html"; return; }
-    currentUser = user;
 
     try {
       const uref = doc(db, "users", user.uid);
@@ -305,17 +289,10 @@
       memberName = getPreferredName(u, user);
       memberNameEl.textContent = memberName;
 
-      currentUserRoles = toRoleSet(u.role || "associado");
-      const roleForBadge = currentUserRoles.size ? Array.from(currentUserRoles).join(" / ") : "associado";
+      const roles = toRoleSet(u.role || "associado");
+      const roleForBadge = roles.size ? Array.from(roles).join(" / ") : "associado";
       memberRoleEl.textContent = roleForBadge;
       memberRoleEl.classList.remove("d-none");
-
-      // Mostrar botão "Novo classificado" somente para ASSOCIADO
-      if (currentUserRoles.has("associado")) {
-        btnNewClassified.classList.remove("d-none");
-      } else {
-        btnNewClassified.classList.add("d-none");
-      }
 
       const cpfFmt = fmtCPF(u.cpf);
       chipCpfText.textContent = cpfFmt
@@ -377,7 +354,7 @@
     }catch(e){ console.warn("chips pagamento:", e); }
   }
 
-  /* ================== Conteúdo ================== */
+  // ---------- Conteúdo ----------
   async function loadAllContent(){
     listError.classList.add("d-none");
     listLoading.classList.remove("d-none");
@@ -423,13 +400,11 @@
         items.push(...prd);
       }catch(e){ console.warn("products:", e); }
 
-      // Classificados — **somente ativos**
+      // Classificados
       try{
         const cSnap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("createdAt","desc")));
         const cls = cSnap.docs.map(d=>{
           const v = d.data();
-          const isActive = (v.active !== false) && (v.approved === true); // ativo + aprovado
-          if (!isActive) return null; // não mostra inativos/pendentes
           const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_classified.jpg"];
           return {
             id:d.id, type:"classified",
@@ -439,7 +414,7 @@
             images:imgs, whatsapp:v.whatsapp||v.contactPhone||"",
             createdAt:v.createdAt||null, location:v.location||""
           };
-        }).filter(Boolean);
+        });
         items.push(...cls);
       }catch(e){ console.warn("classifieds:", e); }
 
@@ -470,7 +445,7 @@
     countClassifieds.textContent = items.filter(i=>i.type==="classified").length;
   }
 
-  /* ================== Render ================== */
+  // ---------- Render ----------
   function render(){
     const q = norm(searchInput.value);
     const filtered = items.filter(i=>{
@@ -481,7 +456,7 @@
       return hay.includes(q);
     });
 
-    listGrid.innerHTML = filtered.map((i)=>card(i)).join("");
+    listGrid.innerHTML = filtered.map((i, idx)=>card(i, idx)).join("");
     listEmpty.classList.toggle("d-none", filtered.length>0);
   }
 
@@ -520,7 +495,7 @@
     `;
   }
 
-  /* ================== UI bindings ================== */
+  // ---------- UI bindings ----------
   function bindUI(){
     typeTabs.querySelectorAll("button.nav-link").forEach(btn=>{
       btn.addEventListener("click", ()=>{
@@ -532,267 +507,177 @@
     });
     searchInput.addEventListener("input", debouncer(()=>render(), 200));
   }
+  // ===== Troca de senha (sem e-mail) =====
+const changePasswordModalEl = document.getElementById("changePasswordModal");
+const changePasswordForm    = document.getElementById("changePasswordForm");
+const cpInfo    = document.getElementById("cpInfo");
+const cpError   = document.getElementById("cpError");
+const cpSuccess = document.getElementById("cpSuccess");
 
-  /* ================== Novo Classificado (Associado) ================== */
-  classifiedForm?.addEventListener("submit", async (ev)=>{
-    ev.preventDefault();
-    clsFeedback.classList.add("d-none");
-    clsFeedback.classList.remove("alert-success","alert-danger");
-    clsFeedback.textContent = "";
+const groupCurrentPassword = document.getElementById("groupCurrentPassword");
+const currentPassword = document.getElementById("currentPassword");
+const newPassword     = document.getElementById("newPassword");
+const confirmPassword = document.getElementById("confirmPassword");
 
-    const title = (clsTitle.value || "").trim();
-    const price = clsPrice.value ? Number(clsPrice.value) : null;
-    const contact = (clsContact.value || "").trim();
-    const description = (clsDesc.value || "").trim();
+const federatedBlock  = document.getElementById("federatedBlock");
+const reauthPopupBtn  = document.getElementById("reauthPopupBtn");
+const savePasswordBtn = document.getElementById("savePasswordBtn");
 
-    if (!title || price==null || isNaN(price) || !contact) {
-      clsFeedback.textContent = "Preencha os campos obrigatórios: Título, Valor e Contato.";
-      clsFeedback.classList.remove("d-none");
-      clsFeedback.classList.add("alert","alert-danger");
-      return;
-    }
-    if (!currentUser) {
-      clsFeedback.textContent = "Sessão expirada. Faça login novamente.";
-      clsFeedback.classList.remove("d-none");
-      clsFeedback.classList.add("alert","alert-danger");
-      return;
-    }
+let currentUserEmail = "";
+let isPasswordProvider = false;   // true: email/senha | false: federado (Google/Apple)
+let reauthOK = false;             // marca se já reautenticou (federado)
 
-    try {
-      const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
-      await addDoc(collection(db,"memberClassifieds"), {
-        title,
-        description,
-        price,
-        whatsapp: contact,
-        imageUrls: [],            // opcional (sem upload aqui)
-        active: false,            // inativo até aprovação
-        approved: false,          // precisa de aprovação (Admin/Master)
-        ownerUid: currentUser.uid,
-        ownerName: memberName,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+function clearMsgs() {
+  [cpInfo, cpError, cpSuccess].forEach(el => { el.classList.add("d-none"); el.textContent = ""; });
+}
 
-      clsFeedback.textContent = "Classificado enviado! Ele ficará inativo até aprovação.";
-      clsFeedback.classList.remove("d-none");
-      clsFeedback.classList.add("alert","alert-success");
+function senhaForteMin(s) {
+  return typeof s === "string" && s.length >= 6;
+}
 
-      // limpa o formulário
-      classifiedForm.reset();
+changePasswordModalEl?.addEventListener("show.bs.modal", () => {
+  clearMsgs();
+  changePasswordForm.reset();
+  reauthOK = false;
 
-      // Fecha modal depois de um tempo e recarrega a lista (não aparecerá até aprovação)
-      setTimeout(()=>{
-        const modal = bootstrap.Modal.getInstance(classifiedModalEl);
-        modal?.hide();
-        loadAllContent(); // mantém lista atualizada
-      }, 1000);
-
-    } catch (err) {
-      console.error(err);
-      clsFeedback.textContent = "Não foi possível enviar seu classificado. Tente novamente.";
-      clsFeedback.classList.remove("d-none");
-      clsFeedback.classList.add("alert","alert-danger");
-    }
-  });
-
-  /* ================== Troca de senha (sem e-mail) ================== */
-  const changePasswordModalEl = document.getElementById("changePasswordModal");
-  const changePasswordForm    = document.getElementById("changePasswordForm");
-  const cpInfo    = document.getElementById("cpInfo");
-  const cpError   = document.getElementById("cpError");
-  const cpSuccess = document.getElementById("cpSuccess");
-
-  const groupCurrentPassword = document.getElementById("groupCurrentPassword");
-  const currentPassword = document.getElementById("currentPassword");
-  const newPassword     = document.getElementById("newPassword");
-  const confirmPassword = document.getElementById("confirmPassword");
-
-  const federatedBlock  = document.getElementById("federatedBlock");
-  const reauthPopupBtn  = document.getElementById("reauthPopupBtn");
-  const savePasswordBtn = document.getElementById("savePasswordBtn");
-
-  let currentUserEmail = "";
-  let isPasswordProvider = false;
-  let reauthOK = false;
-
-  function clearMsgs() {
-    [cpInfo, cpError, cpSuccess].forEach(el => { el.classList.add("d-none"); el.textContent = ""; });
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
   }
-  function senhaForteMin(s) { return typeof s === "string" && s.length >= 6; }
 
-  changePasswordModalEl?.addEventListener("show.bs.modal", () => {
-    clearMsgs();
-    changePasswordForm.reset();
-    reauthOK = false;
+  currentUserEmail = user.email || "";
 
-    const user = auth.currentUser;
-    if (!user) {
-      cpError.textContent = "Sessão expirada. Faça login novamente.";
-      cpError.classList.remove("d-none");
-      return;
-    }
+  const providers = (user.providerData || []).map(p => p.providerId);
+  // password = e-mail/senha; senão, é federado (google.com, apple.com, etc.)
+  isPasswordProvider = providers.includes("password");
 
-    currentUserEmail = user.email || "";
-    const providers = (user.providerData || []).map(p => p.providerId);
-    isPasswordProvider = providers.includes("password");
+  if (isPasswordProvider) {
+    // Mostra campo de senha atual; esconde bloco federado
+    groupCurrentPassword.classList.remove("d-none");
+    federatedBlock.classList.add("d-none");
+    cpInfo.textContent = "Informe sua senha atual e a nova senha.";
+    cpInfo.classList.remove("d-none");
+  } else {
+    // Senha atual não existe — precisa revalidar via popup do provedor
+    groupCurrentPassword.classList.add("d-none");
+    federatedBlock.classList.remove("d-none");
+    cpInfo.textContent = "Revalide sua sessão no provedor para definir uma nova senha sem e-mail.";
+    cpInfo.classList.remove("d-none");
+  }
+});
 
-    if (isPasswordProvider) {
-      groupCurrentPassword.classList.remove("d-none");
-      federatedBlock.classList.add("d-none");
-      cpInfo.textContent = "Informe sua senha atual e a nova senha.";
-      cpInfo.classList.remove("d-none");
+// Revalidar (contas federadas) — NÃO envia e-mail; abre popup do provedor
+reauthPopupBtn?.addEventListener("click", async () => {
+  clearMsgs();
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  try {
+    // Detecta o provedor primário e escolhe o provider adequado
+    const p = (user.providerData || [])[0]?.providerId || "";
+    let provider;
+    if (p === "google.com") {
+      provider = new GoogleAuthProvider();
+    } else if (p === "apple.com") {
+      provider = new OAuthProvider("apple.com");
     } else {
-      groupCurrentPassword.classList.add("d-none");
-      federatedBlock.classList.remove("d-none");
-      cpInfo.textContent = "Revalide sua sessão no provedor para definir uma nova senha sem e-mail.";
-      cpInfo.classList.remove("d-none");
-    }
-  });
-
-  reauthPopupBtn?.addEventListener("click", async () => {
-    clearMsgs();
-    const user = auth.currentUser;
-    if (!user) {
-      cpError.textContent = "Sessão expirada. Faça login novamente.";
-      cpError.classList.remove("d-none");
-      return;
+      // fallback: tente Google (ajuste se usar outros provedores)
+      provider = new GoogleAuthProvider();
     }
 
-    try {
-      const p = (user.providerData || [])[0]?.providerId || "";
-      let provider;
-      if (p === "google.com") provider = new GoogleAuthProvider();
-      else if (p === "apple.com") provider = new OAuthProvider("apple.com");
-      else provider = new GoogleAuthProvider();
-
-      await reauthenticateWithPopup(user, provider);
-      reauthOK = true;
-      cpSuccess.textContent = "Sessão revalidada com sucesso. Agora defina a nova senha e salve.";
-      cpSuccess.classList.remove("d-none");
-    } catch (err) {
-      cpError.textContent = traduzErroAuth(err);
-      cpError.classList.remove("d-none");
-    }
-  });
-
-  changePasswordForm?.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
-    clearMsgs();
-
-    const user = auth.currentUser;
-    if (!user) {
-      cpError.textContent = "Sessão expirada. Faça login novamente.";
-      cpError.classList.remove("d-none");
-      return;
-    }
-
-    const nova = newPassword.value.trim();
-    const conf = confirmPassword.value.trim();
-    if (nova !== conf) {
-      cpError.textContent = "A confirmação não confere com a nova senha.";
-      cpError.classList.remove("d-none");
-      return;
-    }
-    if (!senhaForteMin(nova)) {
-      cpError.textContent = "A nova senha precisa ter pelo menos 6 caracteres.";
-      cpError.classList.remove("d-none");
-      return;
-    }
-
-    savePasswordBtn.disabled = true;
-
-    try {
-      if (isPasswordProvider) {
-        const curr = (currentPassword.value || "").trim();
-        if (!curr) throw new Error("auth/missing-current-password");
-        const cred = EmailAuthProvider.credential(currentUserEmail, curr);
-        await reauthenticateWithCredential(user, cred);
-        await updatePassword(user, nova);
-      } else {
-        if (!reauthOK) {
-          cpInfo.textContent = "Clique em “Revalidar sessão” antes de salvar a nova senha.";
-          cpInfo.classList.remove("d-none");
-          savePasswordBtn.disabled = false;
-          return;
-        }
-        await updatePassword(user, nova);
-      }
-
-      cpSuccess.textContent = "Senha alterada com sucesso!";
-      cpSuccess.classList.remove("d-none");
-      setTimeout(() => {
-        const modal = bootstrap.Modal.getInstance(changePasswordModalEl);
-        modal?.hide();
-      }, 1500);
-
-    } catch (err) {
-      cpError.textContent = traduzErroAuth(err);
-      cpError.classList.remove("d-none");
-    } finally {
-      savePasswordBtn.disabled = false;
-    }
-  });
-
-  function traduzErroAuth(err) {
-    const code = String(err?.code || "").toLowerCase();
-    if (code.includes("auth/wrong-password")) return "Senha atual incorreta.";
-    if (code.includes("auth/invalid-credential")) return "Credenciais inválidas.";
-    if (code.includes("auth/missing-current-password")) return "Informe sua senha atual.";
-    if (code.includes("auth/requires-recent-login")) return "Por segurança, revalide sua sessão e tente novamente.";
-    if (code.includes("auth/weak-password")) return "A nova senha é fraca. Use ao menos 6 caracteres.";
-    if (code.includes("popup-closed-by-user")) return "Popup fechado antes de concluir a revalidação.";
-    if (err?.message) return err.message;
-    return "Ocorreu um erro. Tente novamente.";
+    await reauthenticateWithPopup(user, provider);
+    reauthOK = true;
+    cpSuccess.textContent = "Sessão revalidada com sucesso. Agora defina a nova senha e salve.";
+    cpSuccess.classList.remove("d-none");
+  } catch (err) {
+    cpError.textContent = traduzErroAuth(err);
+    cpError.classList.remove("d-none");
   }
+});
+
+changePasswordForm?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  clearMsgs();
+
+  const user = auth.currentUser;
+  if (!user) {
+    cpError.textContent = "Sessão expirada. Faça login novamente.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  const nova = newPassword.value.trim();
+  const conf = confirmPassword.value.trim();
+  if (nova !== conf) {
+    cpError.textContent = "A confirmação não confere com a nova senha.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+  if (!senhaForteMin(nova)) {
+    cpError.textContent = "A nova senha precisa ter pelo menos 6 caracteres.";
+    cpError.classList.remove("d-none");
+    return;
+  }
+
+  savePasswordBtn.disabled = true;
+
+  try {
+    if (isPasswordProvider) {
+      // Reautenticar com a senha atual
+      const curr = (currentPassword.value || "").trim();
+      if (!curr) {
+        throw new Error("auth/missing-current-password");
+      }
+      const cred = EmailAuthProvider.credential(currentUserEmail, curr);
+      await reauthenticateWithCredential(user, cred);
+      await updatePassword(user, nova);
+    } else {
+      // Federado: precisa ter reautenticado via popup primeiro
+      if (!reauthOK) {
+        cpInfo.textContent = "Clique em “Revalidar sessão” antes de salvar a nova senha.";
+        cpInfo.classList.remove("d-none");
+        savePasswordBtn.disabled = false;
+        return;
+      }
+      await updatePassword(user, nova);
+    }
+
+    cpSuccess.textContent = "Senha alterada com sucesso!";
+    cpSuccess.classList.remove("d-none");
+
+    // Fecha modal após 1,5s (opcional)
+    setTimeout(() => {
+      const modal = bootstrap.Modal.getInstance(changePasswordModalEl);
+      modal?.hide();
+    }, 1500);
+
+  } catch (err) {
+    cpError.textContent = traduzErroAuth(err);
+    cpError.classList.remove("d-none");
+  } finally {
+    savePasswordBtn.disabled = false;
+  }
+});
+
+function traduzErroAuth(err) {
+  const code = String(err?.code || "").toLowerCase();
+  if (code.includes("auth/wrong-password")) return "Senha atual incorreta.";
+  if (code.includes("auth/invalid-credential")) return "Credenciais inválidas.";
+  if (code.includes("auth/missing-current-password")) return "Informe sua senha atual.";
+  if (code.includes("auth/requires-recent-login")) return "Por segurança, revalide sua sessão e tente novamente.";
+  if (code.includes("auth/weak-password")) return "A nova senha é fraca. Use ao menos 6 caracteres.";
+  if (code.includes("popup-closed-by-user")) return "Popup fechado antes de concluir a revalidação.";
+  if (err?.message) return err.message;
+  return "Ocorreu um erro. Tente novamente.";
+}
+
 </script>
-
-<!-- MODAL: Novo classificado (associado) -->
-<div class="modal fade" id="classifiedModal" tabindex="-1" aria-labelledby="classifiedLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <form class="modal-content" id="classifiedForm">
-      <div class="modal-header">
-        <h5 class="modal-title" id="classifiedLabel">Cadastrar novo classificado</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-      </div>
-
-      <div class="modal-body">
-        <div id="clsFeedback" class="d-none"></div>
-
-        <div class="mb-3">
-          <label class="form-label">Título <span class="text-danger">*</span></label>
-          <input type="text" class="form-control" id="clsTitle" required>
-        </div>
-
-        <div class="row g-3">
-          <div class="col-sm-6">
-            <label class="form-label">Valor (R$) <span class="text-danger">*</span></label>
-            <input type="number" step="0.01" class="form-control" id="clsPrice" required>
-          </div>
-          <div class="col-sm-6">
-            <label class="form-label">Contato (WhatsApp) <span class="text-danger">*</span></label>
-            <input type="text" class="form-control" id="clsContact" placeholder="DDD+Número" required>
-          </div>
-        </div>
-
-        <div class="mt-3">
-          <label class="form-label">Descrição (opcional)</label>
-          <textarea class="form-control" id="clsDesc" rows="3" placeholder="Detalhes do anúncio"></textarea>
-        </div>
-
-        <div class="form-text mt-2">
-          Seu anúncio ficará <strong>inativo</strong> até ser analisado e aprovado pelo time de Administração.
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Enviar para aprovação</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <!-- MODAL: Trocar senha (sem e-mail) -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordLabel" aria-hidden="true">
   <div class="modal-dialog">
@@ -807,6 +692,7 @@
         <div id="cpError" class="alert alert-danger d-none small mb-3"></div>
         <div id="cpSuccess" class="alert alert-success d-none small mb-3"></div>
 
+        <!-- Mostrado apenas para contas de e-mail/senha -->
         <div class="mb-3" id="groupCurrentPassword">
           <label class="form-label">Senha atual</label>
           <input type="password" class="form-control" id="currentPassword" autocomplete="current-password">
@@ -823,6 +709,7 @@
           <input type="password" class="form-control" id="confirmPassword" autocomplete="new-password" required>
         </div>
 
+        <!-- Mostrado apenas para contas federadas (Google/Apple/etc.) -->
         <div class="mt-3 d-none" id="federatedBlock">
           <p class="small text-secondary mb-2">
             Sua conta usa um provedor externo (ex.: Google/Apple). Primeiro vamos revalidar seu login em um popup; em seguida, definiremos a nova senha aqui mesmo, sem e-mail.
@@ -833,7 +720,9 @@
 
       <div class="modal-footer">
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary" id="savePasswordBtn">Salvar nova senha</button>
+        <button type="submit" class="btn btn-primary" id="savePasswordBtn">
+          Salvar nova senha
+        </button>
       </div>
     </form>
   </div>
