@@ -105,15 +105,16 @@
       <!-- Botão dinamicamente exibido ao escolher o plano -->
       <a id="btnPagar" class="btn btn-primary w-100 d-none" target="_blank" rel="noopener">Pagar com Mercado Pago</a>
 
+      <!-- Recarregar status -->
+      <button id="btnRecarregar" class="btn btn-outline-secondary w-100 mt-2">Recarregar status</button>
+
       <p class="text-muted mt-3 mb-0" id="msg"></p>
     </div>
   </div>
 
   <div class="alert alert-secondary mt-3 mb-0 small" role="note">
     <strong>Quer plano anual ou outras condições (ex.: familiar, corporativo)?</strong>
-    <a class="link-underline link-underline-opacity-0" href="https://wa.me/5531999999999?text=Olá!%20Gostaria%20de%20conversar%20sobre%20planos%20da%20associação%20do%20Clube%20do%20Cavalo." target="_blank" rel="noopener">
-      Entre em contato com a Diretoria do Clube para combinar a melhor opção.
-    </a>
+    Entre em contato com a Diretoria do Clube para combinar a melhor opção.
   </div>
 </main>
 
@@ -145,6 +146,7 @@
   const statusEl       = document.getElementById("status");
   const selecionadoEl  = document.getElementById("selecionado");
   const btnPagar       = document.getElementById("btnPagar");
+  const btnRecarregar  = document.getElementById("btnRecarregar");
   const msg            = document.getElementById("msg");
   const radios         = Array.from(document.querySelectorAll('input[name="plano"]'));
 
@@ -202,8 +204,7 @@
       // Se não ativo, permite escolher um plano
       radios.forEach(r => r.disabled = false);
       atualizarUIPlano();
-      // Mensagem ajustada (sem "Recarregar status")
-      msg.textContent = "Após pagar, aguarde o processamento do seu pagamento e liberaremos seu acesso. Obrigado!";
+      msg.textContent = "Após pagar, aguarde a confirmação e clique em \"Recarregar status\".";
     }
   }
 
@@ -223,6 +224,18 @@
       planoSelecionado = radio.checked ? radio.value : null;
       atualizarUIPlano();
     });
+  });
+
+  // Recarregar status após pagamento
+  btnRecarregar.addEventListener("click", async () => {
+    btnRecarregar.disabled = true;
+    msg.textContent = "Atualizando status...";
+    try {
+      await carregarStatus();
+      msg.textContent = "Status atualizado.";
+    } finally {
+      setTimeout(() => { btnRecarregar.disabled = false; }, 800);
+    }
   });
 </script>
 </body>
