@@ -53,8 +53,9 @@
 
     /* Produtos/Serviços (4 colunas) */
     .items4-header, .item4-row{ grid-template-columns: 1fr 160px 140px 180px; }
-    /* Classificados (5 colunas) */
-    .items5-header, .item5-row{ grid-template-columns: 1fr 140px 220px 120px 180px; }
+
+    /* Classificados (5 colunas) — title | createdAt | ownerName | status | paymentStatus */
+    .items5-header, .item5-row{ grid-template-columns: 1fr 160px 240px 120px 160px; }
 
     .list-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
     .list-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
@@ -63,7 +64,7 @@
     .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
     @media (max-width:991.98px){
       .items4-header, .item4-row{ grid-template-columns: 1fr 120px 110px 170px; }
-      .items5-header, .item5-row{ grid-template-columns: 1fr 110px 170px 110px 160px; }
+      .items5-header, .item5-row{ grid-template-columns: 1fr 130px 200px 110px 140px; }
       .details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
     }
 
@@ -274,7 +275,7 @@
 
           <div class="list-header items4-header mt-3">
             <div>Título</div>
-            <div>Preço/Benefício</div>
+            <div>Valor</div>
             <div>Status</div>
             <div>Ações</div>
           </div>
@@ -304,7 +305,7 @@
                 <input type="text" class="form-control" id="svcTitle" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Benefício</label>
+                <label class="form-label">Valor</label>
                 <input type="text" class="form-control" id="svcBenefit">
               </div>
               <div class="col-12">
@@ -355,7 +356,7 @@
 
           <div class="list-header items4-header mt-3">
             <div>Título</div>
-            <div>Benefício</div>
+            <div>Valor</div>
             <div>Status</div>
             <div>Ações</div>
           </div>
@@ -433,10 +434,10 @@
 
           <div class="list-header items5-header mt-3">
             <div>Título</div>
-            <div>Valor</div>
-            <div>Associado</div>
+            <div>Criado em</div>
+            <div>Anunciado por</div>
             <div>Status</div>
-            <div>Revisão</div>
+            <div>Pagamento</div>
           </div>
           <div id="classifWrap" class="mt-2">
             <div class="text-center text-secondary py-3">Carregando…</div>
@@ -1038,6 +1039,7 @@
           active: true,
           approved: false,
           reviewed: false,
+          paymentStatus: "pendente",
           createdBy, createdByName,
           createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp(),
           updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
@@ -1066,18 +1068,12 @@
     } catch { wrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao carregar.</div>`; }
   }
 
-  function reviewLabel(row){
-    if (row.reviewed===true && row.approved===true) return '<span class="badge bg-info text-dark">Aprovado</span>';
-    if (row.reviewed===true && row.approved===false) return '<span class="badge bg-danger">Reprovado</span>';
-    return '<span class="badge bg-warning text-dark">Pendente</span>';
-  }
-
   function renderClassif(){
     const wrap = document.getElementById("classifWrap");
     if (!wrap) return;
     const q = (clsSearch.value||"").trim().toLowerCase();
     const status = clsStatusFilter.value;
-    const rf = clsReviewFilter.value;
+    const rf = clsReviewFilter.value; // mantemos compatível
     const ownerQ = (clsOwnerFilter.value||"").trim().toLowerCase();
 
     let rows = classifRows.slice();
@@ -1091,7 +1087,11 @@
       return okStatus && okReview && okQ && okOwner;
     });
 
-    if (!rows.length){ wrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum classificado.</div>`; document.getElementById("clsListMsg").textContent="0 item(s)"; return; }
+    if (!rows.length){
+      wrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum classificado.</div>`;
+      document.getElementById("clsListMsg").textContent="0 item(s)";
+      return;
+    }
 
     wrap.innerHTML = rows.map(r=>classifRow(r)).join("");
     attachClassifHandlers(rows);
@@ -1102,22 +1102,52 @@
     const idSafe = c.id.replace(/[^a-zA-Z0-9_-]/g,'');
     const cid = `c-${idSafe}`;
     const badgeActive = (c.active!==false) ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>';
-    const review = reviewLabel(c);
-    const price = c.price!=null ? fmt.format(c.price) : "—";
-    const owner = c.createdByName || "—";
+
+    const owner = c.ownerName || "—";
+    const pay = (c.paymentStatus || "pendente").toLowerCase();
+    const payBadge =
+      pay === "pago" ? '<span class="badge bg-success">Pago</span>' :
+      pay === "estornado" ? '<span class="badge bg-secondary">Estornado</span>' :
+      '<span class="badge bg-warning text-dark">Pendente</span>';
+
+    const createdAtStr = (() => {
+      try {
+        const d = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : null);
+        if (!d) return "—";
+        return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+      } catch { return "—"; }
+    })();
+
+    const galeria = Array.isArray(c.imageUrls) && c.imageUrls.length
+      ? `<div class="d-flex flex-wrap gap-2 mt-2">${c.imageUrls.map(u =>
+          `<a href="${u}" target="_blank" rel="noopener">
+             <img src="${u}" alt="Foto" style="width:110px;height:110px;object-fit:cover;border:1px solid #e9ecef;border-radius:8px;">
+           </a>`).join("")}
+         </div>`
+      : `<div class="text-secondary small">Sem fotos</div>`;
+
     return `
       <div class="item5-row list-row">
-        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">${c.title||"—"}</button>
-        <div class="small text-secondary">${price}</div>
+        <!-- Título (abre detalhes) -->
+        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
+          ${c.title||"—"}
+        </button>
+        <!-- Criado em -->
+        <div class="small text-secondary">${createdAtStr}</div>
+        <!-- Dono -->
         <div class="small">${owner}</div>
+        <!-- Status -->
         <div class="row-badges">${badgeActive}</div>
-        <div class="row-badges">${review}</div>
+        <!-- Pagamento -->
+        <div class="row-badges">${payBadge}</div>
       </div>
+
       <div id="${cid}" class="collapse">
         <div class="details">
-          <div class="small text-secondary mb-2">WhatsApp: ${c.whatsapp||"—"}</div>
-          <div class="mb-2">${(c.description||"").replace(/\n/g,"<br>")}</div>
-          <div class="d-flex flex-wrap gap-2">
+          <div class="mb-2"><strong>Descrição:</strong><br>${(c.description||"—").replace(/\n/g,"<br>")}</div>
+          <div class="small text-secondary mb-2"><strong>Contato (WhatsApp):</strong> ${c.whatsapp||"—"}</div>
+          ${galeria}
+          <div class="d-flex flex-wrap gap-2 mt-3">
             <button class="btn btn-sm btn-outline-primary btn-edit-classif" data-id="${c.id}">Editar</button>
             <button class="btn btn-sm ${c.active!==false?'btn-outline-secondary':'btn-outline-success'} btn-toggle-classif" data-id="${c.id}" data-action="${c.active!==false?'deactivate':'activate'}">${c.active!==false?'Inativar':'Ativar'}</button>
             <button class="btn btn-sm btn-outline-success btn-approve-classif" data-action="approve" data-id="${c.id}">Aprovar</button>
@@ -1149,7 +1179,7 @@
         const id=e.currentTarget.dataset.id;
         const action=e.currentTarget.dataset.action; // approve|reject
         const payload = (action==="approve")
-          ? { approved:true, reviewed:true, active:true }
+          ? { approved:true, reviewed:true, active:true, paymentStatus:"pago" }
           : { approved:false, reviewed:true };
         try {
           await updateDoc(doc(db,"memberClassifieds",id), {
