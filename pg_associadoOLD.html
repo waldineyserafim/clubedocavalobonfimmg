@@ -87,9 +87,9 @@
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item mt-2 mt-lg-0">
           <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="pg_associado.html">Área do Associado</a>
         </li>
@@ -160,9 +160,6 @@
       <small id="myClassifiedsCount">0</small>
     </div>
     <div class="card-body">
-      <div class="alert alert-info mb-3">
-        <strong>Regras:</strong> o anúncio custa <strong>R$ 1,00/dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias</strong> após a confirmação do pagamento.
-      </div>
       <div id="myClassifiedsSection" class="row g-3"></div>
       <div id="myClassifiedsEmpty" class="empty-state d-none text-center text-muted py-4">
         Você ainda não cadastrou classificados.
@@ -217,9 +214,6 @@
     GoogleAuthProvider
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { OAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-
-  /* ================== Constante de pagamento ================== */
-  const PAYMENT_URL = "https://mpago.la/1mJpCsd"; // link do Mercado Pago informado
 
   /* ================== Helpers de acesso / roles ================== */
   const ADMIN_UIDS = new Set([ /* "UID-ADMIN-AQUI" */ ]);
@@ -495,18 +489,27 @@
         items.push(...cls);
       }catch(e){ console.warn("classifieds:", e); }
 
-      // Meus classificados — ativos OU pendentes de pagamento
+      // Classificados do usuário (Meus classificados) — ativos OU pendentes de pagamento
+      // Classificados do usuário (Meus classificados) — ativos OU pendentes de pagamento
       try{
         if (currentUser) {
+          console.log("[debug] buscando meus classificados para uid:", currentUser.uid, " email:", currentUser.email, " nome:", memberName);
+
+          // 1) tenta por ownerUid
           let mySnap = await getDocs(query(collection(db,"memberClassifieds"), where("ownerUid","==", currentUser.uid), orderBy("createdAt","desc")));
           let docs = mySnap.docs || [];
 
+          // 2) se vazio, tenta por ownerEmail
           if ((!docs || docs.length===0) && currentUser.email) {
+            console.log("[debug] nenhum resultado por ownerUid — tentando ownerEmail:", currentUser.email);
             mySnap = await getDocs(query(collection(db,"memberClassifieds"), where("ownerEmail","==", currentUser.email), orderBy("createdAt","desc")));
             docs = mySnap.docs || [];
           }
 
+          // 3) se ainda vazio, tenta por campos genéricos owner/ownerName (última tentativa)
           if ((!docs || docs.length===0) && memberName) {
+            console.log("[debug] nenhum resultado por ownerEmail — tentando owner/ownerName:", memberName);
+            // busca sem where e filtra em memória (más práticas, mas útil para diagnóstico)
             const allMy = await getDocs(query(collection(db,"memberClassifieds"), orderBy("createdAt","desc")));
             docs = allMy.docs.filter(d=>{
               const v = d.data() || {};
@@ -515,6 +518,7 @@
             });
           }
 
+          // monta lista a partir dos docs encontrados
           myClassifieds = (docs || []).map(d=>{
             const v = d.data();
             const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_classified.jpg"];
@@ -530,11 +534,14 @@
               active: v.active !== false,
               approved: v.approved === true,
               paymentStatus: v.paymentStatus || v.paymentState || (v.pendingPayment ? "pending" : null),
-              paymentUrl: v.paymentUrl || v.payment_link || v.paymentLink || PAYMENT_URL
+              paymentUrl: v.paymentUrl || v.payment_link || v.paymentLink || null
             };
           }) || [];
+
+          console.log("[debug] meus classificados encontrados:", myClassifieds.length, myClassifieds.map(x=>({id:x.id,title:x.title,active:x.active,approved:x.approved})));
         }
       }catch(e){ console.warn("my classifieds:", e); }
+
 
       // Ordenação geral
       items.sort((a,b)=>{
@@ -547,6 +554,7 @@
       refreshCounts();
       listLoading.classList.add("d-none");
 
+      // Render my classifieds first (if any)
       if (Array.isArray(myClassifieds) && myClassifieds.length) {
         myClassifiedsWrapper.classList.remove("d-none");
         renderMyClassifieds();
@@ -634,7 +642,7 @@
     const approvedBadge = i.approved ? `<span class="badge text-bg-success me-1">Aprovado</span>` : `<span class="badge text-bg-warning me-1">Aguardando aprovação</span>`;
     const activeBadge = i.active ? `<span class="badge text-bg-primary me-1">Ativo</span>` : `<span class="badge text-bg-secondary me-1">Inativo</span>`;
     const payPending = isPendingPayment(i);
-    const payBtn = payPending ? `<button class="btn btn-sm btn-success" data-action="pay" data-id="${i.id}">Pagar anúncio</button>` : "";
+    const payBtn = payPending ? `<button class="btn btn-sm btn-success" data-action="pay" data-id="${i.id}">Pagar</button>` : "";
     const deactivateBtn = i.active ? `<button class="btn btn-sm btn-outline-secondary" data-action="deactivate" data-id="${i.id}">Desativar</button>` : "";
     const deleteBtn = `<button class="btn btn-sm btn-danger" data-action="delete" data-id="${i.id}">Excluir</button>`;
     const detailsBtn = `<button class="btn btn-sm btn-outline-primary" data-action="view" data-id="${i.id}">Ver</button>`;
@@ -664,11 +672,15 @@
 
   /* ================== Helpers classificados do usuário ================== */
   function isPendingPayment(obj){
-    const raw = obj?.raw || {};
-    const s = String(obj?.paymentStatus || raw.paymentStatus || raw.paymentState || "").toLowerCase();
-    if (!s && (raw.pendingPayment || raw.paymentPending)) return true;
-    if (!s && (raw.paymentUrl || obj?.paymentUrl)) return true;
-    if (["pending","pendente","em_aberto","pendente_pagamento","pending_payment","open","unpaid"].some(x=>s.includes(x))) return true;
+    // aceita diversas formas de sinalizar pendência de pagamento
+    const s = (obj?.paymentStatus || obj?.paymentStatus?.toString() || obj?.paymentState || "").toLowerCase();
+    if (!s && (obj?.raw && (obj.raw.pendingPayment || obj.raw.paymentPending))) return true;
+    if (!s && (obj?.raw && obj.raw.paymentUrl)) return true; // tem link de pagamento mas não status
+    if (!s && (obj?.raw && obj.raw.payment === "pending")) return true;
+    if (!s && (obj?.raw && obj.raw.payment === "em_aberto")) return true;
+    if (s) {
+      if (["pending","pendente","em_aberto","em_aberto","pendente_pagamento","pending_payment","open","unpaid"].some(x=>s.includes(x))) return true;
+    }
     return false;
   }
 
@@ -682,6 +694,7 @@
     if (action === "view") {
       const item = myClassifieds.find(m => m.id === id);
       if (!item) return;
+      // mostrar modal simples com detalhes e ações repetidas
       showViewModal(item);
       return;
     }
@@ -708,12 +721,18 @@
     try {
       const item = myClassifieds.find(m=>m.id===id);
       if (!item) { alert("Anúncio não encontrado."); return; }
-      // usa sempre o link do anúncio ou o padrão do MP
-      const link = item.paymentUrl || PAYMENT_URL;
-      window.open(link, "_blank", "noopener");
+      // prioriza paymentUrl
+      if (item.paymentUrl) {
+        window.open(item.paymentUrl, "_blank");
+        return;
+      }
+      // se não houver link, abre whatsapp para financeiro (metaPhones.financePhone) com texto
+      const text = `Olá, gostaria de finalizar o pagamento do classificado "${item.title}" (ID: ${item.id}). Meu nome: ${memberName}.`;
+      const link = wpp(metaPhones.financePhone || item.whatsapp, text);
+      window.open(link, "_blank");
     } catch (e) {
       console.error(e);
-      alert("Não foi possível iniciar o pagamento. Tente novamente.");
+      alert("Não foi possível iniciar o pagamento. Tente contatar o financeiro.");
     }
   }
 
@@ -756,7 +775,7 @@
   classifiedForm?.addEventListener("submit", async (ev)=>{
     ev.preventDefault();
     clsFeedback.classList.add("d-none");
-    clsFeedback.classList.remove("alert-success","alert-danger","alert-info");
+    clsFeedback.classList.remove("alert-success","alert-danger");
     clsFeedback.textContent = "";
 
     const title = (clsTitle.value || "").trim();
@@ -779,56 +798,33 @@
 
     try {
       const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
-
-      // Cria o anúncio inativo/pendente + dados do pagamento
       await addDoc(collection(db,"memberClassifieds"), {
         title,
         description,
-        price,               // preço informado do item
+        price,
         whatsapp: contact,
-        imageUrls: [],
-
-        // Status de publicação
-        active: false,       // ficará ativo somente após pagamento + aprovação
-        approved: false,
-
-        // Pagamento
-        paymentStatus: "pending",
-        paymentUrl: PAYMENT_URL,   // link informado
-        pricePerDay: 1.00,
-        minDays: 30,
-        plannedActiveDays: 30,     // regra: 30 dias ativo após confirmação
-        paymentCreatedAt: serverTimestamp(),
-
-        // Dono
+        imageUrls: [],            // opcional (sem upload aqui)
+        active: false,            // inativo até aprovação
+        approved: false,          // precisa de aprovação (Admin/Master)
         ownerUid: currentUser.uid,
-        ownerEmail: currentUser.email || null,
         ownerName: memberName,
-
-        // Timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
-      // Feedback + redirecionamento para pagamento
-      clsFeedback.innerHTML = `
-        <strong>Classificado enviado!</strong><br>
-        Ele ficará ativo por <strong>30 dias</strong> após a confirmação do pagamento.<br>
-        Você será levado agora à tela de pagamento para concluir: <a href="${PAYMENT_URL}" target="_blank" rel="noopener">pagar agora</a>.
-      `;
+      clsFeedback.textContent = "Classificado enviado! Ele ficará inativo até aprovação.";
       clsFeedback.classList.remove("d-none");
       clsFeedback.classList.add("alert","alert-success");
 
       // limpa o formulário
       classifiedForm.reset();
 
-      // Atualiza listas e redireciona para o Mercado Pago
+      // Fecha modal depois de um tempo e recarrega a lista (não aparecerá até aprovação)
       setTimeout(()=>{
         const modal = bootstrap.Modal.getInstance(classifiedModalEl);
         modal?.hide();
-        loadAllContent();
-        window.location.href = PAYMENT_URL; // abre a página de pagamento
-      }, 1200);
+        loadAllContent(); // mantém lista atualizada
+      }, 1000);
 
     } catch (err) {
       console.error(err);
@@ -840,7 +836,7 @@
 
   /* ================== Modal de visualização simples ================== */
   function showViewModal(item){
-    const linkPagamento = (item.paymentUrl || PAYMENT_URL);
+    // cria modal dinâmico com detalhes e ações disponibles
     const div = document.createElement("div");
     div.className = "modal fade";
     div.tabIndex = -1;
@@ -856,14 +852,10 @@
             <p>${item.description||''}</p>
             <p><strong>Valor:</strong> ${item.price!=null ? 'R$ ' + Number(item.price).toLocaleString('pt-BR') : '—'}</p>
             <p><strong>Estado:</strong> ${item.approved ? 'Aprovado' : 'Aguardando aprovação'} — ${item.active ? 'Ativo' : 'Inativo'}</p>
-            ${ isPendingPayment(item) ? `
-              <div class="alert alert-warning small">
-                Seu anúncio está com pagamento pendente. Ele será ativado por <strong>30 dias</strong> após a confirmação.
-              </div>` : '' }
             <p class="small text-secondary">Criado em: ${fmtDate(item.createdAt)}</p>
           </div>
           <div class="modal-footer">
-            ${ isPendingPayment(item) ? `<a class="btn btn-success" href="${linkPagamento}" target="_blank" rel="noopener">Pagar agora</a>` : '' }
+            ${ isPendingPayment(item) ? `<a class="btn btn-success" href="#" id="modalPayBtn">Pagar</a>` : '' }
             ${ item.active ? `<button class="btn btn-outline-secondary" id="modalDeactivateBtn">Desativar</button>` : '' }
             <button class="btn btn-danger" id="modalDeleteBtn">Excluir</button>
             <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
@@ -877,6 +869,11 @@
 
     div.addEventListener('hidden.bs.modal', ()=>{ div.remove(); });
 
+    div.querySelector('#modalPayBtn')?.addEventListener('click', async (ev)=>{
+      ev.preventDefault();
+      await payClassified(item.id);
+      modal.hide();
+    });
     div.querySelector('#modalDeactivateBtn')?.addEventListener('click', async ()=>{
       if (!confirm("Deseja realmente desativar este anúncio?")) return;
       await deactivateClassified(item.id);
@@ -1050,10 +1047,6 @@
       </div>
 
       <div class="modal-body">
-        <div class="alert alert-warning">
-          <strong>Atenção:</strong> o anúncio tem custo de <strong>R$ 1,00 por dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias após a confirmação do pagamento</strong>.
-        </div>
-
         <div id="clsFeedback" class="d-none"></div>
 
         <div class="mb-3">
@@ -1078,14 +1071,13 @@
         </div>
 
         <div class="form-text mt-2">
-          Após cadastrar, você será direcionado para a <strong>página de pagamento</strong> para concluir (Mercado Pago).
+          Seu anúncio ficará <strong>inativo</strong> até ser analisado e aprovado pelo time de Administração.
         </div>
       </div>
 
       <div class="modal-footer">
-        <a class="btn btn-outline-secondary" href="classificados.html">Ver classificados</a>
         <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Enviar e ir para pagamento</button>
+        <button type="submit" class="btn btn-primary">Enviar para aprovação</button>
       </div>
     </form>
   </div>

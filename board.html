@@ -31,21 +31,27 @@
       margin-right: auto;
 
     }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+     .only-lg{ display:none; }
+    @media (min-width:992px){ .only-lg{ display:flex; } .only-mobile{ display:none; } }
   </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo"> 
     <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
       </ul>
     </div>
@@ -135,6 +141,48 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets\fotos\beto.png><div class="card-body"><p class="mb-1">Beto</p><p class="text-secondary small">Gilberto Gilson Lacerda</p></div></div></div>
   </div>
 </main>
+<!-- REDES SOCIAIS & CONTATO -->
+<section class="py-5">
+  <div class="container">
+
+    <h2 class="h4 mb-3 only-mobile">Redes Sociais & Contato</h2>
+
+    <div class="only-lg align-items-baseline justify-content-between mb-3">
+      <h2 class="h4 mb-0">Redes Sociais & Contato</h2>
+      <h2 class="h4 mb-0">📍 Onde estamos</h2>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="p-4 border rounded-3 h-100">
+          <h3 class="h5 mb-3">Siga o Clube</h3>
+          <ul class="list-unstyled mb-0">
+            <li class="mb-2">Instagram: <a href="https://www.instagram.com/clube_do_cavalo_de_bonfim_mg/" target="_blank" rel="noopener">/@clubedocavalobonfimmg</a></li>
+            <li class="mb-2">E-mail: <a href="mailto:contato@clubedocavalo.com.br">contato@clubedocavalo.com.br</a></li>
+            <li class="mb-2">WhatsApp: <a href="https://wa.me/5531991297695" target="_blank" rel="noopener">+55 (31) 99129-7695</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <h2 class="h4 mb-3 only-mobile">📍 Onde estamos</h2>
+        <div class="p-4 border rounded-3 h-100">
+          <p class="h6 mb-2">Antiga Escola Melo Viana</p>
+          <p class="mb-2">Rua Doutor Melo Viana, número 183 - Sala 08</p>
+          <p class="mb-2">Bairro Centro, Bonfim</p>
+          <p class="mb-3">CEP: 35480-000</p>
+          <div class="ratio ratio-16x9">
+            <img src="assets/img/meloviana.png?v=ccbmg-2025-09-10d" alt="Mapa de Bonfim MG"
+                 class="w-100 h-100" style="object-fit:cover; border-radius:.5rem;" loading="lazy">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</section>
+
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div>
