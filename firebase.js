@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   signOut
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
 import {
   getFirestore,
   doc,
@@ -31,6 +32,13 @@ import {
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+import {
+  getStorage,
+  ref as sRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+
 // === Configuração do Firebase (seus dados) ===
 const firebaseConfig = {
   apiKey: "AIzaSyB1HBodrFRmgGKnYtX2v0X5LiIkowhR9wg",
@@ -45,16 +53,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// (Opcional) exporte o storage se precisar em outras páginas:
+export const storage = getStorage(app);
+export { sRef, uploadBytes, getDownloadURL };
 
 // NÃO usar top-level await: setPersistence em background
 setPersistence(auth, browserLocalPersistence)
-  .then(() => {
-    // tudo ok — persistence ajustada
-  })
-  .catch((e) => {
-    // não fatal — apenas log para depuração
-    console.warn("Não foi possível setar persistence (ignorado):", e);
-  });
+  .catch((e) => console.warn("Não foi possível setar persistence (ignorado):", e));
+
 
 // ===== Utils gerais =====
 export const onlyDigits = (s) => (s || "").replace(/\D/g, "");
