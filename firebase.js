@@ -1,4 +1,5 @@
-// firebase.js
+// firebase.js (versão revisada - compatível com leitura pública de /classificados)
+
 // IMPORTS (via CDN do Firebase modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 
@@ -20,12 +21,14 @@ import {
   collection,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDocs,
   query,
   where,
   orderBy,
   limit,
-  Timestamp
+  Timestamp,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 // === Configuração do Firebase (seus dados) ===
@@ -43,8 +46,15 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// mantém a sessão no navegador (login persiste entre páginas)
-await setPersistence(auth, browserLocalPersistence);
+// NÃO usar top-level await: setPersistence em background
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    // tudo ok — persistence ajustada
+  })
+  .catch((e) => {
+    // não fatal — apenas log para depuração
+    console.warn("Não foi possível setar persistence (ignorado):", e);
+  });
 
 // ===== Utils gerais =====
 export const onlyDigits = (s) => (s || "").replace(/\D/g, "");
@@ -62,7 +72,7 @@ const norm = (s) =>
     .toLowerCase();
 
 const mapRole = (r) => {
-  const n = norm(r);
+  const n = norm(r || "");
   if (n.includes("master")) return "master";
   if (n.includes("admin")) return "admin";
   return "associado";
@@ -71,7 +81,10 @@ const mapRole = (r) => {
 // 3) CACHE DE PAPEL EM SESSION STORAGE (entre páginas)
 const ROLE_KEY = "userRole";
 function cacheRole(role) { sessionStorage.setItem(ROLE_KEY, mapRole(role)); }
-function loadCachedRole() { return mapRole(sessionStorage.getItem(ROLE_KEY)); }
+function loadCachedRole() { 
+  const raw = sessionStorage.getItem(ROLE_KEY);
+  return raw ? mapRole(raw) : "associado";
+}
 function clearCachedRole() { sessionStorage.removeItem(ROLE_KEY); }
 
 // 4) BUSCAR PAPEL NO FIRESTORE PELO UID
@@ -134,7 +147,6 @@ export async function doLogin(email, password) {
   const uid = auth.currentUser?.uid;
   const role = await fetchRoleByUid(uid);
   cacheRole(role);
-  // dispara listeners (se houver)
   __emitRoleChange(role);
   return role;
 }
@@ -196,7 +208,6 @@ export function isAdminOrMaster(role) {
   return r === "admin" || r === "master";
 }
 export async function canViewAllUsers() {
-  // usa cache se houver, senão busca
   let r = loadCachedRole();
   if (!r || r === "associado") {
     if (auth?.currentUser?.uid) {
@@ -217,7 +228,6 @@ export function requireAuth(options = {}) {
       return;
     }
 
-    // pega papel (cache → firestore)
     let role = loadCachedRole();
     if (!role || role === "associado") {
       role = await fetchRoleByUid(user.uid);
@@ -229,13 +239,11 @@ export function requireAuth(options = {}) {
       const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
       const ok = required.map(mapRole).includes(mapRole(role));
       if (!ok) {
-        // redireciona para a página principal pública/associado (ajuste se necessário)
         redirect("./index.html");
         return;
       }
     }
 
-    // expõe no window (legado/apoio)
     window.__userRole = mapRole(role);
     window.__userEmail = user.email || "";
     window.__userUid  = user.uid;
@@ -279,7 +287,7 @@ const toTimestamp = (v) => {
   return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
 };
 
-// ===== Serviços =====
+// ===== Serviços (mantidos) =====
 export async function addMemberService({ title, description, benefit, imageUrl, whatsapp, active = true }) {
   const payload = {
     title: toStr(title),
@@ -294,7 +302,6 @@ export async function addMemberService({ title, description, benefit, imageUrl, 
   const ref = await addDoc(collection(db, "memberServices"), payload);
   return ref.id;
 }
-
 export async function updateMemberService(id, partial) {
   const ref = doc(db, "memberServices", id);
   const patch = { updatedAt: serverTimestamp() };
@@ -307,7 +314,7 @@ export async function updateMemberService(id, partial) {
   await updateDoc(ref, patch);
 }
 
-// ===== Produtos =====
+// ===== Produtos (mantidos) =====
 export async function addMemberProduct({ title, description, benefit, imageUrls, whatsapp, price = null, active = true }) {
   const payload = {
     title: toStr(title),
@@ -323,7 +330,6 @@ export async function addMemberProduct({ title, description, benefit, imageUrls,
   const ref = await addDoc(collection(db, "memberProducts"), payload);
   return ref.id;
 }
-
 export async function updateMemberProduct(id, partial) {
   const ref = doc(db, "memberProducts", id);
   const patch = { updatedAt: serverTimestamp() };
@@ -337,7 +343,43 @@ export async function updateMemberProduct(id, partial) {
   await updateDoc(ref, patch);
 }
 
-// ===== Classificados =====
+// ===== Classificados (PUBLICOS) =====
+export async function addClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
+  if (!auth || !auth.currentUser) throw new Error("Usuário não autenticado. Faça login para publicar.");
+  const payload = {
+    title: toStr(title),
+    description: toStr(description),
+    imageUrls: strArray(imageUrls),
+    whatsapp: onlyDigits(whatsapp),
+    price: toNumberOrNull(price),
+    active: !!active,
+    approved: !!approved,
+    ownerUid: auth.currentUser.uid,
+    ownerEmail: auth.currentUser.email || null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+  const ref = await addDoc(collection(db, "classificados"), payload);
+  return ref.id;
+}
+export async function updateClassified(id, partial) {
+  const ref = doc(db, "classificados", id);
+  const patch = { updatedAt: serverTimestamp() };
+  if ("title" in partial) patch.title = toStr(partial.title);
+  if ("description" in partial) patch.description = toStr(partial.description);
+  if ("imageUrls" in partial) patch.imageUrls = strArray(partial.imageUrls);
+  if ("whatsapp" in partial) patch.whatsapp = onlyDigits(partial.whatsapp);
+  if ("price" in partial) patch.price = toNumberOrNull(partial.price);
+  if ("active" in partial) patch.active = !!partial.active;
+  if ("approved" in partial) patch.approved = !!partial.approved;
+  await updateDoc(ref, patch);
+}
+export async function deleteClassified(id) {
+  const ref = doc(db, "classificados", id);
+  await deleteDoc(ref);
+}
+
+// legacy helpers for memberClassifieds preserved...
 export async function addMemberClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
   const payload = {
     title: toStr(title),
@@ -353,7 +395,6 @@ export async function addMemberClassified({ title, description, imageUrls, whats
   const ref = await addDoc(collection(db, "memberClassifieds"), payload);
   return ref.id;
 }
-
 export async function updateMemberClassified(id, partial) {
   const ref = doc(db, "memberClassifieds", id);
   const patch = { updatedAt: serverTimestamp() };
@@ -367,7 +408,7 @@ export async function updateMemberClassified(id, partial) {
   await updateDoc(ref, patch);
 }
 
-// ===== Financeiro =====
+// ===== Financeiro helpers (mantidos) =====
 export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, lastAmount } = {}) {
   const ref = doc(db, "users", uid, "finance", "summary");
   const payload = { updatedAt: serverTimestamp() };
@@ -381,7 +422,6 @@ export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, la
   if (nd) payload.nextDue = nd;
   await setDoc(ref, payload, { merge: true });
 }
-
 export async function addInvoice(uid, { dueDate, amount, status }) {
   const invRef = collection(db, "users", uid, "finance", "invoices");
   const payload = {
@@ -394,7 +434,6 @@ export async function addInvoice(uid, { dueDate, amount, status }) {
   const ref = await addDoc(invRef, payload);
   return ref.id;
 }
-
 export async function updateInvoice(uid, invoiceId, partial) {
   const ref = doc(db, "users", uid, "finance", "invoices", invoiceId);
   const patch = { updatedAt: serverTimestamp() };
@@ -404,9 +443,7 @@ export async function updateInvoice(uid, invoiceId, partial) {
   await updateDoc(ref, patch);
 }
 
-/* ====== Usuários: consultas para a tela de Operação ======
-   Observação: a **regra de segurança** do Firestore deve reforçar que
-   apenas admin/master podem ler a coleção inteira de "users". */
+/* ====== Usuários: consultas para a tela de Operação ====== */
 export async function findUserUidByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return null;
@@ -415,13 +452,11 @@ export async function findUserUidByCPF(cpf) {
   if (snap.empty) return null;
   return snap.docs[0].id;
 }
-
 export async function listUsersByName(limitTo = 100) {
   const qRef = query(collection(db, "users"), orderBy("nome"), limit(limitTo));
   const snap = await getDocs(qRef);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-
 export async function searchUsersByNamePrefix(term, limitTo = 100) {
   const t = (term || "").trim();
   if (!t) return listUsersByName(limitTo);
@@ -429,7 +464,6 @@ export async function searchUsersByNamePrefix(term, limitTo = 100) {
   const all = await listUsersByName(100);
   return all.filter(u => (u.nome || "").toLowerCase().includes(lower)).slice(0, limitTo);
 }
-
 export async function searchUsersByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return [];
@@ -453,10 +487,56 @@ export {
 };
 
 /* ============================
+   Funções para consulta pública de classificados (helpers)
+   ============================ */
+
+// Retorna uma query pronta (ordem desc por createdAt)
+// se onlyApproved=true -> aplica where('approved', '==', true)
+export function getPublicClassifiedsQuery({ onlyApproved = false, limitTo = 100 } = {}) {
+  const colRef = collection(db, "classificados");
+  let q;
+  if (onlyApproved) {
+    q = query(colRef, where("approved", "==", true), orderBy("createdAt", "desc"), limit(limitTo));
+  } else {
+    q = query(colRef, orderBy("createdAt", "desc"), limit(limitTo));
+  }
+  return q;
+}
+
+// Lista (snapshot único) — usa getDocs (fallback)
+export async function fetchPublicClassifiedsOnce({ onlyApproved = false, limitTo = 100 } = {}) {
+  try {
+    const q = getPublicClassifiedsQuery({ onlyApproved, limitTo });
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error("fetchPublicClassifiedsOnce error:", err);
+    return [];
+  }
+}
+
+// Observador real-time (retorna unsubscribe)
+export function watchPublicClassifieds(onUpdate, onError, opts = { onlyApproved: false, limitTo: 100 }) {
+  const q = getPublicClassifiedsQuery(opts);
+  try {
+    return onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (typeof onUpdate === "function") onUpdate(docs);
+    }, (err) => {
+      if (typeof onError === "function") onError(err);
+      console.error("watchPublicClassifieds error:", err);
+    });
+  } catch (e) {
+    console.error("watchPublicClassifieds (sync) error:", e);
+    if (typeof onError === "function") onError(e);
+    return () => {};
+  }
+}
+
+/* ============================
    === Helpers do botão Administração (ATUALIZADOS) ===
    ============================ */
 
-// devolve a role atual (usa cache, senão busca no Firestore) sempre normalizada
 export async function getCurrentRole() {
   if (auth?.currentUser?.uid) {
     let role = loadCachedRole();
@@ -470,7 +550,6 @@ export async function getCurrentRole() {
   return "associado";
 }
 
-// mostra/oculta o botão Administração (link para operacao.html) para admin **ou** master
 export function setupAdminButton(target, { href = 'operacao.html', label = 'Administração' } = {}) {
   const el = typeof target === 'string' ? document.querySelector(target) : target;
   if (!el) return;
@@ -478,7 +557,6 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
   const hide = () => el.classList.add('d-none');
   const show = () => el.classList.remove('d-none');
 
-  // Se for <li> com <a> dentro (como no seu HTML), ajusta o link e o texto
   const ensureAnchor = () => {
     let a = el.tagName === 'A' ? el : el.querySelector('a');
     if (!a) return;
@@ -486,7 +564,7 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
     a.textContent = label;
   };
 
-  hide(); // estado inicial seguro
+  hide();
 
   onAuthStateChanged(auth, async (user) => {
     hide();
@@ -503,7 +581,6 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
     }
   });
 
-  // Revalida em navegação pelo histórico (bfcache)
   window.addEventListener('pageshow', () => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {
@@ -514,7 +591,6 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
     }
   });
 
-  // Defesa extra após pequeno atraso
   setTimeout(() => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {

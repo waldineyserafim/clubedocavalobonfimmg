@@ -24,8 +24,8 @@
 
     /* ===== NAVBAR ===== */
     .navbar{
-      position: relative;
-      z-index: 1020;
+      position: relative;         /* cria contexto de empilhamento */
+      z-index: 1020;              /* acima de overlays do carrossel/CTAs */
     }
     .brand-logo{
       height: 36px; width:auto; margin-right:.5rem; object-fit:contain;
@@ -33,17 +33,20 @@
     }
     @media (min-width: 992px){ .brand-logo{ height:42px; } }
 
-    .brand-title{
+    .brand-title{                 /* evita empurrar o menu */
       max-width: 65vw;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* garante clique do botão dentro da navbar em qualquer estado */
     .navbar .btn{ pointer-events: auto; }
 
+    /* ===== HEADER (logo grande à direita no desktop) ===== */
     .header-logo-lg{ max-width:160px; height:auto; }
     @media (max-width:575.98px){ .header-logo-lg{ max-width:110px; } }
 
+    /* ===== CARROSSEL (sem “buraco” no mobile) ===== */
     .hero-carousel{ height: clamp(260px, 55vh, 520px); overflow:hidden; }
     .hero-carousel .carousel-item{ height:100%; }
     .hero-carousel .carousel-item img{
@@ -59,20 +62,23 @@
       }
     }
 
+    /* CTAs sobre o carrossel */
     .hero-cta{
       position:absolute; left:50%; bottom:clamp(1rem, 2.5vh, 2.5rem);
       transform:translateX(-50%); z-index:5; display:flex; gap:.75rem; flex-wrap:wrap;
       justify-content:center; width:min(92%,780px); padding:0 .5rem;
-      pointer-events: none;
+      pointer-events: none; /* evita capturar cliques fora dos botões */
     }
     .hero-cta .btn{
       box-shadow:0 .5rem 1rem rgba(0,0,0,.25);
-      pointer-events: auto;
+      pointer-events: auto; /* os botões continuam clicáveis */
     }
     @media (max-width:575.98px){ .hero-cta .btn{ width:100%; } }
 
+    /* Parceiros */
     .partner-logo{ width:clamp(110px,32vw,190px); height:clamp(70px,22vw,120px); object-fit:contain; }
 
+    /* Títulos Redes & Onde estamos */
     .only-lg{ display:none; }
     @media (min-width:992px){ .only-lg{ display:flex; } .only-mobile{ display:none; } }
   </style>
@@ -94,17 +100,12 @@
 
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <!-- Classificados: público -->
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-
-        <!-- Calendário de Eventos -->
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-
-        <!-- Diretoria e Parcerias mantidos -->
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-
         <li class="nav-item mt-2 mt-lg-0">
+          <!-- Tira ?logout=1 e coloca id para fallback JS -->
           <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
         </li>
       </ul>
@@ -155,27 +156,16 @@
     </button>
   </div>
 
+  <!-- CTAs sobrepostos -->
   <div class="hero-cta">
     <a href="events.html" class="btn btn-primary btn-lg">Próximos eventos</a>
     <a href="signup.html" class="btn btn-outline-primary btn-lg bg-white">Associe-se</a>
   </div>
 </section>
 
-<!-- 3 BOXES (ORDEM ALTERADA: Classificados, Calendário, Associe-se) -->
+<!-- 3 BOXES -->
 <section class="container py-5">
   <div class="row g-4">
-    <!-- 1) Classificados do Clube (público) -->
-    <div class="col-md-4">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h5 class="card-title">Classificados do Clube</h5>
-          <p class="card-text">Anúncios de compra, venda e serviços — visíveis para todos. Só associados logados podem publicar.</p>
-          <a href="classificados.html" class="btn btn-outline-primary w-100 w-md-auto">Ver classificados</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2) Calendário de Eventos -->
     <div class="col-md-4">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
@@ -185,13 +175,20 @@
         </div>
       </div>
     </div>
-
-    <!-- 3) Associe-se -->
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Galeria de Fotos</h5>
+          <p class="card-text">Registros dos melhores momentos do nosso clube.</p>
+          <a href="gallery.html" class="btn btn-outline-primary w-100 w-md-auto">Abrir galeria</a>
+        </div>
+      </div>
+    </div>
     <div class="col-md-4">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
           <h5 class="card-title">Associe-se</h5>
-          <p class="card-text">Acesse a área do associado para atualizar cadastro, publicar classificados (associados) e pagar mensalidades.</p>
+          <p class="card-text">Acesse a área do associado para atualizar cadastro e pagar mensalidades.</p>
           <a href="login.html" class="btn btn-outline-primary w-100 w-md-auto">Entrar</a>
         </div>
       </div>
@@ -230,8 +227,10 @@
 <section class="py-5">
   <div class="container">
 
+    <!-- Mobile: título único -->
     <h2 class="h4 mb-3 only-mobile">Redes Sociais & Contato</h2>
 
+    <!-- Desktop: dois títulos alinhados -->
     <div class="only-lg align-items-baseline justify-content-between mb-3">
       <h2 class="h4 mb-0">Redes Sociais & Contato</h2>
       <h2 class="h4 mb-0">📍 Onde estamos</h2>
@@ -250,6 +249,7 @@
       </div>
 
       <div class="col-lg-6">
+        <!-- Mobile: título do bloco do mapa -->
         <h2 class="h4 mb-3 only-mobile">📍 Onde estamos</h2>
         <div class="p-4 border rounded-3 h-100">
           <p class="h6 mb-2">Antiga Escola Melo Viana</p>
@@ -295,10 +295,13 @@
   const hideDashboard = () => { if (dashboardBtn) dashboardBtn.classList.add("d-none"); };
   const showDashboard = () => { if (dashboardBtn) dashboardBtn.classList.remove("d-none"); };
 
+  // Fallback forte para o botão "Área do Associado"
   const btnAssociado = document.getElementById('btnAssociado');
   if (btnAssociado){
     btnAssociado.addEventListener('click', (e) => {
+      // Se por algum motivo o colapso interceptar o clique, força a navegação
       e.stopPropagation();
+      // pequena proteção para não impedir navegação normal
       setTimeout(() => {
         if (!document.hidden) window.location.href = btnAssociado.getAttribute('href') || './login.html';
       }, 0);
@@ -328,6 +331,7 @@
     evaluateAndToggle(user);
   });
 
+  // Revalida ao voltar do histórico (bfcache)
   window.addEventListener("pageshow", (ev) => {
     const fromBFCache = ev.persisted || (performance?.getEntriesByType?.("navigation")[0]?.type === "back_forward");
     hideDashboard();
