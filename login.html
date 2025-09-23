@@ -202,28 +202,43 @@
   async function routeAuthenticatedUser(user){
     const { exists, data:profile, errorCode } = await fetchUserProfile(user.uid);
 
+    // Se não existe DOC, autocriamos um perfil mínimo (permitido pelas suas rules)
     if (!exists) {
-      // NÃO redireciona silêncio para cadastro
-      if (errorCode === "permission-denied") {
-        alert("Login reconhecido, mas não foi possível ler seu cadastro (permissão negada). Fale com a diretoria.");
-        return; // permanece na tela
-      }
-      if (errorCode) {
-        alert("Login reconhecido, mas houve um erro ao acessar seu cadastro: " + errorCode);
+      try {
+        const ref = fb.doc(fb.db, "users", user.uid);
+        await fb.setDoc(ref, {
+          uid: user.uid,
+          email: user.email || null,
+          // NÃO definimos role/status aqui (deixa virem do admin depois)
+          createdAt: fb.serverTimestamp(),
+          updatedAt: fb.serverTimestamp()
+        }, { merge: true });
+
+        // Recarrega o perfil após criar
+        const again = await fetchUserProfile(user.uid);
+        if (!again.exists) {
+          alert("Login OK, mas não foi possível inicializar seu cadastro. Tente novamente ou fale com a diretoria.");
+          return;
+        }
+        const { active, pending } = deriveStatus(again.data || {});
+        if (!active) { goTo("./pay.html",{reason:"inactive"}); return; }
+        if (pending) { goTo("./pay.html",{reason:"pending"});  return; }
+        goTo("./pg_associado.html");
+        return;
+      } catch (e) {
+        // Se der erro de permissão aqui, suas rules não permitem create (mas permitem!)
+        alert("Seu login foi reconhecido, mas houve erro ao criar seu cadastro: " + (e?.code || e?.message || e));
         return;
       }
-      // Doc realmente não existe
-      alert("Login reconhecido, porém seu cadastro não foi localizado. Verifique com a diretoria ou crie sua conta.");
-      // Se você quiser oferecer cadastro automático, descomente a linha abaixo:
-      // goTo("./signup.html");
-      return;
     }
 
+    // Doc existe: segue o fluxo normal
     const { active, pending } = deriveStatus(profile || {});
     if (!active) { goTo("./pay.html",{reason:"inactive"}); return; }
     if (pending) { goTo("./pay.html",{reason:"pending"});  return; }
     goTo("./pg_associado.html");
   }
+
 
   // ---------- Suporte ?logout=1 ----------
   const qs = new URLSearchParams(location.search);
