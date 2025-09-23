@@ -39,9 +39,15 @@
     .grid{ row-gap:1rem; }
 
     /* Mini galeria / carrossel */
-    .thumb, .carousel-item img{ height:200px; width:100%; object-fit:cover; border-top-left-radius:14px; border-top-right-radius:14px; }
-    .carousel-indicators [data-bs-target]{ width:8px; height:8px; border-radius:50%; }
-    .carousel-control-prev, .carousel-control-next{ width:12%; }
+    .thumb, .carousel-item img{
+      height:200px;
+      width:100%;
+      object-fit:contain;         /* mostra a imagem completa */
+      object-position:center;     /* centraliza */
+      background:#fff;            /* fundo para as “bordas” quando sobrar espaço */
+      border-top-left-radius:14px;
+      border-top-right-radius:14px;
+    }
 
     /* ===== Busca ===== */
     .search-wrap{ position:relative; }
