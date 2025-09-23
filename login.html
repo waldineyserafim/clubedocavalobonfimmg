@@ -183,18 +183,43 @@
     Object.entries(params).forEach(([k,v])=> url.searchParams.set(k,v));
     location.href = url.toString();
   }
+// ========= Busca do perfil com diagnóstico =========
   async function fetchUserProfile(uid){
-    if (!fb?.db || !fb?.doc || !fb?.getDoc) return null;
+    if (!fb?.db || !fb?.doc || !fb?.getDoc) {
+      return { exists:false, data:null, errorCode:"no-sdk" };
+    }
     try {
-      const ref = fb.doc(fb.db, "users", uid);
+      const ref  = fb.doc(fb.db, "users", uid);
       const snap = await fb.getDoc(ref);
-      return snap.exists() ? snap.data() : null;
-    } catch(e){ console.warn("perfil:", e); return null; }
+      return { exists: snap.exists(), data: snap.exists() ? snap.data() : null, errorCode: null };
+    } catch(e){
+      const code = (e && e.code) ? String(e.code) : "unknown";
+      console.warn("Erro ao buscar perfil do usuário:", e);
+      return { exists:false, data:null, errorCode: code };
+    }
   }
+// ========= Decisão pós-auth com tratamento seguro =========
   async function routeAuthenticatedUser(user){
-    const profile = await fetchUserProfile(user.uid);
-    if (!profile) { goTo("./signup.html"); return; }
-    const { active, pending } = deriveStatus(profile);
+    const { exists, data:profile, errorCode } = await fetchUserProfile(user.uid);
+
+    if (!exists) {
+      // NÃO redireciona silêncio para cadastro
+      if (errorCode === "permission-denied") {
+        alert("Login reconhecido, mas não foi possível ler seu cadastro (permissão negada). Fale com a diretoria.");
+        return; // permanece na tela
+      }
+      if (errorCode) {
+        alert("Login reconhecido, mas houve um erro ao acessar seu cadastro: " + errorCode);
+        return;
+      }
+      // Doc realmente não existe
+      alert("Login reconhecido, porém seu cadastro não foi localizado. Verifique com a diretoria ou crie sua conta.");
+      // Se você quiser oferecer cadastro automático, descomente a linha abaixo:
+      // goTo("./signup.html");
+      return;
+    }
+
+    const { active, pending } = deriveStatus(profile || {});
     if (!active) { goTo("./pay.html",{reason:"inactive"}); return; }
     if (pending) { goTo("./pay.html",{reason:"pending"});  return; }
     goTo("./pg_associado.html");
