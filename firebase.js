@@ -1,4 +1,4 @@
-// firebase.js (versão revisada - compatível com leitura pública de /classificados)
+// firebase.js (com Storage unificado + compressão ~200 KB)
 
 // IMPORTS (via CDN do Firebase modular)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
@@ -32,14 +32,18 @@ import {
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
+// ==== STORAGE (UNIFICADO) ====
 import {
   getStorage,
-  ref as sRef,
-  uploadBytes,
-  getDownloadURL
+  ref,                    // reexportado como sRef (compat)
+  uploadBytes,            // compat
+  uploadBytesResumable,   // usado no progresso
+  getDownloadURL,
+  deleteObject
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
 // === Configuração do Firebase (seus dados) ===
+// OBS: se tiver erro 403 no Storage, teste trocar storageBucket para "clubecavalobonfim.appspot.com".
 const firebaseConfig = {
   apiKey: "AIzaSyB1HBodrFRmgGKnYtX2v0X5LiIkowhR9wg",
   authDomain: "clubecavalobonfim.firebaseapp.com",
@@ -52,15 +56,15 @@ const firebaseConfig = {
 // 2) INICIALIZA
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
-// (Opcional) exporte o storage se precisar em outras páginas:
+export const db   = getFirestore(app);
 export const storage = getStorage(app);
-export { sRef, uploadBytes, getDownloadURL };
+
+// Compatibilidade: reexports (sem redeclarar nada)
+export { ref as sRef, uploadBytes, getDownloadURL };
 
 // NÃO usar top-level await: setPersistence em background
 setPersistence(auth, browserLocalPersistence)
   .catch((e) => console.warn("Não foi possível setar persistence (ignorado):", e));
-
 
 // ===== Utils gerais =====
 export const onlyDigits = (s) => (s || "").replace(/\D/g, "");
@@ -69,7 +73,7 @@ export function cpfToEmail(cpfDigits) {
   return `${clean}@cpf.local`;
 }
 
-// normaliza acentos/caixa e reduz a 3 papeis conhecidos
+// normaliza acentos/caixa e reduz a 3 papéis conhecidos
 const norm = (s) =>
   (s || "")
     .normalize("NFD")
@@ -96,8 +100,8 @@ function clearCachedRole() { sessionStorage.removeItem(ROLE_KEY); }
 // 4) BUSCAR PAPEL NO FIRESTORE PELO UID
 async function fetchRoleByUid(uid) {
   if (!uid) return "associado";
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
+  const refDoc = doc(db, "users", uid);
+  const snap = await getDoc(refDoc);
   if (snap.exists()) {
     const data = snap.data();
     return mapRole(data.role || "associado");
@@ -108,8 +112,8 @@ async function fetchRoleByUid(uid) {
 // 4.1) Buscar perfil completo
 export async function getUserProfile(uid) {
   if (!uid) return null;
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
+  const refDoc = doc(db, "users", uid);
+  const snap = await getDoc(refDoc);
   return snap.exists() ? snap.data() : null;
 }
 
@@ -293,7 +297,7 @@ const toTimestamp = (v) => {
   return isNaN(d.getTime()) ? null : Timestamp.fromDate(d);
 };
 
-// ===== Serviços (mantidos) =====
+// ===== Serviços =====
 export async function addMemberService({ title, description, benefit, imageUrl, whatsapp, active = true }) {
   const payload = {
     title: toStr(title),
@@ -309,7 +313,7 @@ export async function addMemberService({ title, description, benefit, imageUrl, 
   return ref.id;
 }
 export async function updateMemberService(id, partial) {
-  const ref = doc(db, "memberServices", id);
+  const refDoc = doc(db, "memberServices", id);
   const patch = { updatedAt: serverTimestamp() };
   if ("title" in partial) patch.title = toStr(partial.title);
   if ("description" in partial) patch.description = toStr(partial.description);
@@ -317,10 +321,10 @@ export async function updateMemberService(id, partial) {
   if ("imageUrl" in partial) patch.imageUrl = toStr(partial.imageUrl);
   if ("whatsapp" in partial) patch.whatsapp = onlyDigits(partial.whatsapp);
   if ("active" in partial) patch.active = !!partial.active;
-  await updateDoc(ref, patch);
+  await updateDoc(refDoc, patch);
 }
 
-// ===== Produtos (mantidos) =====
+// ===== Produtos =====
 export async function addMemberProduct({ title, description, benefit, imageUrls, whatsapp, price = null, active = true }) {
   const payload = {
     title: toStr(title),
@@ -337,7 +341,7 @@ export async function addMemberProduct({ title, description, benefit, imageUrls,
   return ref.id;
 }
 export async function updateMemberProduct(id, partial) {
-  const ref = doc(db, "memberProducts", id);
+  const refDoc = doc(db, "memberProducts", id);
   const patch = { updatedAt: serverTimestamp() };
   if ("title" in partial) patch.title = toStr(partial.title);
   if ("description" in partial) patch.description = toStr(partial.description);
@@ -346,10 +350,10 @@ export async function updateMemberProduct(id, partial) {
   if ("whatsapp" in partial) patch.whatsapp = onlyDigits(partial.whatsapp);
   if ("price" in partial) patch.price = toNumberOrNull(partial.price);
   if ("active" in partial) patch.active = !!partial.active;
-  await updateDoc(ref, patch);
+  await updateDoc(refDoc, patch);
 }
 
-// ===== Classificados (PUBLICOS) =====
+// ===== Classificados (PÚBLICOS) =====
 export async function addClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
   if (!auth || !auth.currentUser) throw new Error("Usuário não autenticado. Faça login para publicar.");
   const payload = {
@@ -369,7 +373,7 @@ export async function addClassified({ title, description, imageUrls, whatsapp, p
   return ref.id;
 }
 export async function updateClassified(id, partial) {
-  const ref = doc(db, "classificados", id);
+  const refDoc = doc(db, "classificados", id);
   const patch = { updatedAt: serverTimestamp() };
   if ("title" in partial) patch.title = toStr(partial.title);
   if ("description" in partial) patch.description = toStr(partial.description);
@@ -378,14 +382,14 @@ export async function updateClassified(id, partial) {
   if ("price" in partial) patch.price = toNumberOrNull(partial.price);
   if ("active" in partial) patch.active = !!partial.active;
   if ("approved" in partial) patch.approved = !!partial.approved;
-  await updateDoc(ref, patch);
+  await updateDoc(refDoc, patch);
 }
 export async function deleteClassified(id) {
-  const ref = doc(db, "classificados", id);
-  await deleteDoc(ref);
+  const refDoc = doc(db, "classificados", id);
+  await deleteDoc(refDoc);
 }
 
-// legacy helpers for memberClassifieds preserved...
+// ===== Legacy memberClassifieds (se ainda usar) =====
 export async function addMemberClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
   const payload = {
     title: toStr(title),
@@ -402,7 +406,7 @@ export async function addMemberClassified({ title, description, imageUrls, whats
   return ref.id;
 }
 export async function updateMemberClassified(id, partial) {
-  const ref = doc(db, "memberClassifieds", id);
+  const refDoc = doc(db, "memberClassifieds", id);
   const patch = { updatedAt: serverTimestamp() };
   if ("title" in partial) patch.title = toStr(partial.title);
   if ("description" in partial) patch.description = toStr(partial.description);
@@ -411,12 +415,12 @@ export async function updateMemberClassified(id, partial) {
   if ("price" in partial) patch.price = toNumberOrNull(partial.price);
   if ("active" in partial) patch.active = !!partial.active;
   if ("approved" in partial) patch.approved = !!partial.approved;
-  await updateDoc(ref, patch);
+  await updateDoc(refDoc, patch);
 }
 
-// ===== Financeiro helpers (mantidos) =====
+// ===== Financeiro =====
 export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, lastAmount } = {}) {
-  const ref = doc(db, "users", uid, "finance", "summary");
+  const refDoc = doc(db, "users", uid, "finance", "summary");
   const payload = { updatedAt: serverTimestamp() };
   const bn = toNumberOrNull(balance);
   if (bn !== null) payload.balance = bn;
@@ -426,7 +430,7 @@ export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, la
   if (lp) payload.lastPayment = lp;
   const nd = toTimestamp(nextDue);
   if (nd) payload.nextDue = nd;
-  await setDoc(ref, payload, { merge: true });
+  await setDoc(refDoc, payload, { merge: true });
 }
 export async function addInvoice(uid, { dueDate, amount, status }) {
   const invRef = collection(db, "users", uid, "finance", "invoices");
@@ -441,15 +445,15 @@ export async function addInvoice(uid, { dueDate, amount, status }) {
   return ref.id;
 }
 export async function updateInvoice(uid, invoiceId, partial) {
-  const ref = doc(db, "users", uid, "finance", "invoices", invoiceId);
+  const refDoc = doc(db, "users", uid, "finance", "invoices", invoiceId);
   const patch = { updatedAt: serverTimestamp() };
   if (partial.dueDate) patch.dueDate = toTimestamp(partial.dueDate);
   if (partial.amount != null && partial.amount !== "") patch.amount = Number(partial.amount);
   if (partial.status) patch.status = toStr(partial.status).toLowerCase();
-  await updateDoc(ref, patch);
+  await updateDoc(refDoc, patch);
 }
 
-/* ====== Usuários: consultas para a tela de Operação ====== */
+/* ====== Usuários: consultas ====== */
 export async function findUserUidByCPF(cpf) {
   const clean = onlyDigits(cpf);
   if (!clean) return null;
@@ -493,11 +497,10 @@ export {
 };
 
 /* ============================
-   Funções para consulta pública de classificados (helpers)
+   Consulta pública de classificados
    ============================ */
 
 // Retorna uma query pronta (ordem desc por createdAt)
-// se onlyApproved=true -> aplica where('approved', '==', true)
 export function getPublicClassifiedsQuery({ onlyApproved = false, limitTo = 100 } = {}) {
   const colRef = collection(db, "classificados");
   let q;
@@ -509,7 +512,7 @@ export function getPublicClassifiedsQuery({ onlyApproved = false, limitTo = 100 
   return q;
 }
 
-// Lista (snapshot único) — usa getDocs (fallback)
+// Lista (snapshot único)
 export async function fetchPublicClassifiedsOnce({ onlyApproved = false, limitTo = 100 } = {}) {
   try {
     const q = getPublicClassifiedsQuery({ onlyApproved, limitTo });
@@ -540,7 +543,7 @@ export function watchPublicClassifieds(onUpdate, onError, opts = { onlyApproved:
 }
 
 /* ============================
-   === Helpers do botão Administração (ATUALIZADOS) ===
+   Helpers do botão Administração
    ============================ */
 
 export async function getCurrentRole() {
@@ -604,4 +607,141 @@ export function setupAdminButton(target, { href = 'operacao.html', label = 'Admi
       }).catch(() => hide());
     }
   }, 800);
+}
+
+/* ============================
+   IMAGENS: compressão + upload + exclusão
+   ============================ */
+
+// === Compressão de imagem no navegador (alvo ~200 KB) ===
+export async function compressImage(
+  file,
+  {
+    maxWidth = 1200,
+    maxHeight = 1200,
+    targetKB = 200,
+    initialQuality = 0.8,
+    minQuality = 0.5,
+    step = 0.1
+  } = {}
+) {
+  if (!file || !file.type?.startsWith("image/")) {
+    throw new Error("Arquivo inválido: apenas imagens são suportadas.");
+  }
+
+  // carrega a imagem em memória
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = URL.createObjectURL(file);
+  });
+
+  // calcula dimensões mantendo proporção
+  let { width, height } = img;
+  if (width > maxWidth) {
+    height = Math.round((maxWidth / width) * height);
+    width = maxWidth;
+  }
+  if (height > maxHeight) {
+    width = Math.round((maxHeight / height) * width);
+    height = maxHeight;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, width, height);
+
+  // gera JPEG reduzindo qualidade até bater o alvo ou chegar no mínimo
+  let q = initialQuality;
+  let blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", q)
+  );
+
+  while (blob && blob.size > targetKB * 1024 && q - step >= minQuality) {
+    q = Math.max(minQuality, q - step);
+    // eslint-disable-next-line no-await-in-loop
+    blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", q)
+    );
+  }
+
+  if (!blob) throw new Error("Falha ao comprimir imagem.");
+  return new File([blob], file.name.replace(/\.(png|webp|gif)$/i, ".jpg"), {
+    type: "image/jpeg",
+  });
+}
+
+/**
+ * Faz upload de imagem e retorna { url, path }.
+ * - Por padrão, comprime para ~200 KB e 1200x1200 máx.
+ * @param {File} file
+ * @param {string} pathBase - ex.: `classifieds/${uid}/${docId}`
+ * @param {(pct:number)=>void} onProgress
+ * @param {{ autoCompress?: boolean, maxWidth?:number, maxHeight?:number, targetKB?:number }} opts
+ */
+export async function uploadImageFile(file, pathBase, onProgress, opts = {}) {
+  const {
+    autoCompress = true,
+    maxWidth = 1200,
+    maxHeight = 1200,
+    targetKB = 200
+  } = opts;
+
+  if (!file) throw new Error("Arquivo não informado.");
+  if (!file.type?.startsWith("image/")) throw new Error("Envie apenas imagens.");
+
+  // 1) Comprime antes de enviar (por padrão)
+  let fileToUpload = file;
+  if (autoCompress) {
+    fileToUpload = await compressImage(file, { maxWidth, maxHeight, targetKB });
+  }
+
+  // 2) Valida tamanho final (hard limit 5 MB)
+  if (fileToUpload.size > 5 * 1024 * 1024) {
+    throw new Error("Imagem acima de 5MB após compressão.");
+  }
+
+  // 3) Prepara caminho/nome e envia
+  const name = (function uniqueName(originalName = "file") {
+    const base = originalName.replace(/[^\w.\-]+/g, "_").slice(-80);
+    const ts = Date.now();
+    return `${ts}_${base}`;
+  })(fileToUpload.name);
+
+  const objectPath = `${pathBase}/${name}`;
+  const storageRef = ref(storage, objectPath);
+
+  const task = uploadBytesResumable(storageRef, fileToUpload, {
+    contentType: fileToUpload.type || "image/jpeg",
+    cacheControl: "public, max-age=31536000, immutable"
+  });
+
+  await new Promise((resolve, reject) => {
+    task.on(
+      "state_changed",
+      (snap) => {
+        if (onProgress) {
+          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          onProgress(pct);
+        }
+      },
+      reject,
+      resolve
+    );
+  });
+
+  const url = await getDownloadURL(storageRef);
+  return { url, path: objectPath };
+}
+
+export async function deleteImageAt(path) {
+  if (!path) return;
+  try {
+    await deleteObject(ref(storage, path));
+  } catch (e) {
+    console.warn("Falha ao excluir imagem:", e);
+  }
 }

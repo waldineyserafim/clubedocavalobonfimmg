@@ -153,51 +153,50 @@
   </section>
 
   <!-- Meus classificados (associado) -->
-  <section id="myClassifiedsWrapper" class="mb-5 d-none">
-    <div class="card border-primary shadow-sm">
-      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h2 class="h6 mb-0">📌 Meus Classificados</h2>
-        <small id="myClassifiedsCount">0</small>
+<section id="myClassifiedsWrapper" class="mb-5 d-none">
+  <div class="card border-primary shadow-sm">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h2 class="h6 mb-0">📌 Meus Classificados</h2>
+      <small id="myClassifiedsCount">0</small>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info mb-3">
+        <strong>Regras:</strong> o anúncio custa <strong>R$ 1,00/dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias</strong> após a confirmação do pagamento.
       </div>
-      <div class="card-body">
-        <div class="alert alert-info mb-3">
-          <strong>Regras:</strong> o anúncio custa <strong>R$ 1,00/dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias</strong> após a confirmação do pagamento.
-        </div>
-        <div id="myClassifiedsSection" class="row g-3"></div>
-        <div id="myClassifiedsEmpty" class="empty-state d-none text-center text-muted py-4">
-          Você ainda não cadastrou classificados.
-        </div>
+      <div id="myClassifiedsSection" class="row g-3"></div>
+      <div id="myClassifiedsEmpty" class="empty-state d-none text-center text-muted py-4">
+        Você ainda não cadastrou classificados.
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- Todos os Classificados -->
-  <section id="allClassifiedsWrapper" class="mb-5">
-    <div class="card border-secondary shadow-sm">
-      <div class="card-header bg-light d-flex justify-content-between align-items-center">
-        <h2 class="h6 mb-0">🌐 Todos os Classificados</h2>
-      </div>
-      <div class="card-body">
-        <div id="listLoading" class="text-center py-4">
-          <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
-          <div class="mt-2 text-secondary small">Carregando itens...</div>
-        </div>
-        <div id="listGrid" class="row g-3 d-none"></div>
-        <div id="listEmpty" class="empty-state d-none text-center text-muted py-4">
-          Nada encontrado para seu filtro.
-        </div>
-        <div id="listError" class="alert alert-danger d-none mt-3"></div>
-      </div>
+<!-- Todos os Classificados -->
+<section id="allClassifiedsWrapper" class="mb-5">
+  <div class="card border-secondary shadow-sm">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h2 class="h6 mb-0">🌐 Todos os Classificados</h2>
     </div>
-  </section>
+    <div class="card-body">
+      <div id="listLoading" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
+        <div class="mt-2 text-secondary small">Carregando itens...</div>
+      </div>
+      <div id="listGrid" class="row g-3 d-none"></div>
+      <div id="listEmpty" class="empty-state d-none text-center text-muted py-4">
+        Nada encontrado para seu filtro.
+      </div>
+      <div id="listError" class="alert alert-danger d-none mt-3"></div>
+    </div>
+  </div>
+</section>
 
 </main>
 
-<footer class="mt-4 py-4 bg-body-tertiary border-top">
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
-    </div>
-        <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
       <span>Sistema de Gestão de Associações Desenvolvido por <u>Serafim Technologies</u></span>
     </div>
   </div>
@@ -208,7 +207,7 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { collection, getDocs, query, orderBy, doc, getDoc, addDoc, where, updateDoc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { collection, getDocs, query, orderBy, doc, getDoc, addDoc, where, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import {
     updatePassword,
     reauthenticateWithCredential,
@@ -217,7 +216,6 @@
     GoogleAuthProvider
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { OAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
   /* ================== Constante de pagamento ================== */
   const PAYMENT_URL = "https://mpago.la/1mJpCsd"; // link do Mercado Pago informado
@@ -321,7 +319,6 @@
   const clsDesc = document.getElementById("clsDesc");
   const clsFeedback = document.getElementById("clsFeedback");
   const btnNewClassified = document.getElementById("btnNewClassified");
-  const clsImages = document.getElementById("clsImages"); // input de imagens
 
   /* ================== Estado ================== */
   let currentType = "all";
@@ -331,9 +328,6 @@
   let currentUser = null;
   let currentUserRoles = new Set();
   let myClassifieds = [];
-
-  // Instância do Storage
-  const storage = getStorage();
 
   // Fecha o menu mobile ao clicar
   document.querySelectorAll('#nav a.nav-link, #nav .btn').forEach(el=>{
@@ -713,6 +707,7 @@
     try {
       const item = myClassifieds.find(m=>m.id===id);
       if (!item) { alert("Anúncio não encontrado."); return; }
+      // usa sempre o link do anúncio ou o padrão do MP
       const link = item.paymentUrl || PAYMENT_URL;
       window.open(link, "_blank", "noopener");
     } catch (e) {
@@ -756,52 +751,6 @@
     searchInput.addEventListener("input", debouncer(()=>render(), 200));
   }
 
-  /* ============ Redimensionamento e Upload de Imagens (até 3) ============ */
-  async function resizeImage(file, maxW = 1280, maxH = 1280, quality = 0.82) {
-    const bitmap = await createImageBitmap(file);
-    let { width, height } = bitmap;
-
-    const scale = Math.min(maxW / width, maxH / height, 1);
-    const w = Math.round(width * scale);
-    const h = Math.round(height * scale);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    ctx.drawImage(bitmap, 0, 0, w, h);
-
-    const blob = await new Promise((res, rej) => {
-      canvas.toBlob(
-        (b) => b ? res(b) : rej(new Error("Falha ao converter imagem")),
-        "image/jpeg",
-        quality
-      );
-    });
-
-    bitmap.close?.();
-    return blob;
-  }
-
-  async function uploadResizedImages(files, destBase) {
-    const arr = Array.from(files || []);
-    const selected = arr.slice(0, 3);
-
-    const urls = [];
-    for (let i = 0; i < selected.length; i++) {
-      const original = selected[i];
-      if (!/^image\/(png|jpe?g|webp|gif|heic|heif|bmp|tiff?)$/i.test(original.type)) continue;
-
-      const blob = await resizeImage(original, 1280, 1280, 0.82);
-      const safeName = `${Date.now()}-${i + 1}.jpg`;
-      const objectRef = sRef(storage, `${destBase}/${safeName}`);
-      await uploadBytes(objectRef, blob, { contentType: "image/jpeg" });
-      const url = await getDownloadURL(objectRef);
-      urls.push(url);
-    }
-    return urls;
-  }
-
   /* ================== Novo Classificado (Associado) ================== */
   classifiedForm?.addEventListener("submit", async (ev)=>{
     ev.preventDefault();
@@ -830,40 +779,24 @@
     try {
       const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
 
-      // 1) cria um ID de documento previamente (para usar no caminho do Storage)
-      const collRef = collection(db, "memberClassifieds");
-      const newDocRef = doc(collRef);                 // gera um ID
-      const destBase = `memberClassifieds/${currentUser.uid}/${newDocRef.id}`;
-
-      // 2) sobe até 3 imagens (opcional)
-      let imageUrls = [];
-      try {
-        if (clsImages?.files?.length) {
-          imageUrls = await uploadResizedImages(clsImages.files, destBase);
-        }
-      } catch (imgErr) {
-        console.warn("Falha ao processar/enviar imagens:", imgErr);
-      }
-
-      // 3) monta o payload final
-      const payload = {
+      // Cria o anúncio inativo/pendente + dados do pagamento
+      await addDoc(collection(db,"memberClassifieds"), {
         title,
         description,
-        price,
+        price,               // preço informado do item
         whatsapp: contact,
-        imageUrls,
-        imageCount: imageUrls.length || 0,
+        imageUrls: [],
 
         // Status de publicação
-        active: false,
+        active: false,       // ficará ativo somente após pagamento + aprovação
         approved: false,
 
         // Pagamento
         paymentStatus: "pending",
-        paymentUrl: PAYMENT_URL,
+        paymentUrl: PAYMENT_URL,   // link informado
         pricePerDay: 1.00,
         minDays: 30,
-        plannedActiveDays: 30,
+        plannedActiveDays: 30,     // regra: 30 dias ativo após confirmação
         paymentCreatedAt: serverTimestamp(),
 
         // Dono
@@ -874,12 +807,9 @@
         // Timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      };
+      });
 
-      // 4) grava o documento já com as URLs
-      await setDoc(newDocRef, payload);
-
-      // 5) feedback + redirecionamento
+      // Feedback + redirecionamento para pagamento
       clsFeedback.innerHTML = `
         <strong>Classificado enviado!</strong><br>
         Ele ficará ativo por <strong>30 dias</strong> após a confirmação do pagamento.<br>
@@ -888,13 +818,15 @@
       clsFeedback.classList.remove("d-none");
       clsFeedback.classList.add("alert","alert-success");
 
+      // limpa o formulário
       classifiedForm.reset();
 
+      // Atualiza listas e redireciona para o Mercado Pago
       setTimeout(()=>{
         const modal = bootstrap.Modal.getInstance(classifiedModalEl);
         modal?.hide();
         loadAllContent();
-        window.location.href = PAYMENT_URL;
+        window.location.href = PAYMENT_URL; // abre a página de pagamento
       }, 1200);
 
     } catch (err) {
@@ -1142,15 +1074,6 @@
         <div class="mt-3">
           <label class="form-label">Descrição (opcional)</label>
           <textarea class="form-control" id="clsDesc" rows="3" placeholder="Detalhes do anúncio"></textarea>
-        </div>
-
-        <!-- NOVO: Upload de até 3 imagens -->
-        <div class="mt-3">
-          <label class="form-label">Fotos (até 3 imagens)</label>
-          <input type="file" class="form-control" id="clsImages" accept="image/*" multiple>
-          <div class="form-text">
-            Selecione até 3 fotos. As imagens serão automaticamente redimensionadas para acelerar o carregamento.
-          </div>
         </div>
 
         <div class="form-text mt-2">
