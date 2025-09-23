@@ -36,8 +36,12 @@
     /* ===== Cards / grid ===== */
     .card{ border:1px solid rgba(0,0,0,.06); border-radius:14px; will-change:transform; }
     .card:hover{ transform:translateY(-2px); transition:.2s ease; box-shadow:0 8px 24px rgba(0,0,0,.08); }
-    .thumb{ height:140px; object-fit:cover; border-top-left-radius:14px; border-top-right-radius:14px; }
     .grid{ row-gap:1rem; }
+
+    /* Mini galeria / carrossel */
+    .thumb, .carousel-item img{ height:200px; width:100%; object-fit:cover; border-top-left-radius:14px; border-top-right-radius:14px; }
+    .carousel-indicators [data-bs-target]{ width:8px; height:8px; border-radius:50%; }
+    .carousel-control-prev, .carousel-control-next{ width:12%; }
 
     /* ===== Busca ===== */
     .search-wrap{ position:relative; }
@@ -69,7 +73,7 @@
     #myClassifiedsSection .card { border:1px solid rgba(0,0,0,.06); }
     .action-row { gap:.5rem; display:flex; flex-wrap:wrap; justify-content:flex-end; }
 
-    /* ===== Previews das imagens (novo) ===== */
+    /* ===== Previews das imagens (modal de novo classificado) ===== */
     .thumb-wrap { position:relative; }
     .thumb-wrap img { width:100%; height:140px; object-fit:cover; border-radius:.5rem; }
     .thumb-remove {
@@ -164,43 +168,35 @@
   </section>
 
   <!-- Meus classificados (associado) -->
-<section id="myClassifiedsWrapper" class="mb-5 d-none">
-  <div class="card border-primary shadow-sm">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-      <h2 class="h6 mb-0">📌 Meus Classificados</h2>
-      <small id="myClassifiedsCount">0</small>
-    </div>
-    <div class="card-body">
-      <div class="alert alert-info mb-3">
-        <strong>Regras:</strong> o anúncio custa <strong>R$ 1,00/dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias</strong> após a confirmação do pagamento.
+  <section id="myClassifiedsWrapper" class="mb-5 d-none">
+    <div class="card border-primary shadow-sm">
+      <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0">📌 Meus Classificados</h2>
+        <small id="myClassifiedsCount">0</small>
       </div>
       <div id="myClassifiedsSection" class="row g-3"></div>
       <div id="myClassifiedsEmpty" class="empty-state d-none text-center text-muted py-4">
         Você ainda não cadastrou classificados.
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- Todos os Classificados -->
-<section id="allClassifiedsWrapper" class="mb-5">
-  <div class="card border-secondary shadow-sm">
-    <div class="card-header bg-light d-flex justify-content-between align-items-center">
-      <h2 class="h6 mb-0">🌐 Todos os Classificados</h2>
-    </div>
-    <div class="card-body">
-      <div id="listLoading" class="text-center py-4">
-        <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
-        <div class="mt-2 text-secondary small">Carregando itens...</div>
+  <!-- Listagem principal (sem título "Todos os Classificados") -->
+  <section id="allClassifiedsWrapper" class="mb-5">
+    <div class="card border-secondary shadow-sm">
+      <div class="card-body">
+        <div id="listLoading" class="text-center py-4">
+          <div class="spinner-border text-primary" role="status" aria-label="Carregando"></div>
+          <div class="mt-2 text-secondary small">Carregando itens...</div>
+        </div>
+        <div id="listGrid" class="row g-3 d-none"></div>
+        <div id="listEmpty" class="empty-state d-none text-center text-muted py-4">
+          Nada encontrado para seu filtro.
+        </div>
+        <div id="listError" class="alert alert-danger d-none mt-3"></div>
       </div>
-      <div id="listGrid" class="row g-3 d-none"></div>
-      <div id="listEmpty" class="empty-state d-none text-center text-muted py-4">
-        Nada encontrado para seu filtro.
-      </div>
-      <div id="listError" class="alert alert-danger d-none mt-3"></div>
     </div>
-  </div>
-</section>
+  </section>
 
 </main>
 
@@ -460,10 +456,13 @@
 
     try{
       // Serviços
-      try{
+
+      try {
         const sSnap = await getDocs(query(collection(db,"memberServices")));
         const svc = sSnap.docs.map(d=>{
           const v = d.data();
+          const isActive = (v.active !== false);   // <= aqui
+          if (!isActive) return null;
           return {
             id:d.id, type:"service",
             title:v.title||"Serviço",
@@ -473,7 +472,7 @@
             whatsapp:v.whatsapp||"",
             createdAt:v.createdAt||null
           };
-        });
+        }).filter(Boolean);
         items.push(...svc);
       }catch(e){ console.warn("services:", e); }
 
@@ -482,35 +481,42 @@
         const pSnap = await getDocs(query(collection(db,"memberProducts")));
         const prd = pSnap.docs.map(d=>{
           const v = d.data();
-          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_product.jpg"];
+          const isActive = (v.active !== false);   // <= aqui
+          if (!isActive) return null;
+          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls
+                      : (v.imageUrl ? [v.imageUrl] : ["assets/img/placeholder_product.jpg"]);
           return {
             id:d.id, type:"product",
             title:v.title||"Produto",
             description:v.description||"",
             benefit:v.benefit||"",
             price:v.amount||v.price||null,
-            images:imgs, whatsapp:v.whatsapp||metaPhones.salesPhone||"",
+            images:imgs,
+            whatsapp:v.whatsapp||metaPhones.salesPhone||"",
             createdAt:v.createdAt||null
           };
-        });
+        }).filter(Boolean);
         items.push(...prd);
       }catch(e){ console.warn("products:", e); }
+
 
       // Classificados — geral: somente ativos e aprovados
       try{
         const cSnap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("createdAt","desc")));
         const cls = cSnap.docs.map(d=>{
           const v = d.data();
-          const isActive = (v.active !== false) && (v.approved === true); // ativo + aprovado
-          if (!isActive) return null; // não mostra inativos/pendentes
-          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_classified.jpg"];
+          const isActive = (v.active !== false) && (v.approved === true);
+          if (!isActive) return null;
+          const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls
+                       : (v.imageUrl ? [v.imageUrl] : ["assets/img/placeholder_classified.jpg"]);
           return {
             id:d.id, type:"classified",
             title:v.title||"Classificado",
             description:v.description||"",
             price:v.amount||v.price||null,
             images:imgs, whatsapp:v.whatsapp||v.contactPhone||"",
-            createdAt:v.createdAt||null, location:v.location||""
+            createdAt:v.createdAt||null, location:v.location||"",
+            ownerName: v.ownerName || v.owner || ""
           };
         }).filter(Boolean);
         items.push(...cls);
@@ -538,7 +544,8 @@
 
           myClassifieds = (docs || []).map(d=>{
             const v = d.data();
-            const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls : [v.imageUrl||"assets/img/placeholder_classified.jpg"];
+            const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls
+                         : (v.imageUrl ? [v.imageUrl] : ["assets/img/placeholder_classified.jpg"]);
             return {
               id:d.id,
               raw:v,
@@ -614,43 +621,91 @@
     myClassifiedsCount.textContent = myClassifieds.length;
   }
 
-  function card(i){
-    const badge = i.type==="service" ? "Serviço"
-                : i.type==="product" ? "Produto"
-                : "Classificado";
-    const badgeClass = i.type==="service" ? "text-bg-info"
-                      : i.type==="product" ? "text-bg-primary"
-                      : "text-bg-secondary";
-    const img = (i.images&&i.images[0]) || "assets/img/placeholder.jpg";
-    const price = (i.price!=null) ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` : "";
-    const benefit = i.benefit ? `<span class="badge text-bg-success me-1">Benefício: ${i.benefit}</span>` : "";
-    const btnLabel = i.type==="service" ? "Falar no WhatsApp"
-                    : i.type==="product" ? "Falar com Vendas"
-                    : "Falar com o Anunciante";
-    const msg = `Olá! Sou o ${memberName} do Clube do Cavalo de Bonfim MG e tenho interesse em \"${i.title}\". Pode me ajudar?`;
-    const link = wpp(i.whatsapp, msg);
-
+  /* ======== Helper: carrossel (usa Bootstrap 5) ======== */
+  function carouselHtml(images, title, uid){
+    if (!images || !images.length) {
+      return `<img src="assets/img/placeholder.jpg" class="thumb w-100" alt="${title}" loading="lazy">`;
+    }
+    if (images.length === 1){
+      const img = images[0];
+      return `<img src="${img}" class="thumb w-100" alt="${title}" loading="lazy">`;
+    }
+    const id = `crs_${uid}`;
+    const ind = images.map((_,i)=>`<button type="button" data-bs-target="#${id}" data-bs-slide-to="${i}" ${i===0?'class="active" aria-current="true"':''} aria-label="Slide ${i+1}"></button>`).join("");
+    const slides = images.map((src,i)=>`
+      <div class="carousel-item ${i===0?'active':''}">
+        <img src="${src}" class="d-block w-100" alt="${title}">
+      </div>`).join("");
     return `
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="card h-100">
-          <img src="${img}" class="thumb w-100" alt="${i.title}" loading="lazy">
-          <div class="card-body d-flex flex-column">
-            <div class="d-flex justify-content-between align-items-start">
-              <h6 class="mb-1">${i.title}</h6>
-              <span class="badge badge-type ${badgeClass}">${badge}</span>
-            </div>
-            <p class="small text-secondary mb-2">${i.description||""}</p>
-            ${benefit}
-            ${price}
-            <a class="btn btn-sm btn-primary mt-auto" href="${link}" target="_blank" rel="noopener">${btnLabel}</a>
-          </div>
-        </div>
-      </div>
-    `;
+      <div id="${id}" class="carousel slide" data-bs-ride="false">
+        <div class="carousel-indicators">${ind}</div>
+        <div class="carousel-inner">${slides}</div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#${id}" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Anterior</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#${id}" data-bs-slide="next">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Próximo</span>
+        </button>
+      </div>`;
   }
 
+  /* ======== Cartão “estilo Classificados” (usado para produtos/serviços também) ======== */
+/* ======== Cartão “estilo Classificados” (usa carrossel) ======== */
+function card(i){
+  const badge = i.type==="service" ? "Serviço"
+              : i.type==="product" ? "Produto"
+              : "Classificado";
+  const badgeClass = i.type==="service" ? "text-bg-info"
+                    : i.type==="product" ? "text-bg-primary"
+                    : "text-bg-secondary";
+
+  // usa o carrossel (ID único por tipo+id)
+  const gallery = carouselHtml(i.images, i.title, `${i.type}_${i.id}`);
+
+  const price = (i.price!=null && i.type!=="service")
+    ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` 
+    : "";
+
+  // tag de benefício só para serviço
+  const benefit = (i.type==="service" && i.benefit)
+    ? `<span class="badge bg-success d-block text-center py-2 mb-3">${i.benefit} de desconto</span>`
+    : "";
+
+  const btnLabel = i.type==="service" ? "Falar no WhatsApp"
+                  : i.type==="product" ? "Falar com Vendas"
+                  : "Falar com o Anunciante";
+  const msg = `Olá! Sou o ${memberName} do Clube do Cavalo de Bonfim MG e tenho interesse em \"${i.title}\". Pode me ajudar?`;
+  const link = wpp(i.whatsapp, msg);
+
+  // nome do anunciante nos classificados
+  const owner = (i.type==="classified" && i.ownerName) 
+    ? `<p class="small text-muted mb-2">Anunciante: ${i.ownerName}</p>` 
+    : "";
+
+  return `
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card h-100">
+        ${gallery}
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start">
+            <h6 class="mb-1">${i.title}</h6>
+            <span class="badge badge-type ${badgeClass}">${badge}</span>
+          </div>
+          ${owner}
+          <p class="small text-secondary mb-2">${i.description||""}</p>
+          ${benefit}
+          ${price}
+          <a class="btn btn-sm btn-primary mt-auto" href="${link}" target="_blank" rel="noopener">${btnLabel}</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
   function myCard(i){
-    const img = (i.images&&i.images[0]) || "assets/img/placeholder_classified.jpg";
+    const gallery = carouselHtml(i.images, i.title, `my_${i.id}`);
     const price = (i.price!=null) ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` : "";
     const approvedBadge = i.approved ? `<span class="badge text-bg-success me-1">Aprovado</span>` : `<span class="badge text-bg-warning me-1">Aguardando aprovação</span>`;
     const activeBadge = i.active ? `<span class="badge text-bg-primary me-1">Ativo</span>` : `<span class="badge text-bg-secondary me-1">Inativo</span>`;
@@ -663,7 +718,7 @@
     return `
       <div class="col-12 col-md-6 col-lg-4">
         <div class="card h-100">
-          <img src="${img}" class="thumb w-100" alt="${i.title}" loading="lazy">
+          ${gallery}
           <div class="card-body d-flex flex-column">
             <div class="d-flex justify-content-between align-items-start">
               <h6 class="mb-1">${i.title}</h6>
@@ -964,8 +1019,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <img src="${(item.images&&item.images[0])||'assets/img/placeholder_classified.jpg'}" class="img-fluid mb-3" alt="${item.title}">
-            <p>${item.description||''}</p>
+            ${carouselHtml(item.images, item.title, "view_"+item.id)}
+            <p class="mt-3">${item.description||''}</p>
             <p><strong>Valor:</strong> ${item.price!=null ? 'R$ ' + Number(item.price).toLocaleString('pt-BR') : '—'}</p>
             <p><strong>Estado:</strong> ${item.approved ? 'Aprovado' : 'Aguardando aprovação'} — ${item.active ? 'Ativo' : 'Inativo'}</p>
             ${ isPendingPayment(item) ? `

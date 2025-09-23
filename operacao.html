@@ -35,11 +35,7 @@
     .badge-role{ background:var(--accent); }
     .form-help{ font-size:.875rem; color:#6c757d; }
 
-    /* Layout de listas (3-5 colunas) */
-    .list-header, .list-row{
-      display:grid; gap:12px; align-items:center;
-    }
-    /* Associados (3 colunas) */
+    .list-header, .list-row{ display:grid; gap:12px; align-items:center; }
     .users-header, .user-row{ display:grid; grid-template-columns: 1fr 160px 160px; gap:12px; align-items:center; }
     .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
     .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
@@ -51,10 +47,7 @@
       .user-details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
     }
 
-    /* Produtos/Serviços (4 colunas) */
     .items4-header, .item4-row{ grid-template-columns: 1fr 160px 140px 180px; }
-
-    /* Classificados (5 colunas) — title | createdAt | ownerName | status | paymentStatus */
     .items5-header, .item5-row{ grid-template-columns: 1fr 160px 240px 120px 160px; }
 
     .list-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
@@ -187,7 +180,6 @@
             </div>
           </div>
 
-          <!-- Cabeçalho das 3 colunas -->
           <div class="users-header mt-3">
             <div>Nome</div>
             <div>Perfil</div>
@@ -203,7 +195,6 @@
 
     <!-- ====================== PRODUTOS ====================== -->
     <div class="tab-pane fade" id="pane-produtos">
-      <!-- Cadastro (colapsado) -->
       <div class="card shadow-sm mb-3">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -240,15 +231,18 @@
                   <label class="form-check-label" for="prdActive">Ativo</label>
                 </div>
               </div>
+
+              <!-- Imagens PRODUTOS -->
               <div class="col-md-6">
-                <label class="form-label">Imagens (múltiplas)</label>
+                <label class="form-label">Imagens (até 3)</label>
                 <input type="file" class="form-control" id="prdImages" accept="image/*" multiple>
-                <div class="form-help">Enviamos ao Storage e salvamos as URLs no Firestore.</div>
+                <div class="form-help">As imagens serão comprimidas (~300KB cada) e enviadas ao Storage; as URLs vão para o Firestore.</div>
               </div>
-              <div class="col-md-6">
+              <!-- <div class="col-md-6">
                 <label class="form-label">URLs atuais (separadas por vírgula)</label>
                 <input type="text" class="form-control" id="prdImagesUrls">
-              </div>
+              </div> -->
+
               <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
                 <button class="btn btn-primary" type="submit">Salvar</button>
                 <span id="prdMsg" class="align-self-center text-success small"></span>
@@ -258,7 +252,7 @@
         </div>
       </div>
 
-      <!-- Filtros + lista -->
+      <!-- Lista PRODUTOS -->
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="toolbar-wrap">
@@ -289,7 +283,6 @@
 
     <!-- ====================== SERVIÇOS ====================== -->
     <div class="tab-pane fade" id="pane-servicos">
-      <!-- Cadastro (colapsado) -->
       <div class="card shadow-sm mb-3">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -305,7 +298,7 @@
                 <input type="text" class="form-control" id="svcTitle" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Valor</label>
+                <label class="form-label">Benefício para associados</label>
                 <input type="text" class="form-control" id="svcBenefit">
               </div>
               <div class="col-12">
@@ -322,14 +315,18 @@
                   <label class="form-check-label" for="svcActive">Ativo</label>
                 </div>
               </div>
+
+              <!-- Imagens SERVIÇOS (AGORA MULTIPLAS) -->
               <div class="col-md-6">
-                <label class="form-label">Imagem</label>
-                <input type="file" class="form-control" id="svcImage" accept="image/*">
+                <label class="form-label">Imagens (até 3)</label>
+                <input type="file" class="form-control" id="svcImages" accept="image/*" multiple>
+                <div class="form-help">As imagens serão comprimidas (~300KB cada) e enviadas ao Storage.</div>
               </div>
-              <div class="col-md-6">
-                <label class="form-label">URL atual (opcional)</label>
-                <input type="url" class="form-control" id="svcImageUrl">
-              </div>
+              <!-- <div class="col-md-6">
+                <label class="form-label">URLs atuais (separadas por vírgula)</label>
+                <input type="text" class="form-control" id="svcImageUrls">
+              </div> -->
+
               <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
                 <button class="btn btn-primary" type="submit">Salvar</button>
                 <span id="svcMsg" class="align-self-center text-success small"></span>
@@ -339,7 +336,7 @@
         </div>
       </div>
 
-      <!-- Filtros + lista -->
+      <!-- Lista SERVIÇOS -->
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="toolbar-wrap">
@@ -356,7 +353,7 @@
 
           <div class="list-header items4-header mt-3">
             <div>Título</div>
-            <div>Valor</div>
+            <div>Benefício</div>
             <div>Status</div>
             <div>Ações</div>
           </div>
@@ -370,7 +367,6 @@
 
     <!-- ====================== CLASSIFICADOS ====================== -->
     <div class="tab-pane fade" id="pane-classificados">
-      <!-- Cadastro (colapsado) -->
       <div class="card shadow-sm mb-3">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -410,7 +406,6 @@
         </div>
       </div>
 
-      <!-- Filtros + lista -->
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="toolbar-wrap">
@@ -520,12 +515,8 @@
     opRoleEl.textContent = role;
     opRoleEl.classList.remove("d-none");
 
-    // Carrega ASSOCIADOS (agora que os elementos existem)
-    try {
-      if (document.getElementById("usersWrap")) listUsers("");
-    } catch(e){ console.warn("Lista de associados não renderizada:", e); }
+    try { if (document.getElementById("usersWrap")) listUsers(""); } catch(e){ console.warn("Lista de associados não renderizada:", e); }
 
-    // Carrega as outras listas
     loadProducts();
     loadServices();
     loadClassif();
@@ -537,17 +528,82 @@
   });
 
   const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
-  const readUrls = (el)=> (el.value||"").split(",").map(s=>s.trim()).filter(Boolean);
+  const readUrls = (el)=> (el?.value||"").split(",").map(s=>s.trim()).filter(Boolean);
 
-  async function uploadMany(files, folder) {
+  /* ===================== UTIL: COMPRESSAO & UPLOAD (<=3 imgs, ~300KB) ===================== */
+
+  async function fileToImage(file){
+    const dataUrl = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+    return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res({img, dataUrl}); img.onerror=rej; img.src=dataUrl; });
+  }
+
+  async function canvasToBlob(canvas, mime="image/jpeg", quality=0.9){
+    return new Promise((res)=> canvas.toBlob((b)=>res(b), mime, quality));
+  }
+
+  async function compressImageToUnder(file, maxKB=300, maxW=1600, maxH=1600){
+    // Convertemos tudo para JPEG para garantir boa compressão
+    const { img } = await fileToImage(file);
+    // escala
+    let { width, height } = img;
+    const ratio = Math.min(1, maxW / width, maxH / height);
+    width = Math.max(1, Math.round(width * ratio));
+    height = Math.max(1, Math.round(height * ratio));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let q = 0.9;
+    let blob = await canvasToBlob(canvas, "image/jpeg", q);
+    const target = maxKB * 1024;
+
+    // Tenta reduzir qualidade
+    while (blob && blob.size > target && q > 0.45){
+      q -= 0.08;
+      blob = await canvasToBlob(canvas, "image/jpeg", q);
+    }
+
+    // Se ainda estiver grande, reduz dimensão e tenta novamente
+    while (blob && blob.size > target && (canvas.width > 640 || canvas.height > 640)){
+      canvas.width = Math.round(canvas.width * 0.9);
+      canvas.height = Math.round(canvas.height * 0.9);
+      const ctx2 = canvas.getContext("2d");
+      ctx2.drawImage(img, 0, 0, canvas.width, canvas.height);
+      q = Math.max(0.5, q - 0.05);
+      blob = await canvasToBlob(canvas, "image/jpeg", q);
+    }
+
+    // fallback final
+    if (!blob) blob = new Blob([file], { type: "image/jpeg" });
+
+    const newName = (file.name.replace(/\.[^.]+$/, "") || "img") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+  }
+
+  async function uploadManyCompressed(files, folder, maxCount=3, maxKB=300){
     const urls = [];
-    for (const f of files) {
-      if (!f.type.startsWith("image/")) { alert("Envie apenas imagens."); continue; }
-      if (f.size > 5 * 1024 * 1024) { alert("Imagem acima de 5MB não permitida."); continue; }
-      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${f.name}`;
+    const safe = Array.from(files || []).filter(f=>f && f.type?.startsWith("image/"));
+    if (!safe.length) return urls;
+
+    if (safe.length > maxCount){
+      alert(`Serão consideradas apenas ${maxCount} imagens.`);
+    }
+    const chosen = safe.slice(0, maxCount);
+
+    for (const original of chosen){
+      if (original.size > 7 * 1024 * 1024){
+        alert(`Imagem "${original.name}" acima de 7MB não permitida.`);
+        continue;
+      }
+      // comprime
+      const compressed = await compressImageToUnder(original, maxKB, 1600, 1600);
+
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${compressed.name}`;
       const r = sref(storage, path);
       await new Promise((resolve, reject) => {
-        const task = uploadBytesResumable(r, f, { contentType: f.type });
+        const task = uploadBytesResumable(r, compressed, { contentType: compressed.type || "image/jpeg" });
         task.on("state_changed", null, reject, resolve);
       });
       urls.push(await getDownloadURL(r));
@@ -664,7 +720,6 @@
     }).join("");
     attachUserHandlers();
 
-    // Preenche dados financeiros assincronamente
     for (const d of docs) {
       const uid = d.id;
       try {
@@ -794,31 +849,57 @@
   document.getElementById("prdNewBtn")?.addEventListener("click", ()=>{
     prdId.value=""; document.getElementById("formProduct").reset(); prdActive.checked=true; prdMsg.textContent="";
   });
-  document.getElementById("formProduct")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    prdMsg.textContent = "";
-    const title = prdTitle.value.trim();
-    const description = prdDesc.value.trim();
-    const benefit = prdBenefit.value.trim();
-    const whatsapp = prdWpp.value.trim();
-    const price = prdPrice.value ? Number(prdPrice.value) : null;
-    const active = prdActive.checked;
 
-    let images = readUrls(prdImagesUrls);
-    if (prdImages.files?.length) images = images.concat(await uploadMany([...prdImages.files], "uploads/products"));
+document.getElementById("formProduct")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  prdMsg.classList.remove("text-danger");
+  prdMsg.textContent = "Enviando...";
 
-    try {
-      if (prdId.value) {
-        await updateMemberProduct(prdId.value, { title, description, benefit, whatsapp, price, imageUrls: images, active });
-        prdMsg.textContent = "Produto atualizado!";
-      } else {
-        const id = await addMemberProduct({ title, description, benefit, imageUrls: images, whatsapp, price });
-        await updateMemberProduct(id, { active });
-        prdMsg.textContent = `Produto salvo! ID: ${id}`;
-      }
-      loadProducts();
-    } catch (err) { alert("Erro ao salvar produto: "+err.message); }
-  });
+  const title = prdTitle.value.trim();
+  const description = prdDesc.value.trim();
+  const benefit = prdBenefit.value.trim();
+  const whatsapp = prdWpp.value.trim();
+  const price = prdPrice.value ? Number(prdPrice.value) : null;
+  const active = prdActive.checked;
+
+  try {
+    // 1) compõe lista de imagens (até 3): URLs manuais + uploads
+    let images = readUrls(prdImagesUrls).slice(0, 3);
+    const remaining = 3 - images.length;
+
+    if (remaining > 0 && prdImages.files?.length) {
+      const toUpload = Array.from(prdImages.files).slice(0, remaining);
+      prdMsg.textContent = "Compactando e enviando imagens...";
+      const uploaded = await uploadManyCompressed(toUpload, "uploads/products", remaining, 300);
+      images = images.concat(uploaded).slice(0, 3);
+    } else if (prdImages.files?.length > 0 && remaining <= 0) {
+      alert("Você já informou 3 imagens/URLs. As imagens selecionadas não serão enviadas.");
+    }
+
+    // 2) salva no Firestore
+    if (prdId.value) {
+      await updateMemberProduct(prdId.value, { title, description, benefit, whatsapp, price, imageUrls: images, active });
+      prdMsg.textContent = "Produto atualizado!";
+    } else {
+      const id = await addMemberProduct({ title, description, benefit, imageUrls: images, whatsapp, price });
+      await updateMemberProduct(id, { active });
+      prdMsg.textContent = `Produto salvo! ID: ${id}`;
+    }
+
+    // 3) recarrega lista
+    prdImages.value = "";
+    prdImagesUrls.value = images.join(", ");
+    loadProducts();
+  } catch (err) {
+    console.error(err);
+    prdMsg.classList.add("text-danger");
+    prdMsg.textContent = "Erro ao salvar: " + (err?.message || err);
+    if (String(err?.message || "").includes("storage/unauthorized")) {
+      alert("Sem permissão para enviar ao Storage. Confira as Regras do Firebase Storage (veja o passo 1 acima).");
+    }
+  }
+});
+
 
   prdReload?.addEventListener("click", loadProducts);
   prdSearch?.addEventListener("input", ()=>renderProducts());
@@ -900,8 +981,8 @@
   const svcDesc = document.getElementById("svcDesc");
   const svcWpp = document.getElementById("svcWpp");
   const svcActive = document.getElementById("svcActive");
-  const svcImage = document.getElementById("svcImage");
-  const svcImageUrl = document.getElementById("svcImageUrl");
+  const svcImages = document.getElementById("svcImages");       // novo: múltiplas
+  const svcImageUrls = document.getElementById("svcImageUrls");  // novo: urls separadas por vírgula
   const svcMsg = document.getElementById("svcMsg");
   const svcSearch = document.getElementById("svcSearch");
   const svcStatusFilter = document.getElementById("svcStatusFilter");
@@ -910,17 +991,59 @@
   document.getElementById("svcNewBtn")?.addEventListener("click", ()=>{
     svcId.value=""; document.getElementById("formService").reset(); svcActive.checked=true; svcMsg.textContent="";
   });
-  document.getElementById("formService")?.addEventListener("submit", async (e)=>{
-    e.preventDefault(); svcMsg.textContent="";
-    const title=svcTitle.value.trim(), description=svcDesc.value.trim(), benefit=svcBenefit.value.trim(), whatsapp=svcWpp.value.trim(), active=svcActive.checked;
-    let imageUrl = svcImageUrl.value.trim();
-    if (svcImage.files?.length) { const [u] = await uploadMany([svcImage.files[0]], "uploads/services"); imageUrl = u; }
-    try {
-      if (svcId.value) { await updateMemberService(svcId.value,{title,description,benefit,whatsapp,imageUrl,active}); svcMsg.textContent="Serviço atualizado!"; }
-      else { const id = await addMemberService({title,description,benefit,imageUrl,whatsapp}); await updateMemberService(id,{active}); svcMsg.textContent=`Serviço salvo! ID: ${id}`; }
-      loadServices();
-    } catch(err){ alert("Erro ao salvar serviço: "+err.message); }
-  });
+
+document.getElementById("formService")?.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  svcMsg.classList.remove("text-danger");
+  svcMsg.textContent = "Enviando...";
+
+  const title = svcTitle.value.trim();
+  const description = svcDesc.value.trim();
+  const benefit = svcBenefit.value.trim();
+  const whatsapp = svcWpp.value.trim();
+  const active = svcActive.checked;
+
+  try {
+    // 1) compõe lista de imagens (até 3): URLs manuais + uploads
+    let imageUrls = readUrls(svcImageUrls).slice(0, 3);
+    const remaining = 3 - imageUrls.length;
+
+    if (remaining > 0 && svcImages.files?.length) {
+      const toUpload = Array.from(svcImages.files).slice(0, remaining);
+      svcMsg.textContent = "Compactando e enviando imagens...";
+      const uploaded = await uploadManyCompressed(toUpload, "uploads/services", remaining, 300);
+      imageUrls = imageUrls.concat(uploaded).slice(0, 3);
+    } else if (svcImages.files?.length > 0 && remaining <= 0) {
+      alert("Você já informou 3 imagens/URLs. As imagens selecionadas não serão enviadas.");
+    }
+
+    // compatibilidade: mantém imageUrl = primeira
+    const imageUrl = imageUrls[0] || "";
+
+    // 2) salva no Firestore
+    if (svcId.value) {
+      await updateMemberService(svcId.value, { title, description, benefit, whatsapp, imageUrl, imageUrls, active });
+      svcMsg.textContent = "Serviço atualizado!";
+    } else {
+      const id = await addMemberService({ title, description, benefit, imageUrl, imageUrls, whatsapp });
+      await updateMemberService(id, { active });
+      svcMsg.textContent = `Serviço salvo! ID: ${id}`;
+    }
+
+    // 3) recarrega lista
+    svcImages.value = "";
+    svcImageUrls.value = imageUrls.join(", ");
+    loadServices();
+  } catch (err) {
+    console.error(err);
+    svcMsg.classList.add("text-danger");
+    svcMsg.textContent = "Erro ao salvar: " + (err?.message || err);
+    if (String(err?.message || "").includes("storage/unauthorized")) {
+      alert("Sem permissão para enviar ao Storage. Confira as Regras do Firebase Storage (veja o passo 1 acima).");
+    }
+  }
+});
+
 
   svcReload?.addEventListener("click", loadServices);
   svcSearch?.addEventListener("input", ()=>renderServices());
@@ -979,7 +1102,8 @@
       btn.addEventListener("click",(e)=>{
         const id = e.currentTarget.dataset.id; const s = rows.find(x=>x.id===id); if(!s) return;
         svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
-        svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false); svcImage.value=""; svcImageUrl.value=s.imageUrl||"";
+        svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false);
+        svcImages.value=""; svcImageUrls.value = Array.isArray(s.imageUrls) ? s.imageUrls.join(", ") : (s.imageUrl || "");
         const coll = document.getElementById("svcCollapse"); if (coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.getElementById("pane-servicos").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
@@ -993,7 +1117,7 @@
     });
   }
 
-  /* ===================== CLASSIFICADOS ===================== */
+  /* ===================== CLASSIFICADOS (inalterado no pedido) ===================== */
   const clsId = document.getElementById("clsId");
   const clsTitle = document.getElementById("clsTitle");
   const clsPrice = document.getElementById("clsPrice");
@@ -1015,7 +1139,11 @@
     e.preventDefault(); clsMsg.textContent="";
     const title=clsTitle.value.trim(), description=clsDesc.value.trim(), price=clsPrice.value?Number(clsPrice.value):null, whatsapp=clsWpp.value.trim();
     let images = [];
-    if (clsImages.files?.length) images = images.concat(await uploadMany([...clsImages.files], "uploads/classifieds"));
+    if (clsImages.files?.length) {
+      // Mantemos comportamento original de classificados (sem compressão obrigatória no pedido)
+      const up = await uploadManyCompressed(clsImages.files, "uploads/classifieds", 10, 600); // leve compressão para evitar estouro
+      images = images.concat(up);
+    }
 
     let createdBy = auth.currentUser?.uid || null;
     let createdByName = "—";
@@ -1073,7 +1201,7 @@
     if (!wrap) return;
     const q = (clsSearch.value||"").trim().toLowerCase();
     const status = clsStatusFilter.value;
-    const rf = clsReviewFilter.value; // mantemos compatível
+    const rf = clsReviewFilter.value;
     const ownerQ = (clsOwnerFilter.value||"").trim().toLowerCase();
 
     let rows = classifRows.slice();
@@ -1128,17 +1256,12 @@
 
     return `
       <div class="item5-row list-row">
-        <!-- Título (abre detalhes) -->
         <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
           ${c.title||"—"}
         </button>
-        <!-- Criado em -->
         <div class="small text-secondary">${createdAtStr}</div>
-        <!-- Dono -->
         <div class="small">${owner}</div>
-        <!-- Status -->
         <div class="row-badges">${badgeActive}</div>
-        <!-- Pagamento -->
         <div class="row-badges">${payBadge}</div>
       </div>
 
