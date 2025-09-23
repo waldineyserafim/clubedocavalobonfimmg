@@ -839,7 +839,6 @@
   const prdWpp = document.getElementById("prdWpp");
   const prdActive = document.getElementById("prdActive");
   const prdImages = document.getElementById("prdImages");
-  const prdImagesUrls = document.getElementById("prdImagesUrls");
   const prdPrice = document.getElementById("prdPrice");
   const prdMsg = document.getElementById("prdMsg");
   const prdSearch = document.getElementById("prdSearch");
@@ -864,7 +863,7 @@ document.getElementById("formProduct")?.addEventListener("submit", async (e) => 
 
   try {
     // 1) compõe lista de imagens (até 3): URLs manuais + uploads
-    let images = readUrls(prdImagesUrls).slice(0, 3);
+    let images = [];
     const remaining = 3 - images.length;
 
     if (remaining > 0 && prdImages.files?.length) {
@@ -888,7 +887,6 @@ document.getElementById("formProduct")?.addEventListener("submit", async (e) => 
 
     // 3) recarrega lista
     prdImages.value = "";
-    prdImagesUrls.value = images.join(", ");
     loadProducts();
   } catch (err) {
     console.error(err);
@@ -960,7 +958,7 @@ document.getElementById("formProduct")?.addEventListener("submit", async (e) => 
         const id = e.currentTarget.dataset.id; const p = rows.find(x=>x.id===id); if(!p) return;
         prdId.value=id; prdTitle.value=p.title||""; prdBenefit.value=p.benefit||""; prdDesc.value=p.description||"";
         prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
-        prdImages.value=""; prdImagesUrls.value = Array.isArray(p.imageUrls)?p.imageUrls.join(", "):"";
+        prdImages.value="";
         const coll = document.getElementById("prdCollapse"); if (coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.getElementById("pane-produtos").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
@@ -982,7 +980,6 @@ document.getElementById("formProduct")?.addEventListener("submit", async (e) => 
   const svcWpp = document.getElementById("svcWpp");
   const svcActive = document.getElementById("svcActive");
   const svcImages = document.getElementById("svcImages");       // novo: múltiplas
-  const svcImageUrls = document.getElementById("svcImageUrls");  // novo: urls separadas por vírgula
   const svcMsg = document.getElementById("svcMsg");
   const svcSearch = document.getElementById("svcSearch");
   const svcStatusFilter = document.getElementById("svcStatusFilter");
@@ -1005,7 +1002,7 @@ document.getElementById("formService")?.addEventListener("submit", async (e)=>{
 
   try {
     // 1) compõe lista de imagens (até 3): URLs manuais + uploads
-    let imageUrls = readUrls(svcImageUrls).slice(0, 3);
+    let imageUrls = [];
     const remaining = 3 - imageUrls.length;
 
     if (remaining > 0 && svcImages.files?.length) {
@@ -1032,7 +1029,6 @@ document.getElementById("formService")?.addEventListener("submit", async (e)=>{
 
     // 3) recarrega lista
     svcImages.value = "";
-    svcImageUrls.value = imageUrls.join(", ");
     loadServices();
   } catch (err) {
     console.error(err);
@@ -1103,7 +1099,7 @@ document.getElementById("formService")?.addEventListener("submit", async (e)=>{
         const id = e.currentTarget.dataset.id; const s = rows.find(x=>x.id===id); if(!s) return;
         svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
         svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false);
-        svcImages.value=""; svcImageUrls.value = Array.isArray(s.imageUrls) ? s.imageUrls.join(", ") : (s.imageUrl || "");
+        svcImages.value="";
         const coll = document.getElementById("svcCollapse"); if (coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.getElementById("pane-servicos").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
