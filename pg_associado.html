@@ -14,84 +14,65 @@
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- versionado para bustar cache -->
   <link rel="stylesheet" href="assets/css/custom.css?v=assoc-2025-09-10b">
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="assets\img\logo_CCBMG.png">
-  <link rel="shortcut icon" href="assets\img\logo_CCBMG.png" type="image/png">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
 
   <style>
     :root{ --brand:#111279; --accent:#2a9d8f; }
 
-    /* ===== Brand cores ===== */
     .bg-primary{ background-color:var(--brand)!important; }
     .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
     .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
     .text-primary{ color:var(--brand)!important; }
     .badge-role{ background:var(--accent); }
 
-    /* ===== Navbar ===== */
     .navbar{ position:relative; z-index:1020; }
     .navbar .container{ justify-content:space-between; flex-wrap:nowrap; }
     .navbar-toggler{ margin-left:auto; }
     .navbar .btn{ pointer-events:auto; }
     .navbar-brand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:65vw; }
 
-    /* ===== Cards / grid ===== */
     .card{ border:1px solid rgba(0,0,0,.06); border-radius:14px; will-change:transform; }
     .card:hover{ transform:translateY(-2px); transition:.2s ease; box-shadow:0 8px 24px rgba(0,0,0,.08); }
-    .grid{ row-gap:1rem; }
 
-    /* Mini galeria / carrossel */
     .thumb, .carousel-item img{
-      height:200px;
-      width:100%;
-      object-fit:contain;         /* mostra a imagem completa */
-      object-position:center;     /* centraliza */
-      background:#fff;            /* fundo para as “bordas” quando sobrar espaço */
-      border-top-left-radius:14px;
-      border-top-right-radius:14px;
+      height:200px; width:100%;
+      object-fit:contain; object-position:center;
+      background:#fff; border-top-left-radius:14px; border-top-right-radius:14px;
     }
 
-    /* ===== Busca ===== */
     .search-wrap{ position:relative; }
     .search-wrap input{ padding-left:2.25rem; }
     .search-wrap .ico{ position:absolute; left:.75rem; top:50%; transform:translateY(-50%); opacity:.55; }
 
-    /* ===== Abas responsivas ===== */
     #typeTabs{ gap:.25rem; }
     @media (max-width: 575.98px){
       #typeTabs{ overflow:auto; white-space:nowrap; flex-wrap:nowrap; }
       #typeTabs .nav-item{ flex:0 0 auto; }
     }
 
-    /* ===== Chips / estados ===== */
     .badge-type{ text-transform:uppercase; letter-spacing:.02em; }
     .empty-state{ border:1px dashed #ced4da; border-radius:.75rem; padding:1rem; text-align:center; color:#6c757d; margin:0; }
     .chip{ border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:999px; padding:.35rem .75rem; font-size:.85rem; display:inline-flex; gap:.5rem; align-items:center; }
     .chip .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
     .dot-ok{ background:#28a745; } .dot-warn{ background:#ffc107; } .dot-bad{ background:#dc3545; }
 
-    /* ===== Layout ===== */
     header{ padding-top:1.25rem!important; padding-bottom:1rem!important; }
     main{ margin-top:1rem!important; margin-bottom:1.25rem!important; }
     #listLoading{ padding:1.25rem 0; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
     @media (min-width: 992px){ .brand-logo{ height:42px; } }
 
-    /* My classifieds section */
     #myClassifiedsSection .card { border:1px solid rgba(0,0,0,.06); }
     .action-row { gap:.5rem; display:flex; flex-wrap:wrap; justify-content:flex-end; }
 
-    /* ===== Previews das imagens (modal de novo classificado) ===== */
     .thumb-wrap { position:relative; }
     .thumb-wrap img { width:100%; height:140px; object-fit:cover; border-radius:.5rem; }
     .thumb-remove {
-      position:absolute; top:.35rem; right:.35rem;
-      border:none; background:rgba(0,0,0,.55); color:#fff;
-      width:28px; height:28px; border-radius:50%;
-      display:flex; align-items:center; justify-content:center;
+      position:absolute; top:.35rem; right:.35rem; border:none; background:rgba(0,0,0,.55); color:#fff;
+      width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
       line-height:1; cursor:pointer;
     }
   </style>
@@ -111,10 +92,12 @@
 
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link active" aria-current="page" href="sobre.html">Sobre o Clube</a></li>
         <li class="nav-item mt-2 mt-lg-0">
           <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="pg_associado.html">Área do Associado</a>
         </li>
@@ -133,13 +116,16 @@
     <div class="w-100">
       <h1 class="h4 mb-1">Área do Associado</h1>
       <div class="text-secondary small">Bem-vindo(a), <strong id="memberName"></strong></div>
-      <div class="mt-1"><span id="memberRole" class="badge badge-role d-none text-uppercase"></span></div>
-      <div class="mt-2 d-flex flex-wrap gap-2">
+
+      <!-- Linha de chips simplificada -->
+      <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+        <span id="chipPlan" class="chip d-none">Plano: <strong id="chipPlanText" class="ms-1">—</strong></span>
         <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">Situação: —</span></span>
-        <span id="chipNextDue" class="chip d-none">Próxima anuidade: <strong id="chipNextDueText" class="ms-1">—</strong></span>
-        <span class="chip" id="chipCpfText">Seu número de associado é o próprio CPF.</span>
+        <span id="chipNextDue" class="chip d-none">Vencimento: <strong id="chipNextDueText" class="ms-1">—</strong></span>
+        <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">Renovar plano</a>
       </div>
     </div>
+
     <div class="d-flex flex-column flex-sm-row gap-2 flex-shrink-0 text-end">
       <!-- Botão só para ASSOCIADO -->
       <button class="btn btn-outline-primary d-none" id="btnNewClassified" data-bs-toggle="modal" data-bs-target="#classifiedModal">
@@ -191,7 +177,7 @@
     </div>
   </section>
 
-  <!-- Listagem principal (sem título "Todos os Classificados") -->
+  <!-- Listagem principal -->
   <section id="allClassifiedsWrapper" class="mb-5">
     <div class="card border-secondary shadow-sm">
       <div class="card-body">
@@ -224,25 +210,21 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { collection, getDocs, query, orderBy, doc, getDoc, addDoc, where, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import {
-    updatePassword,
-    reauthenticateWithCredential,
-    EmailAuthProvider,
-    reauthenticateWithPopup,
-    GoogleAuthProvider
+    collection, getDocs, query, orderBy, doc, getDoc, addDoc, where, updateDoc, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import {
+    updatePassword, reauthenticateWithCredential, EmailAuthProvider, reauthenticateWithPopup, GoogleAuthProvider
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { OAuthProvider } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
-  /* === IMPORT do uploader com compressão (~200 KB) === */
   import { uploadImageFile } from "./firebase.js";
 
-  /* ================== Constante de pagamento ================== */
-  const PAYMENT_URL = "https://mpago.la/1mJpCsd"; // link do Mercado Pago informado
+  const PAYMENT_URL = "https://mpago.la/1mJpCsd";
 
   /* ================== Helpers de acesso / roles ================== */
-  const ADMIN_UIDS = new Set([ /* "UID-ADMIN-AQUI" */ ]);
-  const MASTER_UIDS = new Set([ /* "UID-MASTER-AQUI" */ ]);
+  const ADMIN_UIDS = new Set([]);
+  const MASTER_UIDS = new Set([]);
 
   function toRoleSet(roleField) {
     if (!roleField) return new Set();
@@ -255,7 +237,7 @@
     try {
       const token = await user.getIdTokenResult(true);
       if (token?.claims?.admin || token?.claims?.master) return true;
-    } catch (e) { console.warn("Falha ao ler custom claims:", e); }
+    } catch {}
     const roles = toRoleSet(userDocData?.role || "associado");
     return roles.has("admin") || roles.has("master");
   }
@@ -289,30 +271,162 @@
       return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
     } catch { return "—"; }
   };
-  const fmtCPF = (cpfRaw) => {
-    const n = (cpfRaw || "").replace(/\D/g, "");
-    if (n.length!==11) return null;
-    return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");
-  };
-  const wpp = (phone, text) => {
-    const p = (phone||"").replace(/\D/g,"");
-    const msg = encodeURIComponent(text||"");
-    return p ? `https://wa.me/${p}?text=${msg}` : `https://wa.me/?text=${msg}`;
-  };
+
   const debouncer = (fn, ms=250) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
   const norm = (s) => (s||"").toString().normalize("NFD").replace(/\p{Diacritic}/gu,"").toLowerCase();
+
+  // Gera link do WhatsApp
+  function wpp(phone, text) {
+  const p = (phone||"").replace(/\D/g,"");
+  const msg = encodeURIComponent(text||"");
+  return p ? `https://wa.me/${p}?text=${msg}` : `https://wa.me/?text=${msg}`;
+  }
+
+  /* ===== Helpers do plano ===== */
+  const monthsToPlan = (m)=>({1:"Mensal",3:"Trimestral",6:"Semestral",12:"Anual"}[m]||null);
+  function guessPlanName(start, end, hinted){
+    const nameRaw = String(hinted||"").trim().toLowerCase();
+    if (["mensal","trimestral","semestral","anual"].includes(nameRaw)) return nameRaw.charAt(0).toUpperCase()+nameRaw.slice(1);
+    const s = start?.toDate ? start.toDate() : (start ? new Date(start) : null);
+    const e = end?.toDate ? end.toDate()   : (end   ? new Date(end)   : null);
+    if (s && e && !isNaN(s) && !isNaN(e)) {
+      const months = (e.getFullYear()-s.getFullYear())*12 + (e.getMonth()-s.getMonth()) + (e.getDate()>=s.getDate()?0:-1);
+      const candidates=[1,3,6,12]; let best=candidates[0], diff=Infinity;
+      for (const c of candidates){ const d=Math.abs(months-c); if(d<diff){best=c; diff=d;} }
+      return monthsToPlan(best) || "—";
+    }
+    return "—";
+  }
+  /* ======== GATE DE ACESSO: ativo + financeiro (em dia ou atraso <= 10 dias) ======== */
+  function asDate(d){
+    if (!d) return null;
+    if (d?.toDate) return d.toDate();
+    const t = new Date(d);
+    return isNaN(t) ? null : t;
+  }
+  function pickFirstDate(...cands){
+    for (const c of cands){
+      const dt = asDate(c);
+      if (dt) return dt;
+    }
+    return null;
+  }
+  function trueish(v){
+    if (typeof v === "boolean") return v;
+    if (v == null) return false;
+    const s = String(v).trim().toLowerCase();
+    return s === "true" || s === "1" || s === "yes" || s === "ativo" || s === "active";
+  }
+function computeStatusFromInvoices(invoices, nowMs){
+  for (const i of (invoices||[])){
+    const status = String(i?.status||"").toLowerCase();
+    const dueMs  = i?.dueDate?.toMillis ? i.dueDate.toMillis() : (i?.dueDate ? new Date(i.dueDate).getTime() : NaN);
+    const isPaid = status === "pago";
+    if (!isPaid && Number.isFinite(dueMs) && dueMs < nowMs){
+      return "Atrasada"; // só bloqueia por atraso real (vencido)
+    }
+  }
+  return "Em dia"; // aberto/futuro continua "Em dia" para efeito de gate
+}
+
+  function resolvePlanEnd(summary, invoices){
+    // tenta nos campos mais comuns do summary
+    const endFromSummary = pickFirstDate(
+      summary?.planEnd, summary?.endDate, summary?.planEndDate, summary?.fim, summary?.plan_end
+    );
+    if (endFromSummary) return endFromSummary;
+
+    // tenta nos campos das faturas, priorizando PAGA mais recente; senão a mais recente
+    const ordered = [...(invoices||[])].sort((a,b)=>{
+      const da = a?.dueDate?.toMillis ? a.dueDate.toMillis() : (a?.dueDate ? new Date(a.dueDate).getTime() : 0);
+      const db = b?.dueDate?.toMillis ? b.dueDate.toMillis() : (b?.dueDate ? new Date(b.dueDate).getTime() : 0);
+      return db - da;
+    });
+    const paidFirst = ordered.find(i => String(i?.status||"").toLowerCase()==="pago") || ordered[0];
+
+    return pickFirstDate(
+      paidFirst?.endDate, paidFirst?.end, paidFirst?.fim, paidFirst?.planEnd, paidFirst?.plan_end
+    );
+  }
+
+  /**
+   * Avalia se o usuário pode acessar e, se não puder, retorna um code para redireciono ao pay.html
+   * Regra: ativo === true E (status === "Em dia" OU (status === "Atrasada" E agora <= planEnd + 10 dias))
+   */
+  async function evaluateAccessGate(db, uid, userDocData){
+    // 1) Ativo (flag no painel)
+    const activeFlag = trueish(userDocData?.isActive ?? userDocData?.ativo ?? userDocData?.active);
+    if (!activeFlag){
+      return { ok:false, code:"inactive_flag", msg:"Seu cadastro está inativo." };
+    }
+
+    // 2) Lê summary e invoices do usuário
+    let summary = {};
+    try {
+      const sumRef = doc(db, "users", uid, "finance", "summary");
+      const sumSnap = await getDoc(sumRef);
+      summary = sumSnap.exists() ? sumSnap.data() : {};
+    } catch {}
+    if (!summary || Object.keys(summary).length===0){
+      try{
+        const sumRef2 = doc(db, "users", uid, "finance_summary");
+        const sumSnap2 = await getDoc(sumRef2);
+        summary = sumSnap2.exists() ? sumSnap2.data() : {};
+      } catch {}
+    }
+
+    let invoices = [];
+    try{
+      const invSnap = await getDocs(
+        query(collection(db, "users", uid, "financeInvoices"), orderBy("dueDate","desc"))
+      );
+      invoices = invSnap.docs.map(d=>({id:d.id, ...d.data()}));
+    }catch{}
+
+    // 3) Status financeiro + cálculo de fim de plano + grace de 10 dias
+    const nowMs = Date.now();
+    const status = computeStatusFromInvoices(invoices, nowMs);
+    const planEnd = resolvePlanEnd(summary, invoices); // Date ou null
+    const planEndMs = planEnd ? planEnd.getTime() : NaN;
+    const graceMs = 10 * 24 * 60 * 60 * 1000; // 10 dias
+
+    // Libera se: Em dia
+    if (status === "Em dia") return { ok:true };
+
+    // Libera se: Atrasada mas dentro do grace (precisa conhecer planEnd)
+    if (status === "Atrasada" && Number.isFinite(planEndMs) && nowMs <= (planEndMs + graceMs)){
+      return { ok:true };
+    }
+
+    // Bloqueia nos demais casos
+    if (status === "Atrasada"){
+      return {
+        ok:false,
+        code: Number.isFinite(planEndMs) ? "late_over_10d" : "late_no_plan_end",
+        until: Number.isFinite(planEndMs) ? new Date(planEndMs + graceMs).toISOString() : null
+      };
+    }
+
+    // "Anuidade pendente" (não libera)
+    return { ok:false, code:"open_invoice" };
+  }
+
 
   /* ================== DOM refs ================== */
   const adminBtn = document.getElementById("adminBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const memberNameEl = document.getElementById("memberName");
-  const memberRoleEl = document.getElementById("memberRole");
-  const chipCpfText = document.getElementById("chipCpfText");
+
+  // Chips do cabeçalho
+  const chipPlan = document.getElementById("chipPlan");
+  const chipPlanText = document.getElementById("chipPlanText");
   const chipPayStatus = document.getElementById("chipPayStatus");
   const chipPayText = document.getElementById("chipPayText");
   const chipPayDot = document.getElementById("chipPayDot");
   const chipNextDue = document.getElementById("chipNextDue");
   const chipNextDueText = document.getElementById("chipNextDueText");
+  const btnRenewPlan = document.getElementById("btnRenewPlan");
+
   const searchInput = document.getElementById("searchInput");
   const typeTabs = document.getElementById("typeTabs");
   const listLoading = document.getElementById("listLoading");
@@ -340,13 +454,13 @@
   const clsFeedback = document.getElementById("clsFeedback");
   const btnNewClassified = document.getElementById("btnNewClassified");
 
-  /* === Upload de imagens (até 3) === */
+  // Upload
   const clsImagesInput = document.getElementById("clsImages");
   const btnPickImgs    = document.getElementById("btnPickImgs");
   const btnClearImgs   = document.getElementById("btnClearImgs");
   const imgPreviewGrid = document.getElementById("imgPreviewGrid");
   const imgProgressList= document.getElementById("imgProgressList");
-  let selectedFiles = []; // Array<File> — máx 3
+  let selectedFiles = [];
 
   /* ================== Estado ================== */
   let currentType = "all";
@@ -366,25 +480,132 @@
   });
 
   /* ================== Auth + Perfil ================== */
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) { window.location.href = "login.html"; return; }
-    currentUser = user;
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = "login.html"; return; }
+  currentUser = user;
 
-    try {
-      const uref = doc(db, "users", user.uid);
-      const usnap = await getDoc(uref);
-      const u = usnap.exists() ? usnap.data() : {};
+  try {
+    const uref = doc(db, "users", user.uid);
+    const usnap = await getDoc(uref);
+    const u = usnap.exists() ? usnap.data() : {};
 
-      if (await hasAdminAccess(user, u)) adminBtn?.classList.remove("d-none");
-      else adminBtn?.classList.add("d-none");
+    // Admin/master continuam podendo acessar mesmo sem estar em dia
+    const isAdminOrMaster = await hasAdminAccess(user, u);
+    if (isAdminOrMaster) {
+      adminBtn?.classList.remove("d-none");
+    } else {
+      adminBtn?.classList.add("d-none");
+      // <<< AQUI: aplica o gate de acesso para associados comuns >>>
+      const gate = await evaluateAccessGate(db, user.uid, u);
+      if (!gate.ok) {
+        const params = new URLSearchParams({
+          reason: gate.code || "access_denied",
+          // opcionalmente exponha a data-limite do grace ao usuário
+          ...(gate.until ? { until: gate.until } : {})
+        });
+        window.location.href = `pay.html?${params.toString()}`;
+        return; // interrompe carregamento da página do associado
+      }
+    }
 
-      memberName = getPreferredName(u, user);
-      memberNameEl.textContent = memberName;
+    // ====== segue fluxo normal (UI) ======
+    memberName = getPreferredName(u, user);
+    memberNameEl.textContent = memberName;
 
-      currentUserRoles = toRoleSet(u.role || "associado");
-      const roleForBadge = currentUserRoles.size ? Array.from(currentUserRoles).join(" / ") : "associado";
-      memberRoleEl.textContent = roleForBadge;
-      memberRoleEl.classList.remove("d-none");
+    currentUserRoles = toRoleSet(u.role || "associado");
+    metaPhones.salesPhone = u.salesPhone || "";
+    metaPhones.financePhone = u.financePhone || "";
+
+    await loadPaymentChips(user.uid);
+    await loadAllContent();
+    bindUI();
+    render();
+  } catch (e) {
+    console.error(e);
+    listLoading.classList.add("d-none");
+    listError.textContent = "Não foi possível carregar seus dados.";
+    listError.classList.remove("d-none");
+  }
+});
+
+  logoutBtn.addEventListener("click", async () => {
+    try { await signOut(auth); } finally { window.location.href = "login.html"; }
+  });
+
+  // ====== Carrega status/planos para chips (sem seção financeira) ======
+  async function loadPaymentChips(uid){
+    try{
+      // Summary (preferência: users/{uid}/finance/summary)
+      let summary = {};
+      try {
+        const sumRef = doc(db, "users", uid, "finance", "summary");
+        const sumSnap = await getDoc(sumRef);
+        summary = sumSnap.exists() ? sumSnap.data() : {};
+      } catch {}
+      // Fallback: users/{uid}/finance_summary
+      if (!summary || Object.keys(summary).length===0) {
+        try {
+          const sumRef2 = doc(db, "users", uid, "finance_summary");
+          const sumSnap2 = await getDoc(sumRef2);
+          summary = sumSnap2.exists() ? sumSnap2.data() : {};
+        } catch {}
+      }
+
+      // Invoices (coleção usada no Admin): users/{uid}/financeInvoices
+      let invoices = [];
+      try {
+        const invSnap = await getDocs(
+          query(collection(db, "users", uid, "financeInvoices"), orderBy("dueDate","desc"))
+        );
+        invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.warn("financeInvoices:", e);
+      }
+
+      // ---- Plano (mostrar exatamente o que foi cadastrado)
+      const orderedInv = [...(invoices||[])].sort((a,b)=>{
+        const da = a.dueDate?.toMillis ? a.dueDate.toMillis() : (a.dueDate ? new Date(a.dueDate).getTime() : 0);
+        const db = b.dueDate?.toMillis ? b.dueDate.toMillis() : (b.dueDate ? new Date(b.dueDate).getTime() : 0);
+        return db - da;
+      });
+      // 1) Preferir uma fatura "paga"; senão, pegar a mais recente por vencimento
+      const chosen = orderedInv.find(i => String(i.status||'').toLowerCase()==='pago') || orderedInv[0];
+      // 2) Ler o texto armazenado na fatura; se não houver, usar o do summary
+      const planLabel =
+        chosen?.planName || chosen?.planLabel || chosen?.plano || chosen?.plan ||
+        summary?.planName || summary?.planLabel || summary?.plano || summary?.plan || "—";
+
+
+      chipPlanText.textContent = planLabel;
+      chipPlan.classList.remove("d-none");
+
+
+      // ---- Situação + Próximo Pagamento
+      let status = "Em dia";
+      const now = Date.now();
+      const hasOverdue = invoices.some(i=>{
+        const dueMs = i.dueDate?.toMillis ? i.dueDate.toMillis() : new Date(i.dueDate).getTime();
+        return (String(i.status||"").toLowerCase()!=="pago") && dueMs < now;
+      });
+      const hasOpen = invoices.some(i => String(i.status||"").toLowerCase()==="em_aberto");
+      if (hasOverdue) status = "Atrasada";
+      else if (hasOpen) status = "Anuidade pendente";
+
+      const nextDue = summary?.nextDue || invoices
+        .filter(i => String(i.status||"").toLowerCase()!=="pago")
+        .map(i=>i.dueDate)
+        .sort((a,b)=>(a?.toMillis?.()??new Date(a).getTime()) - (b?.toMillis?.()??new Date(b).getTime()))[0];
+
+      chipPayStatus.classList.remove("d-none");
+      chipPayText.textContent = `Situação: ${status}`;
+      chipPayDot.className = "dot " + (status==="Em dia" ? "dot-ok" : status==="Anuidade pendente" ? "dot-warn" : "dot-bad");
+
+      chipNextDue.classList.remove("d-none");
+      chipNextDueText.textContent = fmtDate(nextDue);
+
+      // Mostrar botão Renovar após Próximo Pagamento
+      btnRenewPlan.classList.remove("d-none");
+      btnRenewPlan.href = "pay.html"; // mantém destino
 
       // Mostrar botão "Novo classificado" somente para ASSOCIADO
       if (currentUserRoles.has("associado")) {
@@ -392,65 +613,11 @@
       } else {
         btnNewClassified.classList.add("d-none");
       }
-
-      const cpfFmt = fmtCPF(u.cpf);
-      chipCpfText.textContent = cpfFmt
-        ? `Seu número de associado é o seu CPF: ${cpfFmt}`
-        : `Seu número de associado é o próprio CPF.`;
-
-      metaPhones.salesPhone = u.salesPhone || "";
-      metaPhones.financePhone = u.financePhone || "";
-
-      await loadPaymentChips(user.uid);
-      await loadAllContent();
-      bindUI();
-      render();
-    } catch (e) {
-      console.error(e);
-      listLoading.classList.add("d-none");
-      listError.textContent = "Não foi possível carregar seus dados.";
-      listError.classList.remove("d-none");
+    }catch(e){
+      console.warn("chips/financeiro:", e);
+      // Ainda assim mostramos o botão de renovar
+      btnRenewPlan.classList.remove("d-none");
     }
-  });
-
-  logoutBtn.addEventListener("click", async () => {
-    try { await signOut(auth); } finally { window.location.href = "login.html"; }
-  });
-
-  async function loadPaymentChips(uid){
-    try{
-      const sumRef = doc(db, "users", uid, "finance", "summary");
-      const sumSnap = await getDoc(sumRef);
-      const summary = sumSnap.exists() ? sumSnap.data() : {};
-      const invRef = collection(db, "users", uid, "finance", "invoices");
-      const qRef = query(invRef, orderBy("dueDate", "desc"));
-      const invSnap = await getDocs(qRef);
-      const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()}));
-
-      let status = "Em dia";
-      const now = Date.now();
-      const hasOverdue = invoices.some(i=>{
-        const dueMs = i.dueDate?.toMillis ? i.dueDate.toMillis() : new Date(i.dueDate).getTime();
-        return (i.status||"").toLowerCase()!=="pago" && dueMs < now;
-      });
-      const hasOpen = invoices.some(i => (i.status||"").toLowerCase()==="em_aberto");
-      if (hasOverdue) status = "Atrasada"; else if (hasOpen) status = "Anuidade pendente";
-
-      const nextDue = summary.nextDue || invoices
-        .filter(i => (i.status||"").toLowerCase()!=="pago")
-        .map(i=>i.dueDate)
-        .sort((a,b)=>(a?.toMillis?.()??new Date(a).getTime()) - (b?.toMillis?.()??new Date(b).getTime()))[0];
-
-      chipPayStatus.classList.remove("d-none");
-      chipPayText.textContent = `Situação: ${status}`;
-      chipPayDot.classList.remove('dot-ok','dot-warn','dot-bad');
-      if (status==="Em dia") chipPayDot.classList.add('dot-ok');
-      else if (status==="Anuidade pendente") chipPayDot.classList.add('dot-warn');
-      else chipPayDot.classList.add('dot-bad');
-
-      chipNextDue.classList.remove("d-none");
-      chipNextDueText.textContent = fmtDate(nextDue);
-    }catch(e){ console.warn("chips pagamento:", e); }
   }
 
   /* ================== Conteúdo ================== */
@@ -466,12 +633,11 @@
 
     try{
       // Serviços
-
       try {
         const sSnap = await getDocs(query(collection(db,"memberServices")));
         const svc = sSnap.docs.map(d=>{
           const v = d.data();
-          const isActive = (v.active !== false);   // <= aqui
+          const isActive = (v.active !== false);
           if (!isActive) return null;
           return {
             id:d.id, type:"service",
@@ -491,7 +657,7 @@
         const pSnap = await getDocs(query(collection(db,"memberProducts")));
         const prd = pSnap.docs.map(d=>{
           const v = d.data();
-          const isActive = (v.active !== false);   // <= aqui
+          const isActive = (v.active !== false);
           if (!isActive) return null;
           const imgs = Array.isArray(v.imageUrls)&&v.imageUrls.length ? v.imageUrls
                       : (v.imageUrl ? [v.imageUrl] : ["assets/img/placeholder_product.jpg"]);
@@ -509,8 +675,7 @@
         items.push(...prd);
       }catch(e){ console.warn("products:", e); }
 
-
-      // Classificados — geral: somente ativos e aprovados
+      // Classificados — geral
       try{
         const cSnap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("createdAt","desc")));
         const cls = cSnap.docs.map(d=>{
@@ -532,7 +697,7 @@
         items.push(...cls);
       }catch(e){ console.warn("classifieds:", e); }
 
-      // Meus classificados — ativos OU pendentes de pagamento
+      // Meus classificados — ativos ou pendentes
       try{
         if (currentUser) {
           let mySnap = await getDocs(query(collection(db,"memberClassifieds"), where("ownerUid","==", currentUser.uid), orderBy("createdAt","desc")));
@@ -631,7 +796,7 @@
     myClassifiedsCount.textContent = myClassifieds.length;
   }
 
-  /* ======== Helper: carrossel (usa Bootstrap 5) ======== */
+  /* ======== Helper: carrossel (Bootstrap 5) ======== */
   function carouselHtml(images, title, uid){
     if (!images || !images.length) {
       return `<img src="assets/img/placeholder.jpg" class="thumb w-100" alt="${title}" loading="lazy">`;
@@ -661,58 +826,54 @@
       </div>`;
   }
 
-  /* ======== Cartão “estilo Classificados” (usado para produtos/serviços também) ======== */
-/* ======== Cartão “estilo Classificados” (usa carrossel) ======== */
-function card(i){
-  const badge = i.type==="service" ? "Serviço"
+  /* ======== Cartões ======== */
+  function card(i){
+    const badge = i.type==="service" ? "Serviço"
               : i.type==="product" ? "Produto"
               : "Classificado";
-  const badgeClass = i.type==="service" ? "text-bg-info"
-                    : i.type==="product" ? "text-bg-primary"
-                    : "text-bg-secondary";
+    const badgeClass = i.type==="service" ? "text-bg-info"
+                      : i.type==="product" ? "text-bg-primary"
+                      : "text-bg-secondary";
 
-  // usa o carrossel (ID único por tipo+id)
-  const gallery = carouselHtml(i.images, i.title, `${i.type}_${i.id}`);
+    const gallery = carouselHtml(i.images, i.title, `${i.type}_${i.id}`);
 
-  const price = (i.price!=null && i.type!=="service")
-    ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` 
-    : "";
+    const price = (i.price!=null && i.type!=="service")
+      ? `<div class="fw-semibold mt-1">R$ ${Number(i.price).toLocaleString('pt-BR')}</div>` 
+      : "";
 
-  // tag de benefício só para serviço
-  const benefit = (i.type==="service" && i.benefit)
-    ? `<span class="badge bg-success d-block text-center py-2 mb-3">${i.benefit} de desconto</span>`
-    : "";
+    const benefit = (i.type==="service" && i.benefit)
+      ? `<span class="badge bg-success d-block text-center py-2 mb-3">${i.benefit} de desconto</span>`
+      : "";
 
-  const btnLabel = i.type==="service" ? "Falar no WhatsApp"
-                  : i.type==="product" ? "Falar com Vendas"
-                  : "Falar com o Anunciante";
-  const msg = `Olá! Sou o ${memberName} do Clube do Cavalo de Bonfim MG e tenho interesse em \"${i.title}\". Pode me ajudar?`;
-  const link = wpp(i.whatsapp, msg);
+    const btnLabel = i.type==="service" ? "Falar no WhatsApp"
+                    : i.type==="product" ? "Falar com Vendas"
+                    : "Falar com o Anunciante";
+    const msg = `Olá! Sou o ${memberName} do Clube do Cavalo de Bonfim MG e tenho interesse em \"${i.title}\". Pode me ajudar?`;
+    const link = wpp(i.whatsapp, msg);
 
-  // nome do anunciante nos classificados
-  const owner = (i.type==="classified" && i.ownerName) 
-    ? `<p class="small text-muted mb-2">Anunciante: ${i.ownerName}</p>` 
-    : "";
+    const owner = (i.type==="classified" && i.ownerName) 
+      ? `<p class="small text-muted mb-2">Anunciante: ${i.ownerName}</p>` 
+      : "";
 
-  return `
-    <div class="col-12 col-md-6 col-lg-4">
-      <div class="card h-100">
-        ${gallery}
-        <div class="card-body d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-start">
-            <h6 class="mb-1">${i.title}</h6>
-            <span class="badge badge-type ${badgeClass}">${badge}</span>
+    return `
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100">
+          ${gallery}
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start">
+              <h6 class="mb-1">${i.title}</h6>
+              <span class="badge badge-type ${badgeClass}">${badge}</span>
+            </div>
+            ${owner}
+            <p class="small text-secondary mb-2">${i.description||""}</p>
+            ${benefit}
+            ${price}
+            <a class="btn btn-sm btn-primary mt-auto" href="${link}" target="_blank" rel="noopener">${btnLabel}</a>
           </div>
-          ${owner}
-          <p class="small text-secondary mb-2">${i.description||""}</p>
-          ${benefit}
-          ${price}
-          <a class="btn btn-sm btn-primary mt-auto" href="${link}" target="_blank" rel="noopener">${btnLabel}</a>
         </div>
       </div>
-    </div>
-  `;
-}
+    `;
+  }
 
   function myCard(i){
     const gallery = carouselHtml(i.images, i.title, `my_${i.id}`);
@@ -838,8 +999,6 @@ function card(i){
   }
 
   /* ================== Novo Classificado (Associado) ================== */
-
-  // Handlers de imagens
   btnPickImgs?.addEventListener("click", () => clsImagesInput.click());
 
   btnClearImgs?.addEventListener("click", () => {
@@ -926,11 +1085,9 @@ function card(i){
         whatsapp: contact,
         imageUrls: [],
 
-        // publicação
         active: false,
         approved: false,
 
-        // pagamento
         paymentStatus: "pending",
         paymentUrl: PAYMENT_URL,
         pricePerDay: 1.00,
@@ -938,17 +1095,15 @@ function card(i){
         plannedActiveDays: 30,
         paymentCreatedAt: serverTimestamp(),
 
-        // dono
         ownerUid: currentUser.uid,
         ownerEmail: currentUser.email || null,
         ownerName: memberName,
 
-        // Timestamps
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
-      // 2) Se houver fotos, sobe (até 3) com compressão automática (~200KB)
+      // 2) Upload de fotos (até 3)
       const urls = [];
       imgProgressList.innerHTML = "";
       if (selectedFiles.length) {
@@ -971,19 +1126,18 @@ function card(i){
             file,
             pathBase,
             (pct) => { if (bar) bar.style.width = pct + "%"; },
-            { targetKB: 200 } // reforça alvo
+            { targetKB: 200 }
           );
           urls.push(url);
         }
 
-        // Atualiza o doc com as URLs
         await updateDoc(doc(db, "memberClassifieds", docRef.id), {
           imageUrls: urls,
           updatedAt: serverTimestamp()
         });
       }
 
-      // 3) Feedback + redirecionamento para pagamento
+      // 3) Feedback + redirect
       clsFeedback.innerHTML = `
         <strong>Classificado enviado!</strong><br>
         ${urls.length ? `${urls.length} foto(s) anexada(s).<br>` : ""}
@@ -993,13 +1147,11 @@ function card(i){
       clsFeedback.classList.remove("d-none");
       clsFeedback.classList.add("alert","alert-success");
 
-      // limpa form/estado
       classifiedForm.reset();
       selectedFiles = [];
       renderImgPreviews();
       imgProgressList.innerHTML = "";
 
-      // Atualiza listas e vai para o pagamento
       setTimeout(()=>{
         const modal = bootstrap.Modal.getInstance(classifiedModalEl);
         modal?.hide();
@@ -1066,7 +1218,7 @@ function card(i){
     });
   }
 
-  /* ================== Troca de senha (sem e-mail) ================== */
+  /* ================== Troca de senha ================== */
   const changePasswordModalEl = document.getElementById("changePasswordModal");
   const changePasswordForm    = document.getElementById("changePasswordForm");
   const cpInfo    = document.getElementById("cpInfo");
@@ -1086,9 +1238,7 @@ function card(i){
   let isPasswordProvider = false;
   let reauthOK = false;
 
-  function clearMsgs() {
-    [cpInfo, cpError, cpSuccess].forEach(el => { el.classList.add("d-none"); el.textContent = ""; });
-  }
+  function clearMsgs() { [cpInfo, cpError, cpSuccess].forEach(el => { el.classList.add("d-none"); el.textContent = ""; }); }
   function senhaForteMin(s) { return typeof s === "string" && s.length >= 6; }
 
   changePasswordModalEl?.addEventListener("show.bs.modal", () => {
@@ -1103,7 +1253,6 @@ function card(i){
       return;
     }
 
-    currentUserEmail = user.email || "";
     const providers = (user.providerData || []).map(p => p.providerId);
     isPasswordProvider = providers.includes("password");
 
@@ -1176,7 +1325,7 @@ function card(i){
       if (isPasswordProvider) {
         const curr = (currentPassword.value || "").trim();
         if (!curr) throw new Error("auth/missing-current-password");
-        const cred = EmailAuthProvider.credential(currentUserEmail, curr);
+        const cred = EmailAuthProvider.credential(user.email || "", curr);
         await reauthenticateWithCredential(user, cred);
         await updatePassword(user, nova);
       } else {
@@ -1254,7 +1403,7 @@ function card(i){
           <textarea class="form-control" id="clsDesc" rows="3" placeholder="Detalhes do anúncio"></textarea>
         </div>
 
-        <!-- ===== Imagens (até 3) ===== -->
+        <!-- Fotos -->
         <div class="mt-3">
           <label class="form-label d-flex align-items-center justify-content-between">
             <span>Fotos do anúncio (até 3 imagens)</span>
@@ -1268,7 +1417,6 @@ function card(i){
           </div>
 
           <div id="imgPreviewGrid" class="row g-2"></div>
-
           <div id="imgProgressList" class="mt-2"></div>
 
           <div class="form-text">
@@ -1290,7 +1438,7 @@ function card(i){
   </div>
 </div>
 
-<!-- MODAL: Trocar senha (sem e-mail) -->
+<!-- MODAL: Trocar senha -->
 <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordLabel" aria-hidden="true">
   <div class="modal-dialog">
     <form class="modal-content" id="changePasswordForm">
