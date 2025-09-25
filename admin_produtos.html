@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+  <title>Admin • Produtos — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Administração de produtos para associados.">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css?v=op-2025-09-10b">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root{ --brand:#111279; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .badge-role{ background:var(--accent); }
+    .list-header, .list-row{ display:grid; gap:12px; align-items:center; }
+    .items4-header, .item4-row{ grid-template-columns: 1fr 160px 140px 180px; }
+    @media (max-width:991.98px){ .items4-header, .item4-row{ grid-template-columns: 1fr 120px 110px 170px; } }
+    .row-title{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
+    .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>      
+        <li class="nav-item me-2"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="border-bottom bg-light">
+  <div class="container py-3 d-flex justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 h3-md mb-1">Administração — Produtos</h1>
+      <p class="text-secondary mb-0">Gerencie os produtos ofertados aos associados.</p>
+    </div>
+    <div class="text-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
+  </div>
+</header>
+
+<!-- Subnav de seções do painel -->
+<div class="subnav">
+  <div class="container">
+    <div class="d-flex flex-wrap gap-2 py-2">
+      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html">Associados</a>
+      <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Produtos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html">Serviços</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html">Classificados</a>
+    </div>
+  </div>
+</div>
+
+<main class="container">
+  <!-- Formulário -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 id="prdFormTitle" class="mb-0">Cadastrar produto</h5>
+        <button id="prdNewBtn" class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#prdCollapse" aria-expanded="false">Cadastrar produto</button>
+      </div>
+      <div id="prdCollapse" class="collapse mt-3">
+        <form id="formProduct" class="row g-3">
+          <input type="hidden" id="prdId">
+          <div class="col-md-6">
+            <label class="form-label">Título</label>
+            <input type="text" class="form-control" id="prdTitle" required>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label">Valor (R$)</label>
+            <input type="number" step="0.01" class="form-control" id="prdPrice" placeholder="ex.: 199.90">
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label">Benefício</label>
+            <input type="text" class="form-control" id="prdBenefit">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="prdDesc" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">WhatsApp de Vendas</label>
+            <input type="text" class="form-control" id="prdWpp">
+          </div>
+          <div class="col-md-6">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="prdActive" checked>
+              <label class="form-check-label" for="prdActive">Ativo</label>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Imagens (até 3)</label>
+            <input type="file" class="form-control" id="prdImages" accept="image/*" multiple>
+            <div class="form-text">As imagens serão comprimidas (~300KB) e enviadas ao Storage.</div>
+          </div>
+          <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <span id="prdMsg" class="align-self-center text-success small"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex gap-2 flex-wrap align-items-center">
+        <input type="search" class="form-control" id="prdSearch" placeholder="Buscar por título ou benefício" style="max-width:320px">
+        <select id="prdStatusFilter" class="form-select" style="max-width:200px">
+          <option value="all">Status: Todos</option>
+          <option value="active">Somente ativos</option>
+          <option value="inactive">Somente inativos</option>
+        </select>
+        <button id="prdReload" class="btn btn-outline-primary">Atualizar</button>
+      </div>
+
+      <div class="list-header items4-header mt-3">
+        <div>Título</div><div>Valor</div><div>Status</div><div>Ações</div>
+      </div>
+      <div id="productsWrap" class="mt-2">
+        <div class="text-center text-secondary py-3">Carregando…</div>
+      </div>
+      <div class="small text-secondary mt-2" id="prdListMsg"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="mt-4 py-4 bg-body-tertiary border-top">
+  <div class="container text-center text-secondary small">
+    <strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.<br>
+    © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { requireAuth, addMemberProduct, updateMemberProduct } from "./firebase.js";
+  import { auth, db } from "./firebase.js";
+  import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+  import { doc, getDoc, } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  /* ===== Permissão ===== */
+  const storage = getStorage();
+  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+
+  /* ===== Header/login ===== */
+  const opNameEl = document.getElementById("opName");
+  const opRoleEl = document.getElementById("opRole");
+  const normalizeRole = (r)=> String(r||"").trim().toLowerCase();
+
+  auth.onAuthStateChanged(async (user)=>{
+    if(!user) return;
+    try {
+      const snap = await getDoc(doc(db,"users", user.uid));
+      const d = snap.exists()? snap.data() : {};
+      opNameEl.textContent = d.nome || "Operador(a)";
+      opRoleEl.textContent = normalizeRole(d.role)||"admin";
+      opRoleEl.classList.remove("d-none");
+    } catch {}
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async ()=>{
+    try { await signOut(auth); location.href="login.html"; } catch(e){ alert("Não foi possível sair: "+e.message); }
+  });
+
+  /* ===== Util imagens (compress + upload) ===== */
+  async function fileToImage(file){
+    const dataUrl = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+    return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res({img, dataUrl}); img.onerror=rej; img.src=dataUrl; });
+  }
+  async function canvasToBlob(canvas, mime="image/jpeg", quality=0.9){ return new Promise((res)=> canvas.toBlob((b)=>res(b), mime, quality)); }
+  async function compressImageToUnder(file, maxKB=300, maxW=1600, maxH=1600){
+    const { img } = await fileToImage(file);
+    let { width, height } = img;
+    const ratio = Math.min(1, maxW/width, maxH/height);
+    width = Math.max(1, Math.round(width*ratio)); height = Math.max(1, Math.round(height*ratio));
+    const canvas = document.createElement("canvas"); canvas.width=width; canvas.height=height;
+    canvas.getContext("2d").drawImage(img,0,0,width,height);
+    let q=0.9, blob=await canvasToBlob(canvas,"image/jpeg",q), target=maxKB*1024;
+    while(blob && blob.size>target && q>0.45){ q-=0.08; blob=await canvasToBlob(canvas,"image/jpeg",q); }
+    while(blob && blob.size>target && (canvas.width>640||canvas.height>640)){
+      canvas.width=Math.round(canvas.width*0.9); canvas.height=Math.round(canvas.height*0.9);
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      q=Math.max(0.5,q-0.05); blob=await canvasToBlob(canvas,"image/jpeg",q);
+    }
+    const newName=(file.name.replace(/\.[^.]+$/,"")||"img")+".jpg";
+    return new File([blob||file], newName, { type:"image/jpeg" });
+  }
+  async function uploadManyCompressed(files, folder, maxCount=3, maxKB=300){
+    const urls=[]; const safe=Array.from(files||[]).filter(f=>f && f.type?.startsWith("image/"));
+    const chosen=safe.slice(0, maxCount);
+    for(const original of chosen){
+      if(original.size>7*1024*1024){ alert(`Imagem "${original.name}" acima de 7MB ignorada.`); continue; }
+      const compressed=await compressImageToUnder(original, maxKB, 1600, 1600);
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${compressed.name}`;
+      const r = sref(storage, path);
+      await new Promise((resolve,reject)=> uploadBytesResumable(r, compressed, {contentType:compressed.type}).on("state_changed", null, reject, resolve));
+      urls.push(await getDownloadURL(r));
+    }
+    return urls;
+  }
+
+  /* ===== Página: Produtos ===== */
+  const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+  const prdId = document.getElementById("prdId");
+  const prdTitle = document.getElementById("prdTitle");
+  const prdBenefit = document.getElementById("prdBenefit");
+  const prdDesc = document.getElementById("prdDesc");
+  const prdWpp = document.getElementById("prdWpp");
+  const prdActive = document.getElementById("prdActive");
+  const prdImages = document.getElementById("prdImages");
+  const prdPrice = document.getElementById("prdPrice");
+  const prdMsg = document.getElementById("prdMsg");
+  const prdSearch = document.getElementById("prdSearch");
+  const prdStatusFilter = document.getElementById("prdStatusFilter");
+  const prdReload = document.getElementById("prdReload");
+
+  document.getElementById("prdNewBtn")?.addEventListener("click", ()=>{
+    prdId.value=""; document.getElementById("formProduct").reset(); prdActive.checked=true; prdMsg.textContent="";
+  });
+
+  document.getElementById("formProduct")?.addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    prdMsg.classList.remove("text-danger"); prdMsg.textContent="Enviando...";
+    const title=prdTitle.value.trim(), description=prdDesc.value.trim(), benefit=prdBenefit.value.trim();
+    const whatsapp=prdWpp.value.trim(); const price=prdPrice.value?Number(prdPrice.value):null; const active=prdActive.checked;
+
+    try{
+      let images=[];
+      if (prdImages.files?.length){
+        prdMsg.textContent="Compactando e enviando imagens...";
+        const uploaded=await uploadManyCompressed(prdImages.files,"uploads/products",3,300);
+        images = uploaded.slice(0,3);
+      }
+
+      if (prdId.value){
+        await updateMemberProduct(prdId.value, { title, description, benefit, whatsapp, price, imageUrls:images, active });
+        prdMsg.textContent="Produto atualizado!";
+      } else {
+        const id = await addMemberProduct({ title, description, benefit, imageUrls:images, whatsapp, price });
+        await updateMemberProduct(id, { active });
+        prdMsg.textContent=`Produto salvo! ID: ${id}`;
+      }
+      prdImages.value=""; await loadProducts();
+    } catch(err){
+      console.error(err); prdMsg.classList.add("text-danger");
+      prdMsg.textContent="Erro ao salvar: "+(err?.message||err);
+    }
+  });
+
+  prdReload?.addEventListener("click", loadProducts);
+  prdSearch?.addEventListener("input", ()=>renderProducts());
+  prdStatusFilter?.addEventListener("change", ()=>renderProducts());
+
+  let productsRows=[];
+  async function loadProducts(){
+    const wrap=document.getElementById("productsWrap"); if(!wrap) return;
+    wrap.innerHTML=`<div class="text-center text-secondary py-3">Carregando...</div>`;
+    try{
+      const snap=await getDocs(query(collection(db,"memberProducts"), orderBy("title")));
+      productsRows=snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderProducts();
+    }catch{ wrap.innerHTML=`<div class="text-center text-danger py-3">Falha ao carregar.</div>`; }
+  }
+  function renderProducts(){
+    const wrap=document.getElementById("productsWrap"); if(!wrap) return;
+    const q=(prdSearch.value||"").trim().toLowerCase(); const status=prdStatusFilter.value;
+    let rows=productsRows.slice().filter(r=>{
+      const okStatus = status==="all" ? true : (status==="active" ? (r.active!==false) : (r.active===false));
+      const hay=[(r.title||""),(r.benefit||"")].join(" ").toLowerCase();
+      return okStatus && (q? hay.includes(q):true);
+    });
+    if(!rows.length){ wrap.innerHTML=`<div class="text-center text-secondary py-3">Nenhum produto.</div>`; document.getElementById("prdListMsg").textContent="0 item(s)"; return; }
+    wrap.innerHTML = rows.map(productRow).join("");
+    attachProductHandlers(rows);
+    document.getElementById("prdListMsg").textContent=`${rows.length} item(ns)`;
+  }
+  function productRow(p){
+    const idSafe=p.id.replace(/[^a-zA-Z0-9_-]/g,''); const cid=`p-${idSafe}`;
+    const sub=[p.price!=null?fmt.format(p.price):"", p.benefit||""].filter(Boolean).join(" • ");
+    const badge=(p.active!==false)?'<span class="badge bg-success">Ativo</span>':'<span class="badge bg-secondary">Inativo</span>';
+    return `
+      <div class="item4-row list-row">
+        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">${p.title||"—"}</button>
+        <div class="small text-secondary">${sub||"&nbsp;"}</div>
+        <div>${badge}</div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-primary btn-edit-product" data-id="${p.id}">Editar</button>
+          <button class="btn btn-sm ${p.active!==false?'btn-outline-secondary':'btn-outline-success'} btn-toggle-product" data-id="${p.id}" data-action="${p.active!==false?'deactivate':'activate'}">${p.active!==false?'Inativar':'Ativar'}</button>
+        </div>
+      </div>
+      <div id="${cid}" class="collapse">
+        <div class="details">
+          <div class="small text-secondary mb-1">WhatsApp: ${p.whatsapp||"—"}</div>
+          <div>${(p.description||"").replace(/\n/g,"<br>")}</div>
+        </div>
+      </div>`;
+  }
+  function attachProductHandlers(rows){
+    document.querySelectorAll(".btn-edit-product").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        const id=e.currentTarget.dataset.id; const p=rows.find(x=>x.id===id); if(!p) return;
+        prdId.value=id; prdTitle.value=p.title||""; prdBenefit.value=p.benefit||""; prdDesc.value=p.description||"";
+        prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
+        prdImages.value="";
+        const coll=document.getElementById("prdCollapse"); if(coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
+        window.scrollTo({ top: document.querySelector("main").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
+      });
+    });
+    document.querySelectorAll(".btn-toggle-product").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.currentTarget.dataset.id; const activating=e.currentTarget.dataset.action==="activate";
+        try{ await updateMemberProduct(id,{ active:activating }); loadProducts(); }catch(err){ alert("Erro ao atualizar: "+err.message); }
+      });
+    });
+  }
+
+  // inicial
+  loadProducts();
+</script>
+</body>
+</html>

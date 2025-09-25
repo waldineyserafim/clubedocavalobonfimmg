@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Anti-cache leve para CSS/imagens -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <title>Admin • Classificados — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Gestão de classificados dos associados.">
+  <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css?v=op-2025-09-10b">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+
+  <style>
+    :root{ --brand:#111279; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+
+    .navbar .container{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+    .navbar-brand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    header { background:#f8f9fa; border-bottom:1px solid #e9ecef; }
+    header .container{ padding-top:1rem; padding-bottom:1rem; }
+    @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
+
+    /* Subnav (atalhos admin) */
+    .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-bottom:1px solid #e9ecef; }
+    @media (min-width:992px){ .subnav{ top:64px; } }
+
+    .badge-role{ background:var(--accent); }
+    .form-help{ font-size:.875rem; color:#6c757d; }
+
+    /* Lista responsiva (5 colunas) */
+    .list-header, .list-row{ display:grid; gap:12px; align-items:center; }
+    .items5-header, .item5-row{ grid-template-columns: 1fr 160px 240px 120px 160px; }
+    .list-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
+    .list-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
+    .row-title{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
+    .row-badges .badge{ min-width:90px; }
+    .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
+
+    @media (max-width:991.98px){
+      .items5-header, .item5-row{ grid-template-columns: 1fr 130px 200px 110px 140px; }
+      .details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
+    }
+
+    main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
+        <li class="nav-item me-2"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 h3-md mb-1">Painel de Administração - Classificados</h1>
+      <p class="text-secondary mb-0">Gerencie os <strong>Classificados</strong> dos associados.</p>
+    </div>
+    <div class="text-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
+  </div>
+</header>
+
+<!-- Subnav de seções do painel -->
+<div class="subnav">
+  <div class="container">
+    <div class="d-flex flex-wrap gap-2 py-2">
+      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html">Associados</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html">Produtos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html">Serviços</a>
+      <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Classificados</a>
+    </div>
+  </div>
+</div>
+
+<main class="container">
+
+  <!-- Formulário (colapsado por padrão) -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 id="clsFormTitle" class="mb-0">Cadastrar classificado</h5>
+        <button id="clsNewBtn" class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#clsCollapse" aria-expanded="false">
+          Cadastrar classificado
+        </button>
+      </div>
+
+      <div id="clsCollapse" class="collapse mt-3">
+        <form id="formClassif" class="row g-3">
+          <input type="hidden" id="clsId">
+          <div class="col-md-6">
+            <label class="form-label">Título</label>
+            <input type="text" class="form-control" id="clsTitle" required>
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label">Valor (R$)</label>
+            <input type="number" step="0.01" class="form-control" id="clsPrice">
+          </div>
+          <div class="col-sm-6 col-md-3">
+            <label class="form-label">WhatsApp de Contato</label>
+            <input type="text" class="form-control" id="clsWpp">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="clsDesc" rows="2"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Imagens (múltiplas)</label>
+            <input type="file" class="form-control" id="clsImages" accept="image/*" multiple>
+            <div class="form-help">As imagens serão compactadas (~600KB cada) e enviadas ao Storage; as URLs vão para o Firestore.</div>
+          </div>
+          <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
+            <button class="btn btn-primary" type="submit">Salvar</button>
+            <span id="clsMsg" class="align-self-center text-success small"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista / filtros -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="toolbar-wrap">
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <input type="search" class="form-control" id="clsSearch" placeholder="Buscar por título ou associado" style="max-width:320px">
+          <select id="clsStatusFilter" class="form-select" style="max-width:200px">
+            <option value="all">Status: Todos</option>
+            <option value="active">Somente ativos</option>
+            <option value="inactive">Somente inativos</option>
+          </select>
+          <select id="clsReviewFilter" class="form-select" style="max-width:220px">
+            <option value="all">Revisão: Todos</option>
+            <option value="approved">Aprovados</option>
+            <option value="pending">Pendentes</option>
+            <option value="rejected">Reprovados</option>
+          </select>
+          <input type="search" class="form-control" id="clsOwnerFilter" placeholder="Filtrar por associado (nome)" style="max-width:260px">
+          <button id="clsReload" class="btn btn-outline-primary">Atualizar</button>
+        </div>
+      </div>
+
+      <div class="list-header items5-header mt-3">
+        <div>Título</div>
+        <div>Criado em</div>
+        <div>Anunciado por</div>
+        <div>Status</div>
+        <div>Pagamento</div>
+      </div>
+      <div id="classifWrap" class="mt-2">
+        <div class="text-center text-secondary py-3">Carregando…</div>
+      </div>
+      <div class="small text-secondary mt-2" id="clsListMsg"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="mt-4 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script type="module">
+  import { requireAuth } from "./firebase.js";
+  import { auth, db } from "./firebase.js";
+
+  import {
+    collection, getDocs, query, orderBy, doc, getDoc,
+    setDoc, updateDoc, addDoc
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+
+  import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  /* ========= Requer admin/master logado (mesma regra da operação) ========= */
+  const storage = getStorage();
+  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+
+  /* ========= Header: usuário e role ========= */
+  const opNameEl = document.getElementById("opName");
+  const opRoleEl = document.getElementById("opRole");
+  const normalizeRole = (r) => String(r || "").trim().toLowerCase();
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) return;
+    try {
+      const snap = await getDoc(doc(db, "users", user.uid));
+      const d = snap.exists() ? snap.data() : {};
+      opNameEl.textContent = d.nome || "Operador(a)";
+      const role = normalizeRole(d.role) || "admin";
+      opRoleEl.textContent = role;
+      opRoleEl.classList.remove("d-none");
+      loadClassif();
+    } catch(e){
+      console.warn("Falha ao carregar perfil do operador:", e);
+    }
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async ()=>{
+    try { await signOut(auth); location.href = "login.html"; }
+    catch(e){ alert("Não foi possível sair: " + e.message); }
+  });
+
+  const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+
+  /* ===================== UTIL: COMPACTAÇÃO & UPLOAD ===================== */
+  async function fileToImage(file){
+    const dataUrl = await new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(file); });
+    return new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res({img, dataUrl}); img.onerror=rej; img.src=dataUrl; });
+  }
+  async function canvasToBlob(canvas, mime="image/jpeg", quality=0.9){
+    return new Promise((res)=> canvas.toBlob((b)=>res(b), mime, quality));
+  }
+  async function compressImageToUnder(file, maxKB=600, maxW=1600, maxH=1600){
+    const { img } = await fileToImage(file);
+    let { width, height } = img;
+    const ratio = Math.min(1, maxW / width, maxH / height);
+    width = Math.max(1, Math.round(width * ratio));
+    height = Math.max(1, Math.round(height * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let q = 0.9;
+    let blob = await canvasToBlob(canvas, "image/jpeg", q);
+    const target = maxKB * 1024;
+
+    while (blob && blob.size > target && q > 0.45){
+      q -= 0.08;
+      blob = await canvasToBlob(canvas, "image/jpeg", q);
+    }
+    while (blob && blob.size > target && (canvas.width > 640 || canvas.height > 640)){
+      canvas.width = Math.round(canvas.width * 0.9);
+      canvas.height = Math.round(canvas.height * 0.9);
+      const ctx2 = canvas.getContext("2d");
+      ctx2.drawImage(img, 0, 0, canvas.width, canvas.height);
+      q = Math.max(0.5, q - 0.05);
+      blob = await canvasToBlob(canvas, "image/jpeg", q);
+    }
+    if (!blob) blob = new Blob([file], { type: "image/jpeg" });
+    const newName = (file.name.replace(/\.[^.]+$/, "") || "img") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+  }
+
+  async function uploadManyCompressed(files, folder, maxCount=10, maxKB=600){
+    const urls = [];
+    const safe = Array.from(files || []).filter(f=>f && f.type?.startsWith("image/"));
+    if (!safe.length) return urls;
+    if (safe.length > maxCount) alert(`Serão consideradas apenas ${maxCount} imagens.`);
+
+    const chosen = safe.slice(0, maxCount);
+    for (const original of chosen){
+      if (original.size > 10 * 1024 * 1024){
+        alert(`Imagem "${original.name}" acima de 10MB não permitida.`);
+        continue;
+      }
+      const compressed = await compressImageToUnder(original, maxKB, 1600, 1600);
+      const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${compressed.name}`;
+      const r = sref(storage, path);
+      await new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(r, compressed, { contentType: compressed.type || "image/jpeg" });
+        task.on("state_changed", null, reject, resolve);
+      });
+      urls.push(await getDownloadURL(r));
+    }
+    return urls;
+  }
+
+  /* ===================== CLASSIFICADOS ===================== */
+  const clsId = document.getElementById("clsId");
+  const clsTitle = document.getElementById("clsTitle");
+  const clsPrice = document.getElementById("clsPrice");
+  const clsDesc = document.getElementById("clsDesc");
+  const clsWpp = document.getElementById("clsWpp");
+  const clsImages = document.getElementById("clsImages");
+  const clsMsg = document.getElementById("clsMsg");
+  const clsSearch = document.getElementById("clsSearch");
+  const clsStatusFilter = document.getElementById("clsStatusFilter");
+  const clsReviewFilter = document.getElementById("clsReviewFilter");
+  const clsOwnerFilter = document.getElementById("clsOwnerFilter");
+  const clsReload = document.getElementById("clsReload");
+
+  document.getElementById("clsNewBtn")?.addEventListener("click", ()=>{
+    clsId.value=""; document.getElementById("formClassif").reset(); clsMsg.textContent="";
+  });
+
+  document.getElementById("formClassif")?.addEventListener("submit", async (e)=>{
+    e.preventDefault(); clsMsg.classList.remove("text-danger"); clsMsg.textContent="Enviando...";
+    const title=clsTitle.value.trim();
+    const description=clsDesc.value.trim();
+    const price=clsPrice.value?Number(clsPrice.value):null;
+    const whatsapp=clsWpp.value.trim();
+
+    try {
+      let images = [];
+      if (clsImages.files?.length) {
+        clsMsg.textContent="Compactando e enviando imagens...";
+        images = await uploadManyCompressed(clsImages.files, "uploads/classifieds", 10, 600);
+      }
+
+      let createdBy = auth.currentUser?.uid || null;
+      let createdByName = "—";
+      try {
+        if (createdBy) {
+          const u = await getDoc(doc(db,"users", createdBy));
+          if (u.exists()) createdByName = u.data().nome || createdByName;
+        }
+      } catch {}
+
+      if (clsId.value) {
+        await updateDoc(doc(db,"memberClassifieds",clsId.value), {
+          title, description, price, whatsapp, imageUrls: images?.length? images : undefined,
+          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+        });
+        clsMsg.textContent="Classificado atualizado!";
+      } else {
+        const ref = await addDoc(collection(db,"memberClassifieds"), {
+          title, description, price, whatsapp, imageUrls: images,
+          active: true,
+          approved: false,
+          reviewed: false,
+          paymentStatus: "pendente",
+          createdBy, createdByName,
+          createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp(),
+          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+        });
+        clsMsg.textContent = `Classificado salvo! ID: ${ref.id}`;
+      }
+      clsImages.value="";
+      loadClassif();
+    } catch(err){
+      console.error(err);
+      clsMsg.classList.add("text-danger");
+      clsMsg.textContent = "Erro ao salvar: " + (err?.message || err);
+    }
+  });
+
+  clsReload?.addEventListener("click", loadClassif);
+  clsSearch?.addEventListener("input", ()=>renderClassif());
+  clsStatusFilter?.addEventListener("change", ()=>renderClassif());
+  clsReviewFilter?.addEventListener("change", ()=>renderClassif());
+  clsOwnerFilter?.addEventListener("input", ()=>renderClassif());
+
+  let classifRows = [];
+  async function loadClassif() {
+    const wrap = document.getElementById("classifWrap");
+    if (!wrap) return;
+    wrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
+    try {
+      const snap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("title")));
+      classifRows = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderClassif();
+    } catch {
+      wrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao carregar.</div>`;
+    }
+  }
+
+  function renderClassif(){
+    const wrap = document.getElementById("classifWrap");
+    if (!wrap) return;
+    const q = (clsSearch.value||"").trim().toLowerCase();
+    const status = clsStatusFilter.value;
+    const rf = clsReviewFilter.value;
+    const ownerQ = (clsOwnerFilter.value||"").trim().toLowerCase();
+
+    let rows = classifRows.slice();
+    rows = rows.filter(r=>{
+      const okStatus = status==="all" ? true : (status==="active" ? (r.active!==false) : (r.active===false));
+      const state = (r.reviewed===true && r.approved===true) ? "approved" : (r.reviewed===true && r.approved===false) ? "rejected" : "pending";
+      const okReview = rf==="all" ? true : (rf===state);
+      const hay = [(r.title||""),(r.createdByName||"")].join(" ").toLowerCase();
+      const okQ = q ? hay.includes(q) : true;
+      const okOwner = ownerQ ? (String(r.createdByName||"").toLowerCase().includes(ownerQ)) : true;
+      return okStatus && okReview && okQ && okOwner;
+    });
+
+    if (!rows.length){
+      wrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum classificado.</div>`;
+      document.getElementById("clsListMsg").textContent="0 item(s)";
+      return;
+    }
+
+    wrap.innerHTML = rows.map(r=>classifRow(r)).join("");
+    attachClassifHandlers(rows);
+    document.getElementById("clsListMsg").textContent = `${rows.length} item(ns)`;
+  }
+
+  function classifRow(c){
+    const idSafe = c.id.replace(/[^a-zA-Z0-9_-]/g,'');
+    const cid = `c-${idSafe}`;
+    const badgeActive = (c.active!==false) ? '<span class="badge bg-success">Ativo</span>' : '<span class="badge bg-secondary">Inativo</span>';
+    const owner = c.createdByName || c.ownerName || "—";
+    const pay = (c.paymentStatus || "pendente").toLowerCase();
+    const payBadge =
+      pay === "pago" ? '<span class="badge bg-success">Pago</span>' :
+      pay === "estornado" ? '<span class="badge bg-secondary">Estornado</span>' :
+      '<span class="badge bg-warning text-dark">Pendente</span>';
+
+    const createdAtStr = (() => {
+      try {
+        const d = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : null);
+        if (!d) return "—";
+        return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"});
+      } catch { return "—"; }
+    })();
+
+    const galeria = Array.isArray(c.imageUrls) && c.imageUrls.length
+      ? `<div class="d-flex flex-wrap gap-2 mt-2">${c.imageUrls.map(u =>
+          `<a href="${u}" target="_blank" rel="noopener">
+             <img src="${u}" alt="Foto" style="width:110px;height:110px;object-fit:cover;border:1px solid #e9ecef;border-radius:8px;">
+           </a>`).join("")}
+         </div>`
+      : `<div class="text-secondary small">Sem fotos</div>`;
+
+    return `
+      <div class="item5-row list-row">
+        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
+          ${c.title||"—"}
+        </button>
+        <div class="small text-secondary">${createdAtStr}</div>
+        <div class="small">${owner}</div>
+        <div class="row-badges">${badgeActive}</div>
+        <div class="row-badges">${payBadge}</div>
+      </div>
+
+      <div id="${cid}" class="collapse">
+        <div class="details">
+          <div class="mb-2"><strong>Descrição:</strong><br>${(c.description||"—").replace(/\n/g,"<br>")}</div>
+          <div class="small text-secondary mb-2"><strong>Contato (WhatsApp):</strong> ${c.whatsapp||"—"}</div>
+          ${galeria}
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button class="btn btn-sm btn-outline-primary btn-edit-classif" data-id="${c.id}">Editar</button>
+            <button class="btn btn-sm ${c.active!==false?'btn-outline-secondary':'btn-outline-success'} btn-toggle-classif" data-id="${c.id}" data-action="${c.active!==false?'deactivate':'activate'}">${c.active!==false?'Inativar':'Ativar'}</button>
+            <button class="btn btn-sm btn-outline-success btn-approve-classif" data-action="approve" data-id="${c.id}">Aprovar</button>
+            <button class="btn btn-sm btn-outline-danger btn-approve-classif" data-action="reject" data-id="${c.id}">Reprovar</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function attachClassifHandlers(rows){
+    document.querySelectorAll(".btn-edit-classif").forEach(btn=>{
+      btn.addEventListener("click",(e)=>{
+        const id = e.currentTarget.dataset.id; const c = rows.find(x=>x.id===id); if(!c) return;
+        clsId.value=id; clsTitle.value=c.title||""; clsDesc.value=c.description||""; clsWpp.value=c.whatsapp||"";
+        clsPrice.value=c.price??""; clsImages.value="";
+        const coll = document.getElementById("clsCollapse");
+        if (coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
+        window.scrollTo({ top: document.getElementById("clsCollapse").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
+      });
+    });
+    document.querySelectorAll(".btn-toggle-classif").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.currentTarget.dataset.id; const activating=e.currentTarget.dataset.action==="activate";
+        try { await updateDoc(doc(db,"memberClassifieds",id), { active: activating }); loadClassif(); }
+        catch(err){ alert("Erro ao atualizar: "+err.message); }
+      });
+    });
+    document.querySelectorAll(".btn-approve-classif").forEach(btn=>{
+      btn.addEventListener("click", async (e)=>{
+        const id=e.currentTarget.dataset.id;
+        const action=e.currentTarget.dataset.action; // approve|reject
+        const payload = (action==="approve")
+          ? { approved:true, reviewed:true, active:true, paymentStatus:"pago" }
+          : { approved:false, reviewed:true };
+        try {
+          await updateDoc(doc(db,"memberClassifieds",id), {
+            ...payload,
+            updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
+          });
+          loadClassif();
+        }
+        catch(err){ alert("Erro ao aprovar/reprovar: "+err.message); }
+      });
+    });
+  }
+</script>
+</body>
+</html>

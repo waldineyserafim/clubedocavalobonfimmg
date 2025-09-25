@@ -559,7 +559,7 @@ export async function getCurrentRole() {
   return "associado";
 }
 
-export function setupAdminButton(target, { href = 'operacao.html', label = 'Administração' } = {}) {
+export function setupAdminButton(target, { href = 'admin.html', label = 'Administração' } = {}) {
   const el = typeof target === 'string' ? document.querySelector(target) : target;
   if (!el) return;
 
