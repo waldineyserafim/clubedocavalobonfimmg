@@ -138,6 +138,16 @@
             <input type="file" class="form-control" id="clsImages" accept="image/*" multiple>
             <div class="form-help">As imagens serão compactadas (~600KB cada) e enviadas ao Storage; as URLs vão para o Firestore.</div>
           </div>
+
+          <!-- NOVO: Flag de destaque (somente Admin/Master) -->
+          <div class="col-md-6">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="clsFeatured">
+              <label class="form-check-label" for="clsFeatured">Marcar como destaque</label>
+              <div class="form-help">Apenas Admin/Master podem alterar este campo.</div>
+            </div>
+          </div>
+
           <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
             <button class="btn btn-primary" type="submit">Salvar</button>
             <span id="clsMsg" class="align-self-center text-success small"></span>
@@ -219,6 +229,8 @@
   const opRoleEl = document.getElementById("opRole");
   const normalizeRole = (r) => String(r || "").trim().toLowerCase();
 
+  let currentRole = "admin";
+
   auth.onAuthStateChanged(async (user) => {
     if (!user) return;
     try {
@@ -226,8 +238,19 @@
       const d = snap.exists() ? snap.data() : {};
       opNameEl.textContent = d.nome || "Operador(a)";
       const role = normalizeRole(d.role) || "admin";
+      currentRole = role;
       opRoleEl.textContent = role;
       opRoleEl.classList.remove("d-none");
+
+      // Habilita/Desabilita o checkbox de destaque conforme role
+      const clsFeatured = document.getElementById("clsFeatured");
+      if (clsFeatured) {
+        const canEditFeatured = (role === "admin" || role === "master");
+        clsFeatured.disabled = !canEditFeatured;
+        clsFeatured.closest(".form-check")?.classList.toggle("opacity-75", !canEditFeatured);
+        clsFeatured.title = canEditFeatured ? "" : "Somente Admin/Master podem alterar.";
+      }
+
       loadClassif();
     } catch(e){
       console.warn("Falha ao carregar perfil do operador:", e);
@@ -312,6 +335,7 @@
   const clsDesc = document.getElementById("clsDesc");
   const clsWpp = document.getElementById("clsWpp");
   const clsImages = document.getElementById("clsImages");
+  const clsFeatured = document.getElementById("clsFeatured"); // NOVO
   const clsMsg = document.getElementById("clsMsg");
   const clsSearch = document.getElementById("clsSearch");
   const clsStatusFilter = document.getElementById("clsStatusFilter");
@@ -321,6 +345,7 @@
 
   document.getElementById("clsNewBtn")?.addEventListener("click", ()=>{
     clsId.value=""; document.getElementById("formClassif").reset(); clsMsg.textContent="";
+    if (clsFeatured) clsFeatured.checked = false; // zera destaque no novo
   });
 
   document.getElementById("formClassif")?.addEventListener("submit", async (e)=>{
@@ -329,6 +354,7 @@
     const description=clsDesc.value.trim();
     const price=clsPrice.value?Number(clsPrice.value):null;
     const whatsapp=clsWpp.value.trim();
+    const featured = !!clsFeatured?.checked; // NOVO
 
     try {
       let images = [];
@@ -346,25 +372,41 @@
         }
       } catch {}
 
-      if (clsId.value) {
-        await updateDoc(doc(db,"memberClassifieds",clsId.value), {
-          title, description, price, whatsapp, imageUrls: images?.length? images : undefined,
-          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
-        });
-        clsMsg.textContent="Classificado atualizado!";
-      } else {
-        const ref = await addDoc(collection(db,"memberClassifieds"), {
-          title, description, price, whatsapp, imageUrls: images,
-          active: true,
-          approved: false,
-          reviewed: false,
-          paymentStatus: "pendente",
-          createdBy, createdByName,
-          createdAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp(),
-          updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
-        });
-        clsMsg.textContent = `Classificado salvo! ID: ${ref.id}`;
-      }
+    if (clsId.value) {
+      // UPDATE — NUNCA envie undefined para o Firestore
+      const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
+
+      const payload = {
+        title,
+        description,
+        price,
+        whatsapp,
+        featured,                 // mantém o destaque
+        updatedAt: serverTimestamp()
+      };
+
+      // Só inclui imageUrls se houver novas imagens
+      if (images && images.length) payload.imageUrls = images;
+
+      await updateDoc(doc(db,"memberClassifieds", clsId.value), payload);
+      clsMsg.textContent = "Classificado atualizado!";
+    } else {
+      // CREATE (deixe como já estava)
+      const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
+      const ref = await addDoc(collection(db,"memberClassifieds"), {
+        title, description, price, whatsapp, imageUrls: images,
+        featured,
+        active: true,
+        approved: false,
+        reviewed: false,
+        paymentStatus: "pendente",
+        createdBy, createdByName,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      clsMsg.textContent = `Classificado salvo! ID: ${ref.id}`;
+    }
+
       clsImages.value="";
       loadClassif();
     } catch(err){
@@ -451,10 +493,12 @@
          </div>`
       : `<div class="text-secondary small">Sem fotos</div>`;
 
+    const featuredBadge = c.featured ? ' <span class="badge text-bg-warning text-dark">Destaque</span>' : '';
+
     return `
       <div class="item5-row list-row">
         <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
-          ${c.title||"—"}
+          ${(c.title||"—")}${featuredBadge}
         </button>
         <div class="small text-secondary">${createdAtStr}</div>
         <div class="small">${owner}</div>
@@ -483,6 +527,7 @@
         const id = e.currentTarget.dataset.id; const c = rows.find(x=>x.id===id); if(!c) return;
         clsId.value=id; clsTitle.value=c.title||""; clsDesc.value=c.description||""; clsWpp.value=c.whatsapp||"";
         clsPrice.value=c.price??""; clsImages.value="";
+        if (clsFeatured) clsFeatured.checked = !!c.featured; // NOVO: preenche na edição
         const coll = document.getElementById("clsCollapse");
         if (coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.getElementById("clsCollapse").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });

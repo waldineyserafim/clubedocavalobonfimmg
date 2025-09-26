@@ -22,6 +22,15 @@
     .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+
+    /* Preview de imagens (edição) */
+    #svcPreview{ display:flex; gap:.5rem; flex-wrap:wrap; }
+    #svcPreview .thumb{ position:relative; }
+    #svcPreview img{ height:72px; width:auto; border-radius:8px; object-fit:cover; background:#fff; border:1px solid #e9ecef; display:block; }
+    #svcPreview .btn-del-img{
+      position:absolute; top:-8px; right:-8px;
+      font-size:.75rem; line-height:1; padding:.15rem .35rem;
+    }
   </style>
 </head>
 <body>
@@ -92,17 +101,29 @@
             <label class="form-label">WhatsApp do provedor</label>
             <input type="text" class="form-control" id="svcWpp">
           </div>
-            <div class="col-md-6">
-              <div class="form-check mt-4">
-                <input class="form-check-input" type="checkbox" id="svcActive" checked>
-                <label class="form-check-label" for="svcActive">Ativo</label>
-              </div>
+          <div class="col-md-6">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="svcActive" checked>
+              <label class="form-check-label" for="svcActive">Ativo</label>
             </div>
+          </div>
+
+          <!-- Destaque -->
+          <div class="col-md-6">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="svcFeatured">
+              <label class="form-check-label" for="svcFeatured">Marcar como destaque</label>
+            </div>
+          </div>
+
           <div class="col-md-6">
             <label class="form-label">Imagens (até 3)</label>
             <input type="file" class="form-control" id="svcImages" accept="image/*" multiple>
             <div class="form-text">As imagens serão comprimidas (~300KB) e enviadas ao Storage.</div>
+            <!-- preview das imagens existentes ao editar -->
+            <div id="svcPreview" class="mt-2"></div>
           </div>
+
           <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
             <button class="btn btn-primary" type="submit">Salvar</button>
             <span id="svcMsg" class="align-self-center text-success small"></span>
@@ -136,10 +157,12 @@
   </div>
 </main>
 
-<footer class="mt-4 py-4 bg-body-tertiary border-top">
-  <div class="container text-center text-secondary small">
-    <strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.<br>
-    © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
   </div>
 </footer>
 
@@ -147,8 +170,8 @@
 <script type="module">
   import { requireAuth, addMemberService, updateMemberService } from "./firebase.js";
   import { auth, db } from "./firebase.js";
-  import { collection, getDocs, query, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-  import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+  import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   /* ===== Permissão ===== */
@@ -216,38 +239,121 @@
   const svcDesc = document.getElementById("svcDesc");
   const svcWpp = document.getElementById("svcWpp");
   const svcActive = document.getElementById("svcActive");
+  const svcFeatured = document.getElementById("svcFeatured");
   const svcImages = document.getElementById("svcImages");
+  const svcPreview = document.getElementById("svcPreview");
   const svcMsg = document.getElementById("svcMsg");
   const svcSearch = document.getElementById("svcSearch");
   const svcStatusFilter = document.getElementById("svcStatusFilter");
   const svcReload = document.getElementById("svcReload");
 
+  let servicesRows=[];
+  let currentEditDoc = null;     // doc em edição (dados em memória)
+  let currentEditImages = [];    // lista de URLs atuais para manipular/excluir
+
   document.getElementById("svcNewBtn")?.addEventListener("click", ()=>{
-    svcId.value=""; document.getElementById("formService").reset(); svcActive.checked=true; svcMsg.textContent="";
+    svcId.value=""; document.getElementById("formService").reset(); 
+    svcActive.checked=true; svcFeatured.checked=false; svcMsg.textContent="";
+    currentEditDoc = null; currentEditImages = [];
+    if (svcPreview) svcPreview.innerHTML="";
+  });
+
+  /* Renderiza preview com botões de exclusão */
+  function renderSvcPreview(){
+    if (!svcPreview) return;
+    if (!currentEditImages?.length){
+      svcPreview.innerHTML = "";
+      return;
+    }
+    svcPreview.innerHTML = currentEditImages.map(u=>`
+      <div class="thumb">
+        <img src="${u}" alt="imagem">
+        <button type="button" class="btn btn-sm btn-danger btn-del-img" data-url="${u}">Excluir</button>
+      </div>
+    `).join("");
+  }
+
+  /* Exclusão de imagem individual (delegação no preview) */
+  svcPreview?.addEventListener("click", async (e)=>{
+    const btn = e.target.closest(".btn-del-img");
+    if (!btn) return;
+    const url = btn.getAttribute("data-url");
+    if (!url || !svcId.value) return;
+
+    if (!confirm("Remover esta imagem do serviço?")) return;
+
+    try{
+      // Atualiza arrays locais
+      currentEditImages = currentEditImages.filter(u => u !== url);
+
+      // Monta payload de atualização para manter compatibilidade de campos
+      const payload = {
+        imageUrls: currentEditImages,
+        images: currentEditImages.map(u=>({url:u})),
+        imageUrl: currentEditImages[0] || ""
+      };
+
+      await updateDoc(doc(db,"memberServices", svcId.value), payload);
+
+      // Tenta excluir do Storage (best effort)
+      try{ await deleteObject(sref(getStorage(), url)); }catch(_){ /* ignore se não conseguir */ }
+
+      // Atualiza preview e cache da lista em memória
+      renderSvcPreview();
+      const idx = servicesRows.findIndex(x=>x.id === svcId.value);
+      if (idx >= 0){
+        servicesRows[idx] = { ...servicesRows[idx], ...payload };
+      }
+      svcMsg.classList.remove("text-danger");
+      svcMsg.textContent = "Imagem removida.";
+      setTimeout(()=>{ svcMsg.textContent=""; }, 2000);
+    }catch(err){
+      console.error(err);
+      alert("Falha ao remover a imagem: "+(err?.message||err));
+    }
   });
 
   document.getElementById("formService")?.addEventListener("submit", async (e)=>{
     e.preventDefault();
     svcMsg.classList.remove("text-danger"); svcMsg.textContent="Enviando...";
     const title=svcTitle.value.trim(), description=svcDesc.value.trim(), benefit=svcBenefit.value.trim();
-    const whatsapp=svcWpp.value.trim(); const active=svcActive.checked;
+    const whatsapp=svcWpp.value.trim(); const active=svcActive.checked; const featured=svcFeatured.checked;
 
     try{
-      let imageUrls=[];
-      if(svcImages.files?.length){
+      const hasNewFiles = (svcImages.files?.length||0) > 0;
+      let newImageUrls=[], newImageUrl="";
+
+      if(hasNewFiles){
         svcMsg.textContent="Compactando e enviando imagens...";
-        imageUrls = await uploadManyCompressed(svcImages.files, "uploads/services", 3, 300);
+        newImageUrls = await uploadManyCompressed(svcImages.files, "uploads/services", 3, 300);
+        newImageUrl = newImageUrls[0] || "";
       }
-      const imageUrl = imageUrls[0] || "";
+
       if (svcId.value){
-        await updateMemberService(svcId.value, { title, description, benefit, whatsapp, imageUrl, imageUrls, active });
+        // Edição: só sobrescreve imagens se o usuário escolheu novas.
+        const payload = { title, description, benefit, whatsapp, active };
+        if (hasNewFiles){
+          payload.imageUrls = newImageUrls;
+          payload.imageUrl = newImageUrl;
+          payload.images = newImageUrls.map(u=>({url:u}));
+          currentEditImages = newImageUrls.slice(); // substitui preview pelo novo conjunto
+        }
+        await updateMemberService(svcId.value, payload);
+        await updateDoc(doc(db,"memberServices", svcId.value), { featured });
         svcMsg.textContent="Serviço atualizado!";
+        renderSvcPreview();
       } else {
-        const id = await addMemberService({ title, description, benefit, imageUrl, imageUrls, whatsapp });
+        // Novo: cria e aplica flags
+        const base = { title, description, benefit, whatsapp };
+        if (hasNewFiles){ base.imageUrls = newImageUrls; base.imageUrl = newImageUrl; base.images = newImageUrls.map(u=>({url:u})); }
+        const id = await addMemberService(base);
         await updateMemberService(id, { active });
+        await updateDoc(doc(db,"memberServices", id), { featured });
         svcMsg.textContent=`Serviço salvo! ID: ${id}`;
       }
-      svcImages.value=""; await loadServices();
+
+      svcImages.value=""; 
+      await loadServices();
     } catch(err){
       console.error(err); svcMsg.classList.add("text-danger");
       svcMsg.textContent="Erro ao salvar: "+(err?.message||err);
@@ -258,7 +364,6 @@
   svcSearch?.addEventListener("input", ()=>renderServices());
   svcStatusFilter?.addEventListener("change", ()=>renderServices());
 
-  let servicesRows=[];
   async function loadServices(){
     const wrap=document.getElementById("servicesWrap"); if(!wrap) return;
     wrap.innerHTML=`<div class="text-center text-secondary py-3">Carregando...</div>`;
@@ -283,12 +388,15 @@
   }
   function serviceRow(s){
     const idSafe=s.id.replace(/[^a-zA-Z0-9_-]/g,''); const cid=`s-${idSafe}`;
-    const badge=(s.active!==false)?'<span class="badge bg-success">Ativo</span>':'<span class="badge bg-secondary">Inativo</span>';
+    const badgeStatus=(s.active!==false)?'<span class="badge bg-success">Ativo</span>':'<span class="badge bg-secondary">Inativo</span>';
+    const badgeFeatured = s.featured ? '<span class="badge bg-warning text-dark ms-2">Destaque</span>' : '';
     return `
       <div class="item4-row list-row">
-        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">${s.title||"—"}</button>
+        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
+          ${s.title||"—"} ${badgeFeatured}
+        </button>
         <div class="small text-secondary">${s.benefit||"&nbsp;"}</div>
-        <div>${badge}</div>
+        <div>${badgeStatus}</div>
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-sm btn-outline-primary btn-edit-service" data-id="${s.id}">Editar</button>
           <button class="btn btn-sm ${s.active!==false?'btn-outline-secondary':'btn-outline-success'} btn-toggle-service" data-id="${s.id}" data-action="${s.active!==false?'deactivate':'activate'}">${s.active!==false?'Inativar':'Ativar'}</button>
@@ -305,8 +413,18 @@
     document.querySelectorAll(".btn-edit-service").forEach(btn=>{
       btn.addEventListener("click",(e)=>{
         const id=e.currentTarget.dataset.id; const s=rows.find(x=>x.id===id); if(!s) return;
+        currentEditDoc = s;
         svcId.value=id; svcTitle.value=s.title||""; svcBenefit.value=s.benefit||""; svcDesc.value=s.description||"";
         svcWpp.value=s.whatsapp||""; svcActive.checked=(s.active!==false); svcImages.value="";
+        svcFeatured.checked = !!s.featured;
+
+        // Normaliza URLs existentes:
+        const imgs = Array.isArray(s.imageUrls) && s.imageUrls.length ? s.imageUrls
+                    : Array.isArray(s.images) && s.images.length ? s.images.map(x=>typeof x==='string'?x:(x?.url||"")).filter(Boolean)
+                    : (s.imageUrl ? [s.imageUrl] : []);
+        currentEditImages = imgs.slice(); // cópia
+        renderSvcPreview();
+
         const coll=document.getElementById("svcCollapse"); if(coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.querySelector("main").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });

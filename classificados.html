@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="assets\img\logo_CCBMG.png">
-  <link rel="shortcut icon" href="assets\img\logo_CCBMG.png" type="image/png">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
 
   <!-- Anti-cache -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -18,6 +18,7 @@
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Se preferir, pode remover o querystring ?v=... -->
   <link rel="stylesheet" href="assets/css/custom.css?v=ccbmg-2025-09-10d">
 
   <style>
@@ -36,7 +37,7 @@
     .price { font-weight:700; font-size:1.05rem; }
     .no-data { opacity: .8; }
 
-    /* Carrossel */
+    /* Carrossel dos cards (lista) — mantém cover */
     .cls-carousel .carousel-item img{
       width:100%; height:220px; object-fit:cover; display:block;
       border-radius:.5rem;
@@ -44,11 +45,49 @@
     .cls-carousel .carousel-indicators [data-bs-target]{
       width:8px; height:8px; border-radius:50%;
     }
-
     @media (max-width:575.98px){
       .hero-cta .btn{ width:100%; }
       .cls-carousel .carousel-item img{ height:200px; }
     }
+
+    /* ===== Banner Destaques (mosaico) ===== */
+    .carousel-banner{ position:relative; border-radius:16px; overflow:hidden; }
+    .banner-mosaic{
+      display:grid; gap:6px;
+      height: clamp(200px, 28vw, 320px);
+      grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr;
+      background:#f8f9fa;
+    }
+    .banner-mosaic .big{ grid-column:1; grid-row:1 / span 2; }
+    .banner-mosaic .small.top{ grid-column:2; grid-row:1; }
+    .banner-mosaic .small.bottom{ grid-column:2; grid-row:2; }
+
+    /* >>> IMAGEM COMO FUNDO (contain, sem corte) */
+    .tile-img{
+      width:100%; height:100%;
+      background-size: contain;              /* garante imagem inteira */
+      background-position: center center;    /* centraliza */
+      background-repeat: no-repeat;          /* sem repetição */
+      background-color:#f8f9fa;              /* cor das faixas */
+    }
+
+    .tile-overlay{
+      position:absolute; inset:auto 0 0 0; padding:.75rem .9rem;
+      background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 100%);
+      color:#fff; display:flex; flex-direction:column; gap:.35rem;
+      z-index:5;
+    }
+    .badge-soft{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); }
+
+    .banner-carousel .carousel-control-prev, 
+    .banner-carousel .carousel-control-next,
+    #destaquesCarousel .carousel-control-prev, 
+    #destaquesCarousel .carousel-control-next{
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
+      z-index:1;
+    }
+    #destaquesCarousel .carousel-indicators [data-bs-target]{ background:#6c757d; }
+    #destaquesCarousel .carousel-indicators .active{ background:#212529; }
   </style>
 </head>
 <body>
@@ -91,8 +130,40 @@
   </div>
 </header>
 
+<!-- ===== BANNER DE DESTAQUES ===== -->
+<main class="container my-3">
+  <section class="mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h2 class="h5 m-0">🔰Nossos Destaques</h2>
+    </div>
+
+    <div id="deckLoading" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status"></div>
+      <div class="mt-2 text-secondary small">Carregando destaques…</div>
+    </div>
+
+    <div id="deckEmpty" class="text-center text-muted py-5 d-none">Nenhum destaque disponível no momento.</div>
+
+    <div id="destaquesCarouselWrap" class="d-none">
+      <div id="destaquesCarousel" class="carousel slide banner-carousel" data-bs-ride="carousel" data-bs-interval="5000">
+        <div class="carousel-indicators" id="carIndicators"></div>
+        <div class="carousel-inner" id="carInner"></div>
+
+        <button class="carousel-control-prev" type="button" data-bs-target="#destaquesCarousel" data-bs-slide="prev" aria-label="Anterior">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#destaquesCarousel" data-bs-slide="next" aria-label="Próximo">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+
+    <div id="deckError" class="alert alert-danger d-none mt-3"></div>
+  </section>
+</main>
+
 <!-- CONTEÚDO PRINCIPAL -->
-<main class="py-5">
+<main class="py-3">
   <div class="container">
     <div class="d-flex align-items-center justify-content-between mb-4 gap-3 flex-column flex-md-row">
       <div class="d-flex gap-2 w-100" style="max-width:600px;">
@@ -146,16 +217,24 @@
     query,
     onSnapshot,
     where,
-    orderBy
+    orderBy,
+    getDocs
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
   const listaEl   = document.getElementById('lista-classificados');
   const noDataEl  = document.getElementById('no-data');
   const searchInput = document.getElementById('searchInput');
 
+  /* ===== Banner refs ===== */
+  const deckLoading = document.getElementById("deckLoading");
+  const deckEmpty = document.getElementById("deckEmpty");
+  const deckError = document.getElementById("deckError");
+  const carWrap = document.getElementById("destaquesCarouselWrap");
+  const carInner = document.getElementById("carInner");
+  const carIndicators = document.getElementById("carIndicators");
+
   let allDocs = [];
 
-  // Formata BRL
   function formatPrice(value) {
     if (value === null || value === undefined || value === '') return '';
     const n = Number(value);
@@ -164,7 +243,6 @@
       : String(value);
   }
 
-  // Escape simples
   function escapeHtml(text) {
     if (!text && text !== 0) return '';
     return String(text)
@@ -175,16 +253,9 @@
       .replaceAll("'", '&#039;');
   }
 
-  // Nome do anunciante (com fallbacks)
   function getSeller(d){
     const raw =
-      d.ownerName ??
-      d.anuncianteNome ??
-      d.sellerName ??
-      d.userName ??
-      d.ownerEmail ??
-      '';
-
+      d.ownerName ?? d.anuncianteNome ?? d.sellerName ?? d.userName ?? d.ownerEmail ?? '';
     let seller = (raw ?? '').toString().trim();
     if (!seller && d.ownerUid) {
       const uid = String(d.ownerUid);
@@ -193,17 +264,15 @@
     return seller;
   }
 
-  // Constrói o HTML do carrossel a partir de uma lista de URLs
+  /* carrossel interno dos cards da lista (mantido) */
   function buildCarouselHTML(urls, idBase) {
     if (!urls || !urls.length) {
-      // fallback sem fotos
       return `
         <div class="mb-2">
-          <img src="assets/img/placeholder_classified.jpg" loading="lazy" class="w-100" style="height:220px;object-fit:cover;border-radius:.5rem" alt="Sem imagem">
+          <img src="assets/img/placeholder_classified.jpg" loading="lazy" class="w-100" style="height:220px;object-fit:contain;border-radius:.5rem" alt="Sem imagem">
         </div>
       `;
     }
-
     const carouselId = `carousel-${idBase}`;
     const indicators = urls.map((_, i) => `
       <button type="button" data-bs-target="#${carouselId}" data-bs-slide-to="${i}"
@@ -231,7 +300,190 @@
     `;
   }
 
-  // Card do classificado
+  /* ===== Banner (não corta) ===== */
+  function pickFeaturedFlag(doc){
+    return (doc?.destaque === true) || (doc?.featured === true) || (doc?.isFeatured === true);
+  }
+  function pickActiveFlag(doc){
+    const inactive = (doc?.active === false) || (doc?.ativo === false);
+    return !inactive;
+  }
+  function collectImages(obj){
+    let arr = [];
+    if (Array.isArray(obj?.imageUrls)) arr = obj.imageUrls;
+    else if (Array.isArray(obj?.images)) arr = obj.images;
+    else if (obj?.imageUrl) arr = [obj.imageUrl];
+    else if (obj?.img) arr = [obj.img];
+
+    arr = arr
+      .map(v => {
+        if (!v) return null;
+        if (typeof v === "string") return v.trim();
+        if (typeof v === "object" && v.url) return String(v.url).trim();
+        return null;
+      })
+      .filter(Boolean)
+      .filter(u => /^https?:\/\//i.test(u) || /^data:image\//i.test(u));
+
+    if (!arr.length) arr = ["assets/img/placeholder_classified.jpg"];
+    return arr.slice(0,3);
+  }
+  function primaryImage(obj){
+    const imgs = collectImages(obj);
+    return imgs[0];
+  }
+  function whatsUrl(v){
+    const w = (v||"").toString().replace(/\D/g,"");
+    return w ? `https://wa.me/${w}?text=${encodeURIComponent("Olá! Vi seu anúncio no Clube do Cavalo.")}` : "";
+  }
+  function toEpoch(x){
+    try{
+      if (!x) return 0;
+      if (x.toDate) return x.toDate().getTime();
+      const d = new Date(x);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    }catch{ return 0; }
+  }
+
+  async function fetchFeaturedClassificados(){
+    const candidates = ["memberClassifieds","classificados","classifieds"];
+    let rows = [];
+    for (const col of candidates){
+      try{
+        const snap = await getDocs(collection(db, col));
+        if (!snap.empty){
+          const part = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+            .filter(r => pickActiveFlag(r) && (r?.approved === true) && pickFeaturedFlag(r))
+            .map(r => ({ ...r,
+              __type:"Classificado",
+              __imgs: collectImages(r),
+              __img: primaryImage(r),
+              __wpp: whatsUrl(r.whatsapp || r.contato),
+              __created: toEpoch(r.createdAt),
+              __price: r.price ?? r.valor ?? r.preco ?? r.priceBRL
+            }));
+          rows = rows.concat(part);
+        }
+      }catch(e){ /* tenta próximo */ }
+    }
+    return rows.sort((a,b)=> b.__created - a.__created);
+  }
+
+  // Usa DIV com background-size: contain (sem corte)
+  function renderSlideHTML(it){
+    const title = escapeHtml(it.title || it.titulo || "—");
+    const imgs = it.__imgs?.length ? it.__imgs.slice(0,3) : [it.__img];
+    while (imgs.length < 3) imgs.push(imgs[imgs.length-1]);
+
+    const priceStr = (it.__price!=null && it.__price!=="")
+      ? (Number(it.__price)===Number(it.__price)
+          ? Number(it.__price).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+          : escapeHtml(String(it.__price)))
+      : "";
+
+    return `
+      <div class="carousel-item">
+        <div class="carousel-banner shadow-sm">
+          <div class="banner-mosaic">
+            <div class="tile-img big" style="background-image:url('${escapeHtml(imgs[0])}')" aria-label="${title}"></div>
+            <div class="tile-img small top" style="background-image:url('${escapeHtml(imgs[1])}')" aria-label="${title}"></div>
+            <div class="tile-img small bottom" style="background-image:url('${escapeHtml(imgs[2])}')" aria-label="${title}"></div>
+          </div>
+          <div class="tile-overlay">
+            <div class="small fw-semibold text-truncate" title="${title}">${title}</div>
+            ${priceStr ? `
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">${priceStr}</span>
+                ${it.__wpp ? `<a class="btn btn-sm btn-success no-slide" target="_blank" href="${it.__wpp}">Chamar WhatsApp</a>` : ""}
+              </div>` : `
+              <div class="d-flex align-items-center gap-2">
+                ${it.__wpp ? `<a class="btn btn-sm btn-success no-slide" target="_blank" href="${it.__wpp}">Chamar WhatsApp</a>` : ""}
+              </div>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function buildHighlightsCarousel(items){
+    if(!items.length) return;
+
+    carIndicators.innerHTML = items.map((_,i)=>`
+      <button type="button" data-bs-target="#destaquesCarousel" data-bs-slide-to="${i}" ${i===0?'class="active" aria-current="true"':''} aria-label="Slide ${i+1}"></button>
+    `).join("");
+
+    carInner.innerHTML = items.map((it,i)=>{
+      const html = renderSlideHTML(it);
+      return i===0 ? html.replace('class="carousel-item"', 'class="carousel-item active"') : html;
+    }).join("");
+
+    carWrap.classList.remove("d-none");
+
+    new bootstrap.Carousel('#destaquesCarousel', {
+      interval: 5000, ride: 'carousel', pause: false, touch: true, wrap: true
+    });
+
+    ['click','pointerdown','mousedown','touchstart'].forEach(ev =>
+      carInner.addEventListener(ev, (e)=> {
+        if (e.target.closest('.no-slide')) e.stopPropagation();
+      }, {capture:true, passive:false})
+    );
+  }
+
+  async function loadHighlights(){
+    try{
+      deckLoading.classList.remove("d-none");
+      deckEmpty.classList.add("d-none");
+      deckError.classList.add("d-none");
+      carWrap.classList.add("d-none");
+      carIndicators.innerHTML = "";
+      carInner.innerHTML = "";
+
+      const classifs = await fetchFeaturedClassificados();
+      deckLoading.classList.add("d-none");
+
+      if (!classifs.length){ deckEmpty.classList.remove("d-none"); return; }
+
+      buildHighlightsCarousel(classifs);
+    }catch(e){
+      console.error(e);
+      deckLoading.classList.add("d-none");
+      deckError.textContent = "Não foi possível carregar os destaques.";
+      deckError.classList.remove("d-none");
+    }
+  }
+
+  /* ====== LISTA PADRÃO ====== */
+  function showList(docs, filter='') {
+    listaEl.innerHTML = '';
+    const f = (t) => (t ?? '').toString().toLowerCase();
+    const needle = f(filter);
+
+    const filtered = docs.filter(d => {
+      const valorTxt = formatPrice(d.valor ?? d.price ?? d.preco ?? d.priceBRL ?? '');
+      const seller   = getSeller(d);
+      const titulo   = d.title ?? d.titulo ?? '';
+      const desc     = d.description ?? d.descricao ?? '';
+      return (
+        f(titulo).includes(needle) ||
+        f(desc).includes(needle) ||
+        f(seller).includes(needle) ||
+        f(valorTxt).includes(needle)
+      );
+    });
+
+    if (filtered.length === 0) {
+      noDataEl.classList.remove('d-none');
+      return;
+    }
+    noDataEl.classList.add('d-none');
+
+    filtered.forEach(d => {
+      const card = renderClassificado(d);
+      if (card) listaEl.appendChild(card);
+    });
+  }
+
   function renderClassificado(d) {
     const titulo    = escapeHtml(d.title ?? d.titulo ?? 'Sem título');
     const descricao = escapeHtml(d.description ?? d.descricao ?? '');
@@ -248,11 +500,9 @@
       ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(createdAt)
       : '';
 
-    // Imagens: aceita imageUrls[] (novo) ou images[]
     const rawImages = Array.isArray(d.imageUrls) ? d.imageUrls
                      : Array.isArray(d.images)    ? d.images
                      : [];
-    // garante no máximo 10 para não poluir (pode ajustar)
     const images = rawImages.slice(0, 10);
 
     const col = document.createElement('div');
@@ -287,41 +537,6 @@
     return col;
   }
 
-  // Lista com filtro (no cliente, apenas busca textual)
-  function showList(docs, filter='') {
-    listaEl.innerHTML = '';
-    const f = (t) => (t ?? '').toString().toLowerCase();
-    const needle = f(filter);
-
-    const filtered = docs.filter(d => {
-      const valorTxt = formatPrice(d.valor ?? d.price ?? d.preco ?? d.priceBRL ?? '');
-      const seller   = getSeller(d);
-      const titulo   = d.title ?? d.titulo ?? '';
-      const desc     = d.description ?? d.descricao ?? '';
-      return (
-        f(titulo).includes(needle) ||
-        f(desc).includes(needle) ||
-        f(seller).includes(needle) ||
-        f(valorTxt).includes(needle)
-      );
-    });
-
-    if (filtered.length === 0) {
-      noDataEl.classList.remove('d-none');
-      return;
-    }
-    noDataEl.classList.add('d-none');
-
-    filtered.forEach(d => {
-      const card = renderClassificado(d);
-      if (card) listaEl.appendChild(card);
-    });
-  }
-
-  // Snapshot em tempo real — tudo filtrado no servidor:
-  //  - active == true
-  //  - approved == true
-  //  - paymentStatus != 'pending'  (requer orderBy no mesmo campo)
   function watchClassificadosRealtime() {
     const colRef = collection(db, 'memberClassifieds');
     const q = query(
@@ -329,8 +544,8 @@
       where('active', '==', true),
       where('approved', '==', true),
       where('paymentStatus', '!=', 'pending'),
-      orderBy('paymentStatus'),        // exigência do Firestore para '!='
-      orderBy('createdAt', 'desc')     // ordenação secundária por data
+      orderBy('paymentStatus'),
+      orderBy('createdAt', 'desc')
     );
 
     return onSnapshot(q, (snapshot) => {
@@ -345,14 +560,13 @@
   let unsubscribe = null;
   document.addEventListener('DOMContentLoaded', () => {
     unsubscribe = watchClassificadosRealtime();
+    loadHighlights();
   });
 
-  // Filtro de busca
   searchInput.addEventListener('input', () => {
     showList(allDocs, searchInput.value);
   });
 
-  // Cleanup
   window.addEventListener('unload', () => { if (typeof unsubscribe === 'function') unsubscribe(); });
 </script>
 </body>

@@ -22,6 +22,11 @@
     .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+    /* Prévia das imagens no form (edição) */
+    #prdPreview{ display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.5rem; }
+    #prdPreview .thumb{ position:relative; border:1px solid #e9ecef; border-radius:8px; overflow:hidden; background:#fff; }
+    #prdPreview .thumb img{ display:block; height:72px; width:auto; object-fit:cover; }
+    #prdPreview .thumb button{ position:absolute; top:2px; right:2px; border:none; border-radius:999px; padding:.15rem .35rem; line-height:1; font-size:.8rem; background:#dc3545; color:#fff; }
   </style>
 </head>
 <body>
@@ -96,16 +101,28 @@
             <label class="form-label">WhatsApp de Vendas</label>
             <input type="text" class="form-control" id="prdWpp">
           </div>
-          <div class="col-md-6">
+
+          <!-- Campo de destaque -->
+          <div class="col-sm-6 col-md-3">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="prdFeatured">
+              <label class="form-check-label" for="prdFeatured">Marcar como destaque</label>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-md-3">
             <div class="form-check mt-4">
               <input class="form-check-input" type="checkbox" id="prdActive" checked>
               <label class="form-check-label" for="prdActive">Ativo</label>
             </div>
           </div>
+
           <div class="col-md-6">
             <label class="form-label">Imagens (até 3)</label>
             <input type="file" class="form-control" id="prdImages" accept="image/*" multiple>
             <div class="form-text">As imagens serão comprimidas (~300KB) e enviadas ao Storage.</div>
+            <!-- Prévia/gerenciamento das imagens existentes ao editar -->
+            <div id="prdPreview"></div>
           </div>
           <div class="col-12 d-flex gap-2 mt-2 flex-wrap">
             <button class="btn btn-primary" type="submit">Salvar</button>
@@ -140,10 +157,12 @@
   </div>
 </main>
 
-<footer class="mt-4 py-4 bg-body-tertiary border-top">
-  <div class="container text-center text-secondary small">
-    <strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.<br>
-    © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
   </div>
 </footer>
 
@@ -153,7 +172,7 @@
   import { auth, db } from "./firebase.js";
   import { collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
-  import { doc, getDoc, } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   /* ===== Permissão ===== */
@@ -192,7 +211,7 @@
     const ratio = Math.min(1, maxW/width, maxH/height);
     width = Math.max(1, Math.round(width*ratio)); height = Math.max(1, Math.round(height*ratio));
     const canvas = document.createElement("canvas"); canvas.width=width; canvas.height=height;
-    canvas.getContext("2d").drawImage(img,0,0,width,height);
+    canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
     let q=0.9, blob=await canvasToBlob(canvas,"image/jpeg",q), target=maxKB*1024;
     while(blob && blob.size>target && q>0.45){ q-=0.08; blob=await canvasToBlob(canvas,"image/jpeg",q); }
     while(blob && blob.size>target && (canvas.width>640||canvas.height>640)){
@@ -225,40 +244,105 @@
   const prdDesc = document.getElementById("prdDesc");
   const prdWpp = document.getElementById("prdWpp");
   const prdActive = document.getElementById("prdActive");
+  const prdFeatured = document.getElementById("prdFeatured"); // destaque
   const prdImages = document.getElementById("prdImages");
+  const prdPreview = document.getElementById("prdPreview");
   const prdPrice = document.getElementById("prdPrice");
   const prdMsg = document.getElementById("prdMsg");
   const prdSearch = document.getElementById("prdSearch");
   const prdStatusFilter = document.getElementById("prdStatusFilter");
   const prdReload = document.getElementById("prdReload");
 
+  // Estado de edição das imagens
+  let currentEditImages = [];   // URLs atuais (após remoções na UI)
+  let imagesTouched = false;    // só atualiza no banco se true
+
+  function normalizeImagesField(p){
+    if (Array.isArray(p?.imageUrls) && p.imageUrls.length) return p.imageUrls;
+    if (Array.isArray(p?.images) && p.images.length) return p.images.map(v=> typeof v==="string"? v : (v?.url||"")).filter(Boolean);
+    if (p?.imageUrl) return [p.imageUrl];
+    return [];
+  }
+
+  function renderPrdPreview(){
+    if (!prdPreview) return;
+    if (!currentEditImages.length){ prdPreview.innerHTML=""; return; }
+    prdPreview.innerHTML = currentEditImages.map((u,idx)=>`
+      <div class="thumb" data-idx="${idx}">
+        <img src="${u}" alt="imagem">
+        <button type="button" class="btn-del-thumb" title="Remover">&times;</button>
+      </div>
+    `).join("");
+    prdPreview.querySelectorAll(".btn-del-thumb").forEach(btn=>{
+      btn.addEventListener("click",(ev)=>{
+        const el = ev.currentTarget.closest(".thumb");
+        const i = Number(el?.dataset.idx||-1);
+        if (i>=0){ currentEditImages.splice(i,1); imagesTouched = true; renderPrdPreview(); }
+      });
+    });
+  }
+
+  prdImages?.addEventListener("change", ()=>{
+    if ((prdImages.files?.length||0)>0) imagesTouched = true;
+  });
+
   document.getElementById("prdNewBtn")?.addEventListener("click", ()=>{
-    prdId.value=""; document.getElementById("formProduct").reset(); prdActive.checked=true; prdMsg.textContent="";
+    prdId.value=""; document.getElementById("formProduct").reset(); prdActive.checked=true; prdFeatured.checked=false; prdMsg.textContent="";
+    prdImages.value="";
+    currentEditImages = [];
+    imagesTouched = false;
+    renderPrdPreview();
   });
 
   document.getElementById("formProduct")?.addEventListener("submit", async (e)=>{
     e.preventDefault();
     prdMsg.classList.remove("text-danger"); prdMsg.textContent="Enviando...";
     const title=prdTitle.value.trim(), description=prdDesc.value.trim(), benefit=prdBenefit.value.trim();
-    const whatsapp=prdWpp.value.trim(); const price=prdPrice.value?Number(prdPrice.value):null; const active=prdActive.checked;
+    const whatsapp=prdWpp.value.trim(); const price=prdPrice.value?Number(prdPrice.value):null; 
+    const active=prdActive.checked; const featured=prdFeatured.checked;
 
     try{
-      let images=[];
-      if (prdImages.files?.length){
+      const hasNewFiles = (prdImages.files?.length||0)>0;
+      let uploaded=[];
+      if (hasNewFiles){
         prdMsg.textContent="Compactando e enviando imagens...";
-        const uploaded=await uploadManyCompressed(prdImages.files,"uploads/products",3,300);
-        images = uploaded.slice(0,3);
+        uploaded = await uploadManyCompressed(prdImages.files,"uploads/products",3,300);
       }
 
       if (prdId.value){
-        await updateMemberProduct(prdId.value, { title, description, benefit, whatsapp, price, imageUrls:images, active });
+        // Edição
+        let finalImages = currentEditImages.slice();
+        if (uploaded.length) finalImages = finalImages.concat(uploaded);
+        finalImages = finalImages.filter(Boolean).slice(0,3);
+
+        const payload = { title, description, benefit, whatsapp, price, active };
+
+        // Só mexe nos campos de imagem se o usuário tocou neles (removeu/adicionou)
+        if (imagesTouched || hasNewFiles){
+          payload.imageUrls = finalImages;
+          payload.imageUrl  = finalImages[0] || "";
+        }
+
+        await updateMemberProduct(prdId.value, payload);
+        await updateDoc(doc(db,"memberProducts", prdId.value), { featured: !!featured, updatedAt: serverTimestamp() });
+
         prdMsg.textContent="Produto atualizado!";
       } else {
-        const id = await addMemberProduct({ title, description, benefit, imageUrls:images, whatsapp, price });
+        // Criação
+        const base = { title, description, benefit, whatsapp, price };
+        if (uploaded.length){
+          base.imageUrls = uploaded.slice(0,3);
+          base.imageUrl  = base.imageUrls[0];
+        }
+        const id = await addMemberProduct(base);
         await updateMemberProduct(id, { active });
+        await updateDoc(doc(db,"memberProducts", id), { featured: !!featured, updatedAt: serverTimestamp() });
+
         prdMsg.textContent=`Produto salvo! ID: ${id}`;
       }
+
       prdImages.value=""; await loadProducts();
+      currentEditImages = []; imagesTouched = false; renderPrdPreview();
     } catch(err){
       console.error(err); prdMsg.classList.add("text-danger");
       prdMsg.textContent="Erro ao salvar: "+(err?.message||err);
@@ -294,13 +378,17 @@
   }
   function productRow(p){
     const idSafe=p.id.replace(/[^a-zA-Z0-9_-]/g,''); const cid=`p-${idSafe}`;
+    const fmt = new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
     const sub=[p.price!=null?fmt.format(p.price):"", p.benefit||""].filter(Boolean).join(" • ");
-    const badge=(p.active!==false)?'<span class="badge bg-success">Ativo</span>':'<span class="badge bg-secondary">Inativo</span>';
+    const badgeStatus=(p.active!==false)?'<span class="badge bg-success">Ativo</span>':'<span class="badge bg-secondary">Inativo</span>';
+    const badgeFeatured = p.featured ? '<span class="badge bg-warning text-dark ms-2">Destaque</span>' : '';
     return `
       <div class="item4-row list-row">
-        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">${p.title||"—"}</button>
+        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
+          ${p.title||"—"} ${badgeFeatured}
+        </button>
         <div class="small text-secondary">${sub||"&nbsp;"}</div>
-        <div>${badge}</div>
+        <div>${badgeStatus}</div>
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-sm btn-outline-primary btn-edit-product" data-id="${p.id}">Editar</button>
           <button class="btn btn-sm ${p.active!==false?'btn-outline-secondary':'btn-outline-success'} btn-toggle-product" data-id="${p.id}" data-action="${p.active!==false?'deactivate':'activate'}">${p.active!==false?'Inativar':'Ativar'}</button>
@@ -315,11 +403,28 @@
   }
   function attachProductHandlers(rows){
     document.querySelectorAll(".btn-edit-product").forEach(btn=>{
-      btn.addEventListener("click",(e)=>{
-        const id=e.currentTarget.dataset.id; const p=rows.find(x=>x.id===id); if(!p) return;
+      btn.addEventListener("click", async (e)=>{
+        const id=e.currentTarget.dataset.id;
+
+        // Busca o doc completo direto do Firestore para garantir os campos de imagem
+        let p = rows.find(x=>x.id===id);
+        try{
+          const snap = await getDoc(doc(db,"memberProducts", id));
+          if (snap.exists()) p = { id: snap.id, ...snap.data() };
+        }catch{ /* se falhar, segue com o da lista */ }
+
+        if(!p) return;
+
         prdId.value=id; prdTitle.value=p.title||""; prdBenefit.value=p.benefit||""; prdDesc.value=p.description||"";
-        prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=p.price??"";
+        prdWpp.value=p.whatsapp||""; prdActive.checked=(p.active!==false); prdPrice.value=(p.price??"");
+        prdFeatured.checked = !!p.featured;
         prdImages.value="";
+
+        // carrega imagens existentes para a prévia/edição
+        currentEditImages = normalizeImagesField(p);
+        imagesTouched = false; // ainda não houve alteração pelo usuário
+        renderPrdPreview();
+
         const coll=document.getElementById("prdCollapse"); if(coll && !coll.classList.contains("show")) new bootstrap.Collapse(coll,{toggle:true});
         window.scrollTo({ top: document.querySelector("main").getBoundingClientRect().top + window.scrollY - 90, behavior:"smooth" });
       });
