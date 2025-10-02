@@ -445,7 +445,7 @@ export async function addInvoice(uid, { dueDate, amount, status }) {
   return ref.id;
 }
 export async function updateInvoice(uid, invoiceId, partial) {
-  const refDoc = doc(db, "users", uid, "finance", "invoices", invoiceId);
+  const refDoc = doc(db, "users", uid, "financeInvoices", invoiceId);
   const patch = { updatedAt: serverTimestamp() };
   if (partial.dueDate) patch.dueDate = toTimestamp(partial.dueDate);
   if (partial.amount != null && partial.amount !== "") patch.amount = Number(partial.amount);

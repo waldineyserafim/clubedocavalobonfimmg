@@ -124,6 +124,9 @@
 
 <!-- ===== SUB NAV (atalhos) ===== -->
 <div class="subnav">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>🟢Exclusivos para Associados:</strong></div>
+  </div>
   <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
     <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html">Produtos</a>
     <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html">Serviços</a>
@@ -187,7 +190,7 @@
 <script type="module">
   import { auth, db, getUserProfile, getUserStatus, uploadImageFile } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { collection, getDocs, query, where, doc, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { collection, getDocs, query, where, doc, addDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   
   // ====== UI refs ======
   const memberNameEl = document.getElementById("memberName");
@@ -243,6 +246,79 @@
     else { chipPayText.textContent="Situação: Vencida"; chipPayDot.className="dot dot-bad"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
   }
 
+  // >>> ADIÇÃO: mapeia planType para rótulo
+  const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
+
+  // >>> ADIÇÃO: aplica dados do summary na UI
+  function applySummaryToUI(summary){
+    const planType = String(summary?.planType || "").toLowerCase();
+    if (planType && PLAN_LABEL[planType]) {
+      chipPlanText.textContent = PLAN_LABEL[planType];
+      chipPlan.classList.remove("d-none");
+    }
+    if (summary?.nextDue) {
+      chipNextDueText.textContent = fmtDate(summary.nextDue);
+      chipNextDue.classList.remove("d-none");
+    }
+    // ativo se activeUntil > agora
+    try {
+      const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
+      const active = !!activeUntil && activeUntil.getTime() > Date.now();
+      if (active) {
+        setPayStatusBadge("Em dia");
+        btnRenewPlan.classList.add("d-none");
+        alertFinance.classList.add("d-none");
+        btnNewClassified?.classList.remove("d-none");
+      } else {
+        btnRenewPlan.classList.remove("d-none");
+        alertFinance.classList.remove("d-none");
+        btnNewClassified?.classList.add("d-none");
+      }
+    } catch(_) {}
+  }
+
+  /* ============================
+     >>> ADIÇÕES: Regras de renovação
+     - Exibir "Renovar" se faltam <= 5 dias
+     - Se vencido <= 10 dias: mantém acesso + alerta/botão
+     - Se vencido > 10 dias: redireciona para pay.html
+  ============================ */
+  const RENEW_SOON_DAYS = 5;
+  const GRACE_OVERDUE_DAYS = 10;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+  function toDateMaybe(ts){
+    try { return ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null); }
+    catch { return null; }
+  }
+  function daysDiffFromNow(date){
+    if (!date) return null;
+    const d = toDateMaybe(date);
+    if (!d || isNaN(d.getTime())) return null;
+    return Math.floor((d.getTime() - Date.now()) / MS_PER_DAY);
+  }
+  function applyRenewRules(dueDate){
+    const days = daysDiffFromNow(dueDate);
+    if (days == null) return;
+
+    if (days >= 0) {
+      // Em dia — mostra "Renovar" somente quando faltam <= 5 dias
+      if (days <= RENEW_SOON_DAYS) {
+        btnRenewPlan.classList.remove("d-none");
+      }
+      return;
+    }
+
+    // Vencido
+    const overdueDays = Math.abs(days);
+    if (overdueDays <= GRACE_OVERDUE_DAYS) {
+      btnRenewPlan.classList.remove("d-none");
+      alertFinance.classList.remove("d-none");
+    } else {
+      location.href = "pay.html?reason=overdue_block";
+    }
+  }
+
   // ===== Auth / Header =====
   onAuthStateChanged(auth, async (user)=>{
     if(!user){ location.href="login.html"; return; }
@@ -270,6 +346,22 @@
     } else {
       btnNewClassified?.classList.add("d-none");
     }
+
+    // >>> ADIÇÃO: aplicar regras de renovação no carregamento inicial
+    applyRenewRules(nextDue);
+
+    // >>> ADIÇÃO: ouvir summary em tempo real para refletir aprovação sem recarregar
+    try {
+      const sumRef = doc(db, "users", user.uid, "finance", "summary");
+      onSnapshot(sumRef, (snap) => {
+        if (!snap.exists()) return;
+        const summary = snap.data() || {};
+        applySummaryToUI(summary);
+        // >>> ADIÇÃO: aplicar regras de renovação a partir do summary
+        const duePref = summary?.nextDue || summary?.activeUntil || null;
+        applyRenewRules(duePref);
+      });
+    } catch(err) { /* opcional: console.warn(err); */ }
 
     // Carregar destaques (banner)
     loadHighlights();

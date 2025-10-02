@@ -153,9 +153,7 @@
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import {
-    doc, getDoc, setDoc, onSnapshot, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
   // ====== CHAVE DO MP (Teste) ======
   const MP_PUBLIC_KEY = "APP_USR-ca3cc7b3-cb84-446e-b162-b2bdf9a94a48"; // substitua se necessário
@@ -184,14 +182,8 @@
   let firstName = null;
   let lastName = null;
   let planoSelecionado = null;
-
-  // Controle MP Brick
   let bricksBuilder = null;
   let paymentBrickController = null;
-
-  // Controle de fatura (invoice) para redirecionamento automático
-  let currentInvoiceId = null;
-  let stopInvoiceWatch = null;
 
   const LABELS = {
     mensal: "Mensal — R$ 30",
@@ -205,24 +197,7 @@
     window.location.href = "index.html";
   });
 
-  // ===== Assinatura da fatura criada no backend =====
-  function watchInvoice(invoiceId){
-    if (!uid || !invoiceId) return;
-    currentInvoiceId = invoiceId;
-    // limpa listener anterior
-    if (stopInvoiceWatch) { stopInvoiceWatch(); stopInvoiceWatch = null; }
-    const invRef = doc(db, "users", uid, "financeInvoices", invoiceId);
-    stopInvoiceWatch = onSnapshot(invRef, (snap) => {
-      const d = snap.data() || {};
-      const st = String(d.status || "").toLowerCase();
-      if (st === "pago") {
-        if (stopInvoiceWatch) { stopInvoiceWatch(); stopInvoiceWatch = null; }
-        window.location.href = "pay-success.html";
-      }
-    });
-  }
-
-  // Handlers dos botões
+  // Handlers dos botões (protegidos)
   if (btnCartao) {
     btnCartao.addEventListener("click", async (e)=>{
       e.preventDefault();
@@ -289,10 +264,6 @@
     }
     selecionadoEl.textContent = `Plano selecionado: ${LABELS[planoSelecionado]}`;
     if (actionsRow) actionsRow.classList.remove("d-none");
-
-    // Troca de plano: encerra watcher da fatura anterior
-    if (stopInvoiceWatch) { stopInvoiceWatch(); stopInvoiceWatch = null; }
-    currentInvoiceId = null;
   }
 
   function renderPixUI(data){
@@ -314,7 +285,6 @@
             </div>
           ` : ""}
           ${link ? `<a class="btn btn-sm btn-outline-primary" href="${link}" target="_blank" rel="noopener">Abrir no banco</a>` : ""}
-          <p class="small text-muted mt-2 mb-0">Assim que o PIX for aprovado, seu acesso será liberado automaticamente.</p>
         </div>
       </div>`;
     const copyBtn = document.getElementById("btnCopyPix");
@@ -343,7 +313,6 @@
             </div>
           ` : ""}
           ${link ? `<a class="btn btn-sm btn-outline-primary" href="${link}" target="_blank" rel="noopener">Abrir boleto (PDF)</a>` : ""}
-          <p class="small text-muted mt-2 mb-0">Após a compensação bancária, seu acesso será liberado automaticamente.</p>
         </div>
       </div>`;
     const copyBtn = document.getElementById("btnCopyBoleto");
@@ -368,16 +337,11 @@
         body: JSON.stringify({
           uid,
           planType: planoSelecionado,
-          // invoiceId não é necessário: backend cria e nos devolve o ID
           formData: { payment_method_id: "pix", payment_type_id: "pix" }
         })
       });
       const data = await resp.json();
       if (!resp.ok) throw data;
-
-      // passa a ouvir a fatura criada pelo backend
-      if (data.invoice_id) watchInvoice(data.invoice_id);
-
       renderPixUI(data);
       msg.textContent = "";
       offlineDiv.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -400,16 +364,11 @@
         body: JSON.stringify({
           uid,
           planType: planoSelecionado,
-          // invoiceId não é necessário: backend cria e nos devolve o ID
           formData: { payment_method_id: "bolbradesco", payment_type_id: "ticket" }
         })
       });
       const data = await resp.json();
       if (!resp.ok) throw data;
-
-      // passa a ouvir a fatura criada pelo backend
-      if (data.invoice_id) watchInvoice(data.invoice_id);
-
       renderBoletoUI(data);
       msg.textContent = "";
       offlineDiv.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -534,12 +493,9 @@
               return;
             }
 
-            // Se aprovado na hora (cartão), redireciona
             if (data.status === "approved") {
               window.location.href = "pay-success.html";
             } else {
-              // Se ainda pendente, assiste a fatura criada no backend
-              if (data.invoice_id) watchInvoice(data.invoice_id);
               alert(`Status do pagamento: ${data.status}${data.status_detail ? " — " + data.status_detail : ""}`);
             }
           } catch (e) {
