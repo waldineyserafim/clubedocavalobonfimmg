@@ -34,10 +34,7 @@
     @media (min-width:992px){ .subnav{ top:64px; } }
     .subnav .btn{ border-radius:999px; }
 
-    /* ===== Banner Destaques (1 por vez, mosaico) ===== */
-    .carousel-banner{
-      position:relative; border-radius:16px; overflow:hidden;
-    }
+    .carousel-banner{ position:relative; border-radius:16px; overflow:hidden; }
     .banner-mosaic{
       display:grid; gap:6px; height: clamp(200px, 28vw, 320px);
       grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr;
@@ -47,29 +44,19 @@
     .banner-mosaic .small.top{ grid-column:2; grid-row:1; }
     .banner-mosaic .small.bottom{ grid-column:2; grid-row:2; }
 
-    /* >>> sem corte: blocos com background-size: contain */
     .tile-img{
       width:100%; height:100%;
-      background-size: contain;
-      background-position: center center;
-      background-repeat: no-repeat;
-      background-color:#f8f9fa;
-      display:block;
+      background-size: contain; background-position: center center;
+      background-repeat: no-repeat; background-color:#f8f9fa; display:block;
     }
-
     .tile-overlay{
       position:absolute; inset:auto 0 0 0; padding:.75rem .9rem;
       background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 100%);
       color:#fff; display:flex; flex-direction:column; gap:.35rem;
-      z-index:5; /* Fica acima das setas do carrossel */
+      z-index:5;
     }
     .badge-soft{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); }
-
-    /* setas do carrossel abaixo do overlay para não cobrir os botões */
-    .carousel-control-prev, .carousel-control-next{
-      filter: drop-shadow(0 2px 6px rgba(0,0,0,.25));
-      z-index:1;
-    }
+    .carousel-control-prev, .carousel-control-next{ filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); z-index:1; }
     .carousel-indicators [data-bs-target]{ background:#6c757d; }
     .carousel-indicators .active{ background:#212529; }
 
@@ -111,13 +98,21 @@
         <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">Renovar plano</a>
       </div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <!-- (NOVO) Botão para cadastrar classificado (abre modal) -->
-      <button id="btnNewClassified" class="btn btn-outline-primary d-none" data-bs-toggle="modal" data-bs-target="#classifiedModal">
+
+    <!-- ===== BOTOEIRA (2 linhas como no print) ===== -->
+    <div class="d-flex flex-column align-items-md-end gap-1">
+
+      <!-- linha 2: Trocar senha | Sair -->
+      <div class="d-flex gap-1 flex-nowrap justify-content-end">
+        <button id="btnOpenPwModal" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#pwModal">
+          Trocar senha
+        </button>
+        <button id="logoutBtn" class="btn btn-primary">Sair</button>
+      </div>
+      <!-- linha 1: Cadastrar classificado -->
+      <button id="btnNewClassified" class="btn btn-outline-primary btn-sm text-nowrap d-none" data-bs-toggle="modal" data-bs-target="#classifiedModal">
         Cadastrar classificado
       </button>
-      <a class="btn btn-outline-primary" href="reset_senha.html">Trocar senha</a>
-      <button id="logoutBtn" class="btn btn-primary">Sair</button>
     </div>
   </div>
 </header>
@@ -189,7 +184,10 @@
 <!-- ===== APP SCRIPT ===== -->
 <script type="module">
   import { auth, db, getUserProfile, getUserStatus, uploadImageFile } from "./firebase.js";
-  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import {
+    onAuthStateChanged, signOut,
+    reauthenticateWithCredential, updatePassword, EmailAuthProvider
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { collection, getDocs, query, where, doc, addDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   
   // ====== UI refs ======
@@ -229,6 +227,14 @@
   const imgProgressList = document.getElementById("imgProgressList");
   let selectedFiles = [];
 
+  // ===== Modal Trocar Senha (DOM refs)
+  const pwOld = document.getElementById("pwOld");
+  const pwNew = document.getElementById("pwNew");
+  const pwNew2 = document.getElementById("pwNew2");
+  const btnChangePw = document.getElementById("btnChangePw");
+  const btnTogglePw = document.getElementById("btnTogglePw");
+  const pwMsg = document.getElementById("pwMsg");
+
   const PAYMENT_URL = "https://mpago.la/1mJpCsd";
 
   const fmtDate = (ts)=> {
@@ -246,10 +252,8 @@
     else { chipPayText.textContent="Situação: Vencida"; chipPayDot.className="dot dot-bad"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
   }
 
-  // >>> ADIÇÃO: mapeia planType para rótulo
   const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
 
-  // >>> ADIÇÃO: aplica dados do summary na UI
   function applySummaryToUI(summary){
     const planType = String(summary?.planType || "").toLowerCase();
     if (planType && PLAN_LABEL[planType]) {
@@ -260,7 +264,6 @@
       chipNextDueText.textContent = fmtDate(summary.nextDue);
       chipNextDue.classList.remove("d-none");
     }
-    // ativo se activeUntil > agora
     try {
       const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
       const active = !!activeUntil && activeUntil.getTime() > Date.now();
@@ -277,12 +280,6 @@
     } catch(_) {}
   }
 
-  /* ============================
-     >>> ADIÇÕES: Regras de renovação
-     - Exibir "Renovar" se faltam <= 5 dias
-     - Se vencido <= 10 dias: mantém acesso + alerta/botão
-     - Se vencido > 10 dias: redireciona para pay.html
-  ============================ */
   const RENEW_SOON_DAYS = 5;
   const GRACE_OVERDUE_DAYS = 10;
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -302,14 +299,12 @@
     if (days == null) return;
 
     if (days >= 0) {
-      // Em dia — mostra "Renovar" somente quando faltam <= 5 dias
       if (days <= RENEW_SOON_DAYS) {
         btnRenewPlan.classList.remove("d-none");
       }
       return;
     }
 
-    // Vencido
     const overdueDays = Math.abs(days);
     if (overdueDays <= GRACE_OVERDUE_DAYS) {
       btnRenewPlan.classList.remove("d-none");
@@ -340,28 +335,24 @@
     else { setPayStatusBadge("Vencida"); }
     if (!st?.active){ btnRenewPlan.classList.remove("d-none"); }
 
-    // >>> Exibir botão "Novo classificado" somente se o associado estiver ativo/liberado
     if (st?.active) {
       btnNewClassified?.classList.remove("d-none");
     } else {
       btnNewClassified?.classList.add("d-none");
     }
 
-    // >>> ADIÇÃO: aplicar regras de renovação no carregamento inicial
     applyRenewRules(nextDue);
 
-    // >>> ADIÇÃO: ouvir summary em tempo real para refletir aprovação sem recarregar
     try {
       const sumRef = doc(db, "users", user.uid, "finance", "summary");
       onSnapshot(sumRef, (snap) => {
         if (!snap.exists()) return;
         const summary = snap.data() || {};
         applySummaryToUI(summary);
-        // >>> ADIÇÃO: aplicar regras de renovação a partir do summary
         const duePref = summary?.nextDue || summary?.activeUntil || null;
         applyRenewRules(duePref);
       });
-    } catch(err) { /* opcional: console.warn(err); */ }
+    } catch(err) { /* opcional */ }
 
     // Carregar destaques (banner)
     loadHighlights();
@@ -527,10 +518,8 @@
 
       if (!all.length){ deckEmpty.classList.remove("d-none"); return; }
 
-      // Cada item = 1 slide
       buildCarousel(all);
 
-      // Inicializa o carrossel
       const carousel = new bootstrap.Carousel('#destaquesCarousel', {
         interval: 5000, ride: 'carousel', pause: false, touch: true, wrap: true
       });
@@ -541,7 +530,6 @@
       deckError.classList.remove("d-none");
     }
 
-    // impede que cliques/toques nos botões dentro do slide disparem o slide do carrossel
     (function shieldCarouselButtons(){
       const stop = e => { if (e.target.closest('.no-slide')) e.stopPropagation(); };
       ['click','pointerdown','mousedown','touchstart'].forEach(ev =>
@@ -614,7 +602,6 @@
     try{
       const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
 
-      // 1) Cria doc (pendente/aguardando pagamento)
       const docRef = await addDoc(collection(db,"memberClassifieds"), {
         title, description, price,
         whatsapp: contact,
@@ -633,7 +620,6 @@
         updatedAt: serverTimestamp()
       });
 
-      // 2) Upload de até 3 fotos com barra de progresso
       const urls = [];
       imgProgressList.innerHTML = "";
       if (selectedFiles.length){
@@ -655,7 +641,6 @@
         await updateDoc(doc(db,"memberClassifieds", docRef.id), { imageUrls: urls, updatedAt: serverTimestamp() });
       }
 
-      // 3) Feedback + redireciono a pagamento
       clsFeedback.innerHTML = `
         <strong>Classificado enviado!</strong><br>
         ${urls.length ? `${urls.length} foto(s) anexada(s).<br>` : ""}
@@ -679,7 +664,97 @@
     }
   });
 
+  /* ===== Troca de senha — lógica ===== */
+  function setPwMsg(text, ok=false){
+    pwMsg.textContent = text || "";
+    pwMsg.classList.toggle("text-muted", !text);
+    pwMsg.classList.toggle("text-success", !!ok);
+    pwMsg.classList.toggle("text-danger", !!text && !ok);
+  }
+
+  btnTogglePw?.addEventListener("click", ()=>{
+    const fields = [pwOld, pwNew, pwNew2];
+    const show = (pwOld?.type === "password");
+    fields.forEach(f => { if (f) f.type = show ? "text" : "password"; });
+  });
+
+  btnChangePw?.addEventListener("click", async ()=>{
+    setPwMsg("");
+    const a = (pwOld?.value || "").trim();
+    const b = (pwNew?.value || "").trim();
+    const c = (pwNew2?.value || "").trim();
+
+    if (!a || !b || !c){ alert("Preencha todos os campos."); return; }
+    if (b.length < 6){ alert("A nova senha deve ter pelo menos 6 caracteres."); return; }
+    if (b !== c){ alert("A confirmação está diferente da nova senha."); return; }
+
+    if (!auth.currentUser){ alert("Sessão expirada. Faça login novamente."); return; }
+    btnChangePw.disabled = true; setPwMsg("Atualizando…");
+
+    try{
+      const email = auth.currentUser.email; // email de login (ex.: cpf@cpf.local)
+      const cred = EmailAuthProvider.credential(email, a);
+      await reauthenticateWithCredential(auth.currentUser, cred);
+      await updatePassword(auth.currentUser, b);
+
+      setPwMsg("Senha alterada com sucesso.", true);
+      pwOld.value = pwNew.value = pwNew2.value = "";
+
+      setTimeout(()=>{
+        const modal = bootstrap.Modal.getInstance(document.getElementById('pwModal'));
+        modal?.hide();
+        setPwMsg("");
+      }, 1200);
+
+    } catch(e){
+      console.error(e);
+      const msg = e?.code === "auth/wrong-password" ? "Senha atual inválida."
+                : e?.code === "auth/too-many-requests" ? "Muitas tentativas. Tente mais tarde."
+                : e?.message || "Erro ao alterar a senha.";
+      setPwMsg(msg, false);
+      alert(msg);
+    } finally{
+      btnChangePw.disabled = false;
+    }
+  });
+
 </script>
+
+<!-- ===== MODAL: Trocar senha ===== -->
+<div class="modal fade" id="pwModal" tabindex="-1" aria-labelledby="pwModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pwModalLabel">Trocar senha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-12">
+            <label class="form-label">Senha atual</label>
+            <input id="pwOld" type="password" class="form-control" autocomplete="current-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Nova senha</label>
+            <input id="pwNew" type="password" class="form-control" autocomplete="new-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Confirmar nova senha</label>
+            <input id="pwNew2" type="password" class="form-control" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+          <button id="btnChangePw" class="btn btn-primary">Salvar nova senha</button>
+          <button id="btnTogglePw" class="btn btn-outline-secondary btn-sm" type="button">Mostrar/Ocultar</button>
+          <span id="pwMsg" class="small text-muted"></span>
+        </div>
+        <div class="form-text mt-2">
+          Requisitos: mínimo de 6 caracteres. Caso tenha esquecido a senha e não consiga entrar, contate a Secretaria.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ===== MODAL: Novo classificado ===== -->
 <div class="modal fade" id="classifiedModal" tabindex="-1" aria-labelledby="classifiedLabel" aria-hidden="true">
