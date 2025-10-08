@@ -30,11 +30,6 @@
     .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
     .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
     .user-status .badge{ min-width:96px; }
-    .user-details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
-    .user-alert{ border:1px solid #f1aeb5; background:#fff5f6; color:#b42318; border-radius:.5rem; padding:.5rem .75rem; }
-    .finance-table th, .finance-table td{ vertical-align:middle; }
-    .input-readonly { background:#f8f9fa; pointer-events:none; }
-    .info-icon{ color:#6c757d; cursor:pointer; }
     @media (max-width:991.98px){
       .users-header, .user-row{ grid-template-columns: 34px 1fr 120px 160px 120px; }
     }
@@ -42,12 +37,12 @@
       .users-header{ display:none; }
       .user-row{ grid-template-columns: 34px 1fr 120px; }
       .user-row .col-role, .user-row .col-status, .user-row .col-next{ display:none; }
-      .user-details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
     }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
     @media (min-width: 992px){ .brand-logo{ height:42px; } }
     .small-muted{ font-size:.875rem; color:#6c757d; }
+    .input-readonly[disabled]{ background-color:#f2f2f2; }
   </style>
 </head>
 <body>
@@ -125,16 +120,16 @@
         <div class="col-role">Perfil</div>
         <div class="col-status d-flex align-items-center gap-2">
           Situação financeira
-          <i class="bi bi-info-circle info-icon"
+          <i class="bi bi-info-circle text-secondary"
              data-bs-toggle="popover"
              data-bs-title="Regras de status"
              data-bs-html="true"
              data-bs-content="
               <strong>Em dia</strong>: plano ativo (até o fim).<br>
-              <strong>Atrasado</strong>: do fim do plano até +10 dias (grace). Exibe ação WhatsApp.<br>
-              <strong>Vencido</strong>: após +10 dias do fim. Sem acesso.<br>
+              <strong>Atrasado</strong>: vencido há ≤ 10 dias.<br>
+              <strong>Vencido</strong>: vencido há &gt; 10 dias.<br>
               <strong>Cancelado</strong>: sem acesso.<br>
-              <strong>Na lista</strong>: exibimos <em>Pendente</em> quando o usuário está <em>Atrasado</em> ou <em>Vencido</em>.">
+              <strong>Na lista</strong>: exibimos <em>Pendente</em> quando está <em>Atrasado</em> ou <em>Vencido</em>.">
           </i>
         </div>
         <div class="col-next">Próxima cobrança</div>
@@ -204,7 +199,7 @@
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   const bootstrap = window.bootstrap;
-  [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el=> new bootstrap.Popover(el));
+  [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el => new bootstrap.Popover(el));
 
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
 
@@ -214,7 +209,7 @@
   let operatorProfile = { uid:"", nome:"", cpf:"" };
   const normalizeRole = (r) => String(r || "").trim().toLowerCase();
 
-  const secondaryApp = initializeApp(auth.app.options, "op-secondary");
+  const secondaryApp = initializeApp(auth.app?.options || {}, "op-secondary");
   const secAuth = getAuth(secondaryApp);
 
   auth.onAuthStateChanged(async (user)=>{
@@ -224,7 +219,7 @@
     opNameEl.textContent = d.nome || "Operador(a)";
     const role = normalizeRole(d.role) || "admin";
     currentRole = role;
-    opRoleEl.textContent = role;
+    opRoleEl.textContent = role.toUpperCase();
     opRoleEl.classList.remove("d-none");
     operatorProfile = { uid:user.uid, nome: d.nome || "", cpf: (d.cpf||"").replace(/\D/g,"") };
     try { if (document.getElementById("usersWrap")) listUsers(""); } catch(e){ console.error(e); }
@@ -254,56 +249,58 @@
   const payPageUrl = ()=> `${location.origin}/pay.html`;
   const fmtBRDate = (date)=> new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(date);
 
-  // --- Deriva status na lista ---
-  function computeMembership({ invoices=[], summary={} }){
-    // Isento tem prioridade
-    if (summary.exempt === true){
+  function computeMembership({ invoices = [], summary = {} }) {
+    if (summary.exempt === true) {
       const untilMs = summary.exemptUntil?.toMillis?.() ?? (summary.exemptUntil ? new Date(summary.exemptUntil).getTime() : null);
       if (!untilMs || untilMs > Date.now()) {
-        return { listCode:"isento", listBadge:"Isento", detail:"isento", nextDue:null };
+        return { listCode: "isento", listBadge: "Isento", detail: "isento", nextDue: null };
       }
     }
 
-    // last paid end
-    let lastPaidEnd = null, lastPaidAt = null, lastAmount = null;
-    const paid = invoices.filter(i => String(i.status||"").toLowerCase()==="pago");
-    if (paid.length){
-      paid.sort((a,b)=> ( (b.paidAt?.toMillis?.() ?? new Date(b.paidAt||0).getTime()) - (a.paidAt?.toMillis?.() ?? new Date(a.paidAt||0).getTime()) ));
-      lastPaidEnd = paid[0].planEnd?.toDate?.() ?? (paid[0].planEnd ? new Date(paid[0].planEnd) : null);
-      lastPaidAt = paid[0].paidAt;
-      lastAmount = paid[0].amount;
-    }
+    const unpaid = invoices.filter(i => {
+      const s = String(i.status || "").toLowerCase();
+      return !["pago", "paga", "paid"].includes(s);
+    });
 
-    // earliest open due
-    const open = invoices.filter(i => !["pago","cancelado"].includes(String(i.status||"").toLowerCase()));
-    let nextDueMs = null;
-    for(const inv of open){
+    let earliestDue = null;
+    for (const inv of unpaid) {
       const dueMs = inv.dueDate?.toMillis?.() ?? (inv.dueDate ? new Date(inv.dueDate).getTime() : null);
-      if (dueMs!=null && (nextDueMs==null || dueMs < nextDueMs)) nextDueMs = dueMs;
+      if (dueMs && (earliestDue === null || dueMs < earliestDue)) earliestDue = dueMs;
     }
 
-    // membership detail
-    let detail = "vencido"; // padrão conservador
-    if (lastPaidEnd){
+    if (earliestDue && earliestDue < Date.now()) {
+      const daysOver = Math.floor((Date.now() - earliestDue) / (24 * 3600 * 1000));
+      const detail = daysOver <= 10 ? "atrasado" : "vencido";
+      return { listCode: "pendente", listBadge: "Pendente", detail, nextDue: earliestDue };
+    }
+
+    const paid = invoices.filter(i => ["pago", "paid"].includes(String(i.status || "").toLowerCase()));
+    let lastPaidEnd = null;
+    if (paid.length) {
+      paid.sort((a, b) => {
+        const ap = a.planEnd?.toMillis?.() ?? new Date(a.planEnd || 0).getTime();
+        const bp = b.planEnd?.toMillis?.() ?? new Date(b.planEnd || 0).getTime();
+        return bp - ap;
+      });
+      lastPaidEnd = paid[0].planEnd?.toDate?.() ?? new Date(paid[0].planEnd);
+    }
+
+    let detail = "vencido";
+    if (lastPaidEnd) {
       const graceEnd = addDays(lastPaidEnd, 10);
       if (now() <= lastPaidEnd) detail = "em_dia";
       else if (now() <= graceEnd) detail = "atrasado";
       else detail = "vencido";
-    } else if (nextDueMs!=null && nextDueMs >= Date.now()){
-      // sem pagamento anterior, mas já tem um vencimento futuro
-      detail = "em_dia";
     }
 
-    // Lista: badge 'Pendente' somente se detail for atrasado ou vencido
-    const listCode = (detail==="atrasado" || detail==="vencido") ? "pendente" : "em_dia";
-    const listBadge = listCode==="pendente" ? "Pendente" : "Em dia";
-
-    return { listCode, listBadge, detail, nextDue: nextDueMs, lastPaidEnd, lastPaidAt, lastAmount };
+    const listCode = (detail === "atrasado" || detail === "vencido") ? "pendente" : "em_dia";
+    const listBadge = listCode === "pendente" ? "Pendente" : "Em dia";
+    return { listCode, listBadge, detail, nextDue: earliestDue || null };
   }
 
   function displayPlan(inv){
-    if (inv.planName) return inv.planName;                               // mostra exatamente o que foi salvo
-    return inv.planType ? (PLAN_LABEL[inv.planType] || inv.planType) : "-"; // fallback
+    if (inv.planName) return inv.planName;
+    return inv.planType ? (PLAN_LABEL[inv.planType] || inv.planType) : "-";
   }
 
   function wppUrl(phoneRaw, text){
@@ -359,11 +356,16 @@
   const usersWrap = document.getElementById("usersWrap");
   const searchQuery = document.getElementById("searchQuery");
   document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
-  document.getElementById("btnListAll")?.addEventListener("click", ()=> listUsers(""));
+  document.getElementById("btnListAll")?.addEventListener("click", ()=> { searchQuery.value=""; listUsers(""); });
 
   let currentFilter = "all";
   document.querySelectorAll("[data-filter]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{ currentFilter = btn.getAttribute("data-filter"); listUsers(searchQuery.value.trim()); });
+    btn.addEventListener("click", ()=>{
+      currentFilter = btn.getAttribute("data-filter");
+      document.querySelectorAll("[data-filter]").forEach(b=> b.classList.remove("active"));
+      btn.classList.add("active");
+      listUsers(searchQuery.value.trim());
+    });
   });
   document.getElementById("chkAll")?.addEventListener("change", (e)=>{
     document.querySelectorAll(".row-check").forEach(c=> c.checked = e.target.checked);
@@ -391,83 +393,34 @@
       return;
     }
 
-    if(!docs.length){ usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`; return; }
+    if(!docs.length){
+      usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`;
+      return;
+    }
 
     usersWrap.innerHTML = docs.map(d=>{
       const u = d.data(); const uid = d.id;
-      return renderUserRowSkeleton({ uid, ...u });
+      return renderUserRow({ uid, ...u });
     }).join("");
     attachUserRowHandlers();
 
-    for (const d of docs){ await loadFinanceForUser(d.id); }
+    for (const d of docs){ await loadFinanceForRow(d.id); }
   }
 
-  function renderUserRowSkeleton(u){
+  function renderUserRow(u){
     const uid = u.uid;
-    const collapseId = `u-${uid}`;
     return `
       <div class="user-row" id="row-${uid}">
         <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
-        <button class="user-name" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="false">${u.nome||"Sem nome"}</button>
-        <div class="text-uppercase small col-role"><span class="badge badge-role">${(String(u.role||"associado")).toLowerCase()}</span></div>
+        <button class="user-name" type="button" data-uid="${uid}">${u.nome||"Sem nome"}</button>
+        <div class="text-uppercase small col-role"><span class="badge badge-role">${(String(u.role||"associado")).toUpperCase()}</span></div>
         <div class="user-status col-status"><span class="badge bg-secondary">Carregando...</span></div>
         <div class="next-due text-secondary small col-next">—</div>
-      </div>
-
-      <div id="${collapseId}" class="collapse">
-        <div class="user-details">
-          <ul class="nav nav-tabs" id="tabs-${uid}">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#profile-${uid}">Perfil</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#finance-${uid}">Financeiro</button></li>
-          </ul>
-          <div class="tab-content pt-3">
-            <div class="tab-pane fade show active" id="profile-${uid}">
-              ${renderProfileForm(u)}
-            </div>
-            <div class="tab-pane fade" id="finance-${uid}">
-              <div class="small text-secondary">Carregando financeiro...</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function renderProfileForm(u){
-    const ativo = (u.ativo !== false);
-    return `
-      <div class="row g-3 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label">Nome</label>
-          <input type="text" class="form-control" data-uid="${u.uid}" data-field="nome" value="${u.nome||''}">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">CPF</label>
-          <input type="text" class="form-control" data-uid="${u.uid}" data-field="cpf" value="${u.cpf||''}">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Telefone</label>
-          <input type="text" class="form-control" data-uid="${u.uid}" data-field="telefone" value="${u.telefone||''}">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Endereço</label>
-          <input type="text" class="form-control" data-uid="${u.uid}" data-field="endereco" value="${u.endereco||''}">
-        </div>
-        <div class="col-md-2">
-          <div class="form-check mt-4">
-            <input class="form-check-input" type="checkbox" data-uid="${u.uid}" data-field="ativo" ${ativo?'checked':''}>
-            <label class="form-check-label">Ativo</label>
-          </div>
-        </div>
-        <div class="col-sm-6 col-md-2">
-          <button class="btn btn-outline-primary w-100 btn-save-profile" data-uid="${u.uid}">Salvar Perfil</button>
-        </div>
       </div>
     `;
   }
 
   async function autoPatchInvoices(uid){
-    // Ajusta automaticamente 'em_aberto' -> 'atrasado' quando dueDate passou
     try{
       const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
       for (const d of invSnap.docs){
@@ -481,10 +434,9 @@
     }catch(e){ console.warn("autoPatchInvoices", uid, e); }
   }
 
-  async function loadFinanceForUser(uid){
+  async function loadFinanceForRow(uid){
     const row = document.getElementById(`row-${uid}`);
-    const fin = document.getElementById(`finance-${uid}`);
-    if (!row || !fin) return;
+    if (!row) return;
 
     await autoPatchInvoices(uid);
 
@@ -505,8 +457,8 @@
 
       if (currentFilter !== "all" && m.listCode !== currentFilter){
         row.classList.add("d-none");
-        fin.closest(".collapse")?.classList.add("d-none");
-        return;
+      } else {
+        row.classList.remove("d-none");
       }
 
       const stEl = row.querySelector(".user-status .badge");
@@ -518,115 +470,239 @@
       }
       const nd = row.querySelector(".next-due");
       if (nd) nd.textContent = nextDueStr;
-
-      // últimas 3
-      const last3 = invDocs.sort((a,b)=>{
-        const ad = a.dueDate?.toMillis?.() ?? new Date(a.dueDate||0).getTime();
-        const bd = b.dueDate?.toMillis?.() ?? new Date(b.dueDate||0).getTime();
-        return bd - ad;
-      }).slice(0,3);
-
-      const rows = last3.map(inv=>{
-        const s = String(inv.status||"").toLowerCase();
-        const badge = s==="pago" ? "bg-success" : s==="atrasado" ? "bg-danger" : s==="cancelado" ? "bg-secondary" : "bg-warning text-dark";
-        return `
-          <tr>
-            <td>${displayPlan(inv)}</td>
-            <td>${fmtBRL(inv.amount)}</td>
-            <td>${toDateStr(inv.planStart)||"—"}</td>
-            <td>${toDateStr(inv.planEnd)||"—"}</td>
-            <td>${toDateStr(inv.dueDate)||"—"}</td>
-            <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
-            <td class="text-end">
-              <button class="btn btn-sm btn-outline-primary" data-action="edit-invoice" data-uid="${uid}" data-invid="${inv.id}">Editar</button>
-            </td>
-          </tr>
-        `;
-      }).join("") || `<tr><td colspan="7" class="text-center text-secondary">Sem faturas visíveis.</td></tr>`;
-
-      const overdueAlert = (m.detail==="atrasado")
-        ? `<div class="user-alert mb-2 d-flex justify-content-between align-items-center">
-             <div>Este associado está <strong>ATrasado</strong> (dentro do prazo de 10 dias).</div>
-             <button class="btn btn-sm btn-danger" data-action="send-link" data-uid="${uid}">Notificar via WhatsApp</button>
-           </div>`
-        : "";
-
-      fin.innerHTML = `
-        ${overdueAlert}
-        <div class="d-flex flex-wrap gap-2 mb-2">
-          <button class="btn btn-primary" data-action="new-payment" data-uid="${uid}">Registrar pagamento</button>
-          <button class="btn btn-outline-primary" data-action="send-link" data-uid="${uid}">Enviar link</button>
-          <button class="btn btn-outline-secondary" data-action="set-exempt" data-uid="${uid}">
-            ${summary.exempt===true ? "Editar/Remover isenção" : "Marcar como isento"}
-          </button>
-          <button class="btn btn-light" data-action="view-all" data-uid="${uid}">Ver todas</button>
-        </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm finance-table">
-            <thead><tr>
-              <th>Plano</th><th>Valor</th><th>Início</th><th>Fim</th><th>Vencimento</th><th>Status</th><th class="text-end">Ações</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-
-        <div class="small-muted">Próxima cobrança: <strong>${nextDueStr||"—"}</strong> (igual ao vencimento).</div>
-      `;
     }catch(e){
       console.error("Falha ao carregar financeiro de", uid, e);
-      if (fin){
-        fin.innerHTML = `
-          <div class="alert alert-warning">Não foi possível carregar os dados financeiros (ver console). Você ainda pode registrar um pagamento.</div>
-          <div class="d-flex flex-wrap gap-2 mb-2">
-            <button class="btn btn-primary" data-action="new-payment" data-uid="${uid}">Registrar pagamento</button>
-            <button class="btn btn-outline-primary" data-action="send-link" data-uid="${uid}">Enviar link</button>
-            <button class="btn btn-light" data-action="view-all" data-uid="${uid}">Ver todas</button>
-          </div>`;
-      }
       const stEl = document.querySelector(`#row-${uid} .user-status .badge`);
       if (stEl){ stEl.className = "badge text-bg-secondary"; stEl.textContent = "—"; }
     }
   }
 
   function attachUserRowHandlers(){
-    document.querySelectorAll(".btn-save-profile").forEach(btn=>{
-      btn.addEventListener("click", async (e)=>{
-        const uid = e.currentTarget.dataset.uid;
-        const q = (f)=> document.querySelector(`[data-uid="${uid}"][data-field="${f}"]`);
-        const payload = {
-          nome: q("nome").value.trim(),
-          cpf: q("cpf").value.trim().replace(/\D/g,""),
-          telefone: q("telefone").value.trim(),
-          endereco: q("endereco").value.trim(),
-          ativo: q("ativo").checked,
-          updatedAt: serverTimestamp()
-        };
-        try{ await updateDoc(doc(db,"users",uid), payload); e.currentTarget.textContent="Perfil salvo!"; setTimeout(()=>e.currentTarget.textContent="Salvar Perfil",1200); }
-        catch(err){ alert("Erro ao salvar perfil: "+err.message); }
-      });
+    document.querySelectorAll(".user-name").forEach(btn=>{
+      btn.addEventListener("click", ()=> openUserModal(btn.getAttribute("data-uid")));
     });
-    usersWrap.addEventListener("click", onFinanceAction);
   }
 
-  async function onFinanceAction(ev){
-    const btn = ev.target.closest("button[data-action]");
-    if (!btn) return;
-    const action = btn.getAttribute("data-action");
-    const uid = btn.getAttribute("data-uid");
-    if (!action || !uid) return;
+  /* ===== Modal do Usuário (Perfil + Financeiro) ===== */
+  let userModalDiv = null;
+  async function openUserModal(uid){
+    let u = {}, summary = {}, invDocs = [];
+    try{
+      const [uSnap, sSnap, invSnap] = await Promise.all([
+        getDoc(doc(db,"users",uid)),
+        getDoc(doc(db,"users",uid,"finance","summary")),
+        getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+      ]);
+      u = uSnap.exists()? { uid, ...uSnap.data() } : { uid };
+      summary = sSnap.exists()? sSnap.data() : {};
+      invDocs = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+    }catch(e){ console.warn("openUserModal fetch", e); }
 
-    if (action==="new-payment"){ openPaymentModal({ uid }); return; }
-    if (action==="send-link"){ openSendLinkModal(uid); return; }
-    if (action==="set-exempt"){ openExemptModal(uid); return; }
-    if (action==="view-all"){ openAllInvoicesModal(uid); return; }
-    if (action==="edit-invoice"){
-      const invoiceId = btn.getAttribute("data-invid");
-      openPaymentModal({ uid, invoiceId }); return;
+    if (userModalDiv) userModalDiv.remove();
+    userModalDiv = document.createElement("div");
+    userModalDiv.className = "modal fade";
+    userModalDiv.tabIndex = -1;
+
+    const m = computeMembership({ invoices: invDocs, summary });
+    const nextDueStr = m.nextDue ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(m.nextDue)) : "—";
+
+    const perfilHtml = renderProfileFormModal(u, summary);
+    const financeiroHtml = renderFinanceBlock(uid, summary, invDocs, nextDueStr, m);
+
+    userModalDiv.innerHTML = `
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title">${u.nome || "Associado"}</h5>
+              <div class="small text-secondary">CPF: ${(u.cpf||"").replace(/\D/g,"") || "—"}</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <ul class="nav nav-tabs" id="userTabs">
+              <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabProfile">Perfil</button></li>
+              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFinance">Financeiro</button></li>
+            </ul>
+            <div class="tab-content pt-3">
+              <div class="tab-pane fade show active" id="tabProfile">${perfilHtml}</div>
+              <div class="tab-pane fade" id="tabFinance">${financeiroHtml}</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span class="me-auto small text-secondary">Situação: <strong>${m.listBadge}</strong> • Próxima cobrança: <strong>${nextDueStr}</strong></span>
+            <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(userModalDiv);
+    const modal = new bootstrap.Modal(userModalDiv); modal.show();
+
+    userModalDiv.querySelector(".btn-save-profile")?.addEventListener("click", async (e)=>{
+      const q = (sel)=> userModalDiv.querySelector(sel);
+      const payload = {
+        nome: q('#pfNome').value.trim(),
+        cpf: q('#pfCPF').value.trim().replace(/\D/g,""),
+        telefone: q('#pfTelefone').value.trim(),
+        endereco: q('#pfEndereco').value.trim(),
+        email: q('#pfEmail').value.trim() || null,
+        ativo: q('#pfAtivo').checked,
+        updatedAt: serverTimestamp()
+      };
+      try{
+        await updateDoc(doc(db,"users",uid), payload);
+        e.currentTarget.textContent = "Perfil salvo!";
+        setTimeout(()=> e.currentTarget.textContent = "Salvar Perfil", 1200);
+      }catch(err){ alert("Erro ao salvar perfil: "+err.message); }
+    });
+
+    userModalDiv.addEventListener("click", (ev)=>{
+      const btn = ev.target.closest("button[data-action],a[data-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-action");
+      if (action==="new-payment"){ openPaymentModal({ uid }); }
+      if (action==="send-link"){ openSendLinkModal(uid); }
+      if (action==="set-exempt"){ openExemptModal(uid).then(async()=> { await reloadFinanceInsideModal(uid); }); }
+      if (action==="view-all"){ openAllInvoicesModal(uid); }
+      if (action==="edit-invoice"){
+        const invoiceId = btn.getAttribute("data-invid");
+        openPaymentModal({ uid, invoiceId });
+      }
+    });
+
+    async function reloadFinanceInsideModal(uidReload){
+      try{
+        const [sSnap, invSnap] = await Promise.all([
+          getDoc(doc(db,"users",uidReload,"finance","summary")),
+          getDocs(query(collection(db,"users",uidReload,"financeInvoices"), orderBy("dueDate","asc")))
+        ]);
+        const summary2 = sSnap.exists()? sSnap.data() : {};
+        const invDocs2 = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const m2 = computeMembership({ invoices: invDocs2, summary: summary2 });
+        const nextDueStr2 = m2.nextDue ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(m2.nextDue)) : "—";
+        userModalDiv.querySelector("#tabFinance").innerHTML = renderFinanceBlock(uidReload, summary2, invDocs2, nextDueStr2, m2);
+      }catch(e){ console.warn("reloadFinanceInsideModal", e); }
     }
   }
 
-  /* ===== Modal: Pagamento/Fatura (Plano = tipo) ===== */
+  function renderProfileFormModal(u, summary = {}) {
+    const ativo = (u.ativo !== false);
+    const isExempt = summary.exempt === true;
+    const untilStr = summary.exemptUntil
+        ? (summary.exemptUntil.toDate?.() ?? new Date(summary.exemptUntil))
+        : null;
+
+    return `
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Nome</label>
+          <input type="text" id="pfNome" class="form-control" value="${u.nome||''}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">CPF</label>
+          <input type="text" id="pfCPF" class="form-control" value="${u.cpf||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Telefone</label>
+          <input type="text" id="pfTelefone" class="form-control" value="${u.telefone||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">E-mail (opcional)</label>
+          <input type="email" id="pfEmail" class="form-control" value="${u.email||''}" placeholder="ex.: pessoa@email.com">
+        </div>
+        <div class="col-md-9">
+          <label class="form-label">Endereço</label>
+          <input type="text" id="pfEndereco" class="form-control" value="${u.endereco||''}">
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mt-4">
+            <input class="form-check-input" id="pfAtivo" type="checkbox" ${ativo?'checked':''}>
+            <label class="form-check-label">Ativo</label>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex flex-wrap gap-2 align-items-center p-2 border rounded">
+            <span class="badge ${isExempt ? 'text-bg-secondary' : 'text-bg-light border'}">
+              ${isExempt ? 'ISENTO' : 'NÃO ISENTO'}
+            </span>
+            ${isExempt && untilStr ? `<span class="small text-secondary">até <strong>${new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(untilStr)}</strong></span>` : ''}
+            <button class="btn btn-outline-secondary ms-auto" data-action="set-exempt">
+              ${isExempt ? 'Editar/Remover isenção' : 'Marcar como isento'}
+            </button>
+          </div>
+        </div>
+
+        <div class="col-12 text-end">
+          <button class="btn btn-outline-primary btn-save-profile">Salvar Perfil</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFinanceBlock(uid, summary, invDocs, nextDueStr, membership){
+    const last3 = [...invDocs].sort((a,b)=>{
+      const ad = a.dueDate?.toMillis?.() ?? new Date(a.dueDate||0).getTime();
+      const bd = b.dueDate?.toMillis?.() ?? new Date(b.dueDate||0).getTime();
+      return bd - ad;
+    }).slice(0,3);
+
+    const rows = last3.map(inv=>{
+      const s = String(inv.status||"").toLowerCase();
+      const badge = s==="pago" ? "bg-success" : s==="atrasado" ? "bg-danger" : s==="cancelado" ? "bg-secondary" : "bg-warning text-dark";
+      return `
+        <tr>
+          <td>${displayPlan(inv)}</td>
+          <td>${fmtBRL(inv.amount)}</td>
+          <td>${toDateStr(inv.planStart)||"—"}</td>
+          <td>${toDateStr(inv.planEnd)||"—"}</td>
+          <td>${toDateStr(inv.dueDate)||"—"}</td>
+          <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" data-action="edit-invoice" data-uid="${uid}" data-invid="${inv.id}">Editar</button>
+          </td>
+        </tr>
+      `;
+    }).join("") || `<tr><td colspan="7" class="text-center text-secondary">Sem faturas visíveis.</td></tr>`;
+
+    const overdueAlert = (membership.detail==="atrasado")
+      ? `<div class="alert alert-warning d-flex justify-content-between align-items-center">
+           <div>Este associado está <strong>Atrasado</strong> (até 10 dias do vencimento).</div>
+           <button class="btn btn-sm btn-danger" data-action="send-link" data-uid="${uid}">Notificar via WhatsApp</button>
+         </div>`
+      : (membership.detail==="vencido")
+        ? `<div class="alert alert-danger d-flex justify-content-between align-items-center">
+             <div>Este associado está <strong>Vencido</strong> (mais de 10 dias do vencimento).</div>
+             <button class="btn btn-sm btn-danger" data-action="send-link" data-uid="${uid}">Enviar cobrança (WhatsApp)</button>
+           </div>`
+        : "";
+
+    return `
+      ${overdueAlert}
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <button class="btn btn-primary" data-action="new-payment" data-uid="${uid}">Registrar pagamento</button>
+        <button class="btn btn-outline-primary" data-action="send-link" data-uid="${uid}">Enviar link</button>
+        <button class="btn btn-outline-secondary" data-action="set-exempt" data-uid="${uid}">
+          ${summary.exempt===true ? "Editar/Remover isenção" : "Marcar como isento"}
+        </button>
+        <button class="btn btn-light" data-action="view-all" data-uid="${uid}">Ver todas</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr>
+            <th>Plano</th><th>Valor</th><th>Início</th><th>Fim</th><th>Vencimento</th><th>Status</th><th class="text-end">Ações</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="small-muted">Próxima cobrança: <strong>${nextDueStr||"—"}</strong> (igual ao vencimento).</div>
+    `;
+  }
+
+  /* ===== Modal: Pagamento/Fatura ===== */
   let paymentModalDiv = null;
   function openPaymentModal({ uid, invoiceId=null }){
     if (paymentModalDiv) paymentModalDiv.remove();
@@ -744,13 +820,13 @@
       const t = input("#pfPlan").value;
       input("#pfEnd").toggleAttribute("disabled", t && t!=="custom");
       input("#pfEnd").classList.toggle("input-readonly", t && t!=="custom");
-      recalcEndByType();
+      if (t && t!=="custom") recalcEndByType();
     });
     input("#pfStart").addEventListener("change", ()=> recalcEndByType());
     input("#pfEnd").addEventListener("change", ()=> syncDueFromEnd());
 
     (async ()=>{
-      if (!invoiceId) { 
+      if (!invoiceId) {
         input("#pfEnd").setAttribute("disabled","disabled");
         input("#pfEnd").classList.add("input-readonly");
         return;
@@ -781,21 +857,20 @@
       try{
         await updateDoc(doc(db,"users",uid,"financeInvoices",invoiceId), { status:"cancelado", updatedAt: serverTimestamp() });
         showMsg("Fatura marcada como cancelada.", "success");
-        setTimeout(async ()=>{ modal.hide(); await loadFinanceForUser(uid); }, 600);
+        setTimeout(()=>{ modal.hide(); }, 600);
       }catch(e){ showMsg("Erro ao excluir (cancelar) fatura: "+e.message, "danger"); }
     });
 
     paymentModalDiv.querySelector("#paymentForm").addEventListener("submit", async (ev)=>{
       ev.preventDefault();
       try{
-        if (input("#pfEnd").value) input("#pfDue").value = input("#pfEnd").value; // Vencimento = Fim
+        if (input("#pfEnd").value) input("#pfDue").value = input("#pfEnd").value;
 
-          const planSel  = input("#pfPlan");
-          const planName = planSel.options[planSel.selectedIndex]?.text?.trim() || null;
+        const planSel  = input("#pfPlan");
+        const planName = planSel.options[planSel.selectedIndex]?.text?.trim() || null;
 
         const payload = {
           planType: input("#pfPlan").value || null,
-          
           amount: input("#pfAmount").value ? Number(input("#pfAmount").value) : null,
           planName,
           status: input("#pfStatus").value,
@@ -826,7 +901,7 @@
 
         await refreshSummaryFromInvoices(uid);
         showMsg("Dados financeiros salvos com sucesso.", "success");
-        setTimeout(async ()=>{ modal.hide(); await loadFinanceForUser(uid); }, 600);
+        setTimeout(()=>{ modal.hide(); }, 600);
       }catch(e){
         console.error(e);
         showMsg("Erro ao salvar: "+e.message, "danger");
@@ -834,7 +909,7 @@
     });
   }
 
-  /* ===== Modal: Isenção c/ duração ===== */
+  /* ===== Modal: Isenção ===== */
   let exemptDiv = null;
   async function openExemptModal(uid){
     if (exemptDiv) exemptDiv.remove();
@@ -897,7 +972,7 @@
       if(!confirm("Remover isenção deste associado?")) return;
       try{
         await setDoc(doc(db,"users",uid,"finance","summary"), { exempt:false, exemptUntil:null, updatedAt: serverTimestamp() }, { merge:true });
-        modal.hide(); await loadFinanceForUser(uid);
+        modal.hide();
       }catch(e){ alert("Falha ao remover isenção: "+e.message); }
     });
 
@@ -907,12 +982,12 @@
         const months = sel.value==="custom" ? Math.max(1, Number(custom.value||"1")) : Number(sel.value);
         const until = addMonthsSafe(now(), months);
         await setDoc(doc(db,"users",uid,"finance","summary"), { exempt:true, exemptUntil: until, updatedAt: serverTimestamp() }, { merge:true });
-        modal.hide(); await loadFinanceForUser(uid);
+        modal.hide();
       }catch(e){ alert("Falha ao aplicar isenção: "+e.message); }
     });
   }
 
-  /* ===== Modal: WhatsApp (mensagem nova) ===== */
+  /* ===== Modal: WhatsApp ===== */
   let sendLinkDiv = null;
   async function openSendLinkModal(uid){
     if (sendLinkDiv) sendLinkDiv.remove();
@@ -926,10 +1001,9 @@
         getDoc(doc(db,"users",uid,"finance","summary"))
       ]);
       phone = uSnap.exists() ? (uSnap.data().telefone || "") : "";
-      due = sSnap.exists()? toDateStr(snapToNextDue(sSnap)) : "";
+      const sd = sSnap.exists()? sSnap.data() : {};
+      due = toDateStr(sd.nextDue);
     }catch(e){ console.warn("sendLink query", e); }
-
-    function snapToNextDue(snap){ const d = snap.data()||{}; return d.nextDue; }
 
     const dueText = due ? fmtBRDate(new Date(due+"T00:00:00")) : "(data de vencimento)";
     const msg = `Olá! Aqui é do Clube do Cavalo. Sua associação vencerá dia ${dueText}. Segue o link para o pagamento: ${payPageUrl()}.
@@ -951,7 +1025,7 @@ Qualquer dúvida, estamos à disposição.`;
             </div>
           </div>
           <div class="modal-footer">
-            <a class="btn btn-success" id="slOpen" target="_blank" rel="noopener">Abrir WhatsApp</a>
+            <a class="btn btn-success" id="slOpen" target="_blank" rel="noopener" data-action="open-wpp">Abrir WhatsApp</a>
             <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
           </div>
         </div>
@@ -1050,7 +1124,7 @@ Qualquer dúvida, estamos à disposição.`;
         const bd = b.dueDate?.toMillis?.() ?? new Date(b.dueDate||0).getTime();
         return ad - bd;
       });
-      nextDue = open[0].dueDate || null;   // Próxima cobrança = Vencimento
+      nextDue = open[0].dueDate || null;
     }
 
     await setDoc(doc(db,"users",uid,"finance","summary"), {
@@ -1141,7 +1215,7 @@ Qualquer dúvida, estamos à disposição.`;
       const months = PLAN_MONTHS[mType.value];
       const end = addMonthsSafe(fromDateStr(mStart.value), months);
       mEnd.value = end ? end.toISOString().slice(0,10) : "";
-      mDue.value = mEnd.value; // Próxima cobrança = vencimento
+      mDue.value = mEnd.value;
     };
     mType.addEventListener("change", recalcMass);
     mStart.addEventListener("change", recalcMass);
@@ -1150,7 +1224,7 @@ Qualquer dúvida, estamos à disposição.`;
       ev.preventDefault();
       const amount = Number(massInvDiv.querySelector("#mAmount").value);
       const type = mType.value;
-      const planName = mType.options[mType.selectedIndex].text.trim(); 
+      const planName = mType.options[mType.selectedIndex].text.trim();
       const start = fromDateStr(mStart.value);
       const end = fromDateStr(mEnd.value);
       const due = end;
@@ -1160,7 +1234,7 @@ Qualquer dúvida, estamos à disposição.`;
         for(const uid of uids){
           await addDoc(collection(db,"users",uid,"financeInvoices"), {
             planType: type, amount, status:"em_aberto",
-            planName, 
+            planName,
             planStart: start, planEnd: end, dueDate: due,
             paymentUrl: url, recordedAt: serverTimestamp(),
             recordedByUid: operatorProfile.uid, recordedByName: operatorProfile.nome, recordedByCPF: operatorProfile.cpf
