@@ -116,13 +116,78 @@
   <!-- Ações -->
   <div class="card mt-3">
     <div class="card-body">
-      <div id="selecionado" class="mb-3 text-secondary">Nenhum plano selecionado.</div>
+      <div id="selecionado" class="mb-3 text-secondary">Pagamento</div>
 
-      <div class="d-grid gap-2 d-none" id="actionsRow">
-        <button id="btnCartao" class="btn btn-primary">Pagar com Cartão</button>
-        <button id="btnPix" class="btn btn-outline-primary">Gerar PIX (código e QR)</button>
-        <button id="btnBoleto" class="btn btn-outline-secondary">Gerar Boleto</button>
+      <div class="d-grid gap-2" id="actionsRow">
+
+        <!-- 1️⃣ PIX (ATIVO) 
+        <button class="btn btn-primary" disabled>
+          Gerar PIX (Código e QR Code)
+        </button>
+
+        <2️⃣ CARTÃO (INATIVO) 
+        <button class="btn btn-outline-secondary" disabled>
+          Pagar com Cartão (Não disponível no momento)
+        </button>
+
+        3️⃣ BOLETO (INATIVO) 
+        <button class="btn btn-outline-secondary" disabled>
+          Gerar Boleto (Não disponível no momento)
+        </button>-->
+
       </div>
+      <div id="pixBox" class="card mt-3 d-none">
+        <div class="card-body">
+
+          <div class="text-center">
+
+            <h5 class="mb-3">Pagamento via PIX</h5>
+
+            <!-- QR CODE -->
+            <img id="pixQr"
+                src=""
+                alt="QR Code PIX"
+                class="img-fluid mb-2"
+                style="max-width:260px">
+
+            <!-- TEXTO ABAIXO DO QR -->
+            <div class="fw-semibold mb-2">
+              Código PIX (copia e cola)
+            </div>
+
+          </div>
+
+          <!-- CÓDIGO PIX -->
+          <textarea id="pixCode"
+                    class="form-control mb-2"
+                    rows="4"
+                    readonly></textarea>
+
+          <button class="btn btn-outline-primary w-100 mb-3"
+                  type="button"
+                  onclick="navigator.clipboard.writeText(document.getElementById('pixCode').value)">
+            Copiar código PIX
+          </button>
+
+          <!-- AVISO + WHATSAPP -->
+          <div class="alert alert-warning small text-center mb-0">
+            Após realizar o pagamento, envie o comprovante para a Secretaria do Clube pelo WhatsApp<br>
+
+            <a href="https://wa.me/5531986685028?text=Ol%C3%A1!%20Gostaria%20de%20conversar%20sobre%20planos%20da%20associa%C3%A7%C3%A3o%20do%20Clube%20do%20Cavalo."
+              target="_blank"
+              class="fw-bold text-decoration-none d-inline-block mt-1">
+              📲 (31) 98668-5028
+            </a>
+
+            <div class="mt-2">
+              A associação será ativada após a conferência do pagamento.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
 
       <p class="text-muted mt-3 mb-0" id="msg"></p>
     </div>
@@ -156,7 +221,23 @@
   import {
     doc, getDoc, setDoc, onSnapshot, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
+const PIX_DATA = {
+  mensal: {
+    valor: "R$ 30,00",
+    qr: "assets/pix/pix_30.png",
+    code: "00020126560014br.gov.bcb.pix0134contato@clubedocavalobonfim.com.br520400005303986540530.005802BR5925CLUBE_DO_CAVALO_DE_BONFIM6006Bonfim610935480-00062200516MensalidadeCCBMG63048B7A"
+  },
+  trimestral: {
+    valor: "R$ 85,00",
+    qr: "assets/pix/pix_85.png",
+    code: "00020126560014br.gov.bcb.pix0134contato@clubedocavalobonfim.com.br520400005303986540585.005802BR5925CLUBE_DO_CAVALO_DE_BONFIM6006Bonfim610935480-00062240520TrimestralidadeCCBMG6304E4D8"
+  },
+  semestral: {
+    valor: "R$ 170,00",
+    qr: "assets/pix/pix_170.png",
+    code: "00020126560014br.gov.bcb.pix0134contato@clubedocavalobonfim.com.br5204000053039865406170.005802BR5925CLUBE_DO_CAVALO_DE_BONFIM6006Bonfim610935480-00062230519SemestralidadeCCBMG63042DF4"
+  }
+};
   // ====== CHAVE DO MP (Teste) ======
   const MP_PUBLIC_KEY = "APP_USR-ca3cc7b3-cb84-446e-b162-b2bdf9a94a48"; // substitua se necessário
 
@@ -176,6 +257,9 @@
   const btnPix        = document.getElementById("btnPix");
   const btnBoleto     = document.getElementById("btnBoleto");
   const offlineDiv    = document.getElementById("offlineResult");
+  const pixBox  = document.getElementById("pixBox");
+  const pixQr   = document.getElementById("pixQr");
+   const pixCode = document.getElementById("pixCode");
 
   let uid = null;
   let userEmail = null;
@@ -453,10 +537,16 @@
 
   radios.forEach(radio=>{
     radio.addEventListener("change", ()=>{
-      if (radio.checked) planoSelecionado = radio.value;
-      atualizarUIPlano();
-    });
+    planoSelecionado = radio.value;
+
+    const pix = PIX_DATA[planoSelecionado];
+    if (!pix) return;
+
+    pixQr.src = pix.qr;
+    pixCode.value = pix.code;
+    pixBox.classList.remove("d-none");
   });
+});
 
   // Brick apenas para cartão
   async function renderPaymentBrick(){

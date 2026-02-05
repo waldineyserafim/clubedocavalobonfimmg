@@ -48,22 +48,18 @@
 </nav>
 
   <main class="container" style="max-width: 560px; padding-top: 2rem;">
-    <h1 class="h4 mb-3">Criar conta</h1>
+    <h1 class="h4 mb-3">Cadastro de Associado</h1>
     <p class="text-muted">Preencha seus dados. O CPF será usado posteriormente para acessar sua conta, serviços, produtos e classificados.</p>
 
     <div class="card">
       <div class="card-body">
         <div class="mb-3">
-          <label class="form-label" for="cpf">CPF</label>
-          <input id="cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
-        </div>
-        <div class="mb-3">
-          <label class="form-label" for="senha">Senha</label>
-          <input id="senha" type="password" class="form-control" placeholder="Crie sua senha">
-        </div>
-        <div class="mb-3">
           <label class="form-label" for="nome">Nome completo</label>
           <input id="nome" class="form-control" placeholder="Seu nome completo">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="cpf">CPF</label>
+          <input id="cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
         </div>
         <div class="mb-3">
           <label class="form-label" for="tel">Telefone</label>
@@ -73,8 +69,12 @@
           <label class="form-label" for="end">Endereço</label>
           <textarea id="end" class="form-control" rows="2" placeholder="Rua, número, bairro, cidade/UF"></textarea>
         </div>
+        <div class="mb-3">
+          <label class="form-label" for="senha">Senha</label>
+          <input id="senha" type="password" class="form-control" placeholder="Crie sua senha">
+        </div>
 
-        <button id="btnCriar" class="btn btn-primary w-100">Criar conta</button>
+        <button id="btnCriar" class="btn btn-primary w-100">Cadastrar</button>
         <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
         <p id="msg" class="text-center text-muted mt-3"></p>
       </div>
