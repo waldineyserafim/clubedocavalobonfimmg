@@ -25,18 +25,30 @@
     header .container{ padding-top:1rem; padding-bottom:1rem; }
     @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
     .badge-role{ background:var(--accent); }
-    .users-header, .user-row{ display:grid; grid-template-columns: 34px 1fr 140px 180px 140px; gap:12px; align-items:center; }
+    .users-header, .user-row{ display:grid; grid-template-columns: 34px minmax(220px,1fr) 130px 120px 130px 160px; gap:12px; align-items:center; }
     .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
     .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
     .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
     .user-status .badge{ min-width:96px; }
+    .toolbar-search{ display:flex; align-items:center; gap:.75rem; }
+    .toolbar-search .form-control{ flex:1 1 auto; min-width:0; }
+    .toolbar-filters,
+    .toolbar-actions{ display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+    .toolbar-filters{ justify-content:center; }
+    .toolbar-actions{ justify-content:flex-end; }
     @media (max-width:991.98px){
-      .users-header, .user-row{ grid-template-columns: 34px 1fr 120px 160px 120px; }
+      .users-header, .user-row{ grid-template-columns: 34px minmax(180px,1fr) 120px 110px 120px 140px; }
+    }
+    @media (max-width:1199.98px){
+      .toolbar-filters,
+      .toolbar-actions{ justify-content:flex-start; }
     }
     @media (max-width:767.98px){
       .users-header{ display:none; }
       .user-row{ grid-template-columns: 34px 1fr 120px; }
-      .user-row .col-role, .user-row .col-status, .user-row .col-next{ display:none; }
+      .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value{ display:none; }
+      .toolbar-search{ flex-direction:column; align-items:stretch; }
+      .toolbar-search .btn{ width:100%; }
     }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
@@ -89,24 +101,30 @@
   <div class="card shadow-sm mb-3">
     <div class="card-body">
       <div class="row g-3 align-items-center">
-        <div class="col-12 col-lg-5 d-flex gap-2">
-          <input type="search" id="searchQuery" class="form-control" placeholder="Buscar por nome ou CPF">
-          <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
-          <button id="btnListAll" class="btn btn-outline-secondary">Listar (100)</button>
+        <div class="col-12 col-xl-4">
+          <div class="toolbar-search">
+            <input type="search" id="searchQuery" class="form-control" placeholder="Buscar por nome ou CPF">
+            <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
+          </div>
         </div>
-        <div class="col-12 col-lg-4 d-flex gap-2 justify-content-lg-center">
-          <button class="btn btn-sm btn-outline-primary" data-filter="all">Todos</button>
-          <button class="btn btn-sm btn-outline-primary" data-filter="em_dia">Em dia</button>
-          <button class="btn btn-sm btn-outline-primary" data-filter="pendente">Pendente</button>
-          <button class="btn btn-sm btn-outline-primary" data-filter="isento">Isento</button>
+        <div class="col-12 col-xl-3">
+          <div class="toolbar-filters">
+            <button class="btn btn-sm btn-outline-primary" data-filter="all">Todos</button>
+            <button class="btn btn-sm btn-outline-primary" data-filter="pendente">Pendente</button>
+            <button class="btn btn-sm btn-outline-primary" data-filter="isento">Isento</button>
+          </div>
         </div>
-        <div class="col-12 col-lg-3 d-flex gap-2 justify-content-lg-end">
-          <div class="dropdown">
-            <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">Ações em massa</button>
-            <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:280px">
-              <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
-              <button class="dropdown-item" id="actionSendReminders">Enviar lembrete (WhatsApp)</button>
-              <button class="dropdown-item" id="actionExportCsv">Baixar CSV</button>
+        <div class="col-12 col-xl-5">
+          <div class="toolbar-actions">
+            <button class="btn btn-outline-primary" id="btnNewAssocModal">Cadastrar associado</button>
+            <div class="dropdown">
+              <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">Ações em massa</button>
+              <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:280px">
+                <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
+                <button class="dropdown-item" id="actionSendReminders">Enviar lembrete (WhatsApp)</button>
+                <button class="dropdown-item" id="actionExportPdf">Baixar PDF</button>
+                <button class="dropdown-item" id="actionExportCsv">Baixar CSV</button>
+              </div>
             </div>
           </div>
         </div>
@@ -117,14 +135,16 @@
       <div class="users-header">
         <div><input type="checkbox" id="chkAll"></div>
         <div>Nome</div>
-        <div class="col-role">Perfil</div>
+        <div class="col-lastpay">Último pagamento</div>
+        <div class="col-value">Valor pago</div>
+        <div class="col-next">Próximo pagamento</div>
         <div class="col-status d-flex align-items-center gap-2">
           Situação financeira
           <i class="bi bi-info-circle text-secondary"
-             data-bs-toggle="popover"
-             data-bs-title="Regras de status"
-             data-bs-html="true"
-             data-bs-content="
+            data-bs-toggle="popover"
+            data-bs-title="Regras de status"
+            data-bs-html="true"
+            data-bs-content="
               <strong>Em dia</strong>: plano ativo (até o fim).<br>
               <strong>Atrasado</strong>: vencido há ≤ 10 dias.<br>
               <strong>Vencido</strong>: vencido há &gt; 10 dias.<br>
@@ -132,7 +152,6 @@
               <strong>Na lista</strong>: exibimos <em>Pendente</em> quando está <em>Atrasado</em> ou <em>Vencido</em>.">
           </i>
         </div>
-        <div class="col-next">Próxima cobrança</div>
       </div>
       <div id="usersWrap" class="mt-2">
         <div class="text-center text-secondary py-3">Use a busca ou liste todos.</div>
@@ -140,41 +159,6 @@
     </div>
   </div>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0">Cadastrar novo associado</h5>
-      </div>
-      <div class="mt-3">
-        <form id="formNewAssoc" class="row g-3">
-          <div class="col-sm-6 col-md-3">
-            <label class="form-label">CPF (somente números)</label>
-            <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
-          </div>
-          <div class="col-sm-6 col-md-3">
-            <label class="form-label">Senha inicial</label>
-            <input type="password" class="form-control" id="naPass" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Nome completo</label>
-            <input type="text" class="form-control" id="naNome" required>
-          </div>
-          <div class="col-sm-6 col-md-4">
-            <label class="form-label">Telefone</label>
-            <input type="text" class="form-control" id="naTel">
-          </div>
-          <div class="col-sm-6 col-md-8">
-            <label class="form-label">Endereço</label>
-            <input type="text" class="form-control" id="naEnd">
-          </div>
-          <div class="col-12 text-end">
-            <button class="btn btn-primary" type="submit">Criar associado</button>
-          </div>
-        </form>
-        <div id="naMsg" class="small mt-2"></div>
-      </div>
-    </div>
-  </div>
 </main>
 
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
@@ -187,6 +171,8 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script type="module">
   import { requireAuth, cpfToEmail } from "./firebase.js";
   import { auth, db } from "./firebase.js";
@@ -235,6 +221,19 @@
 
   const fmtBRL = (v)=> (v==null||v==="") ? "" : Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
   const toDateStr = (v)=> { try{ const d = v?.toDate ? v.toDate() : (v? new Date(v) : null); return d? d.toISOString().slice(0,10) : ""; } catch { return ""; } };
+  const fmtDateBRShort = (date)=> {
+    try{
+      const d = date?.toDate ? date.toDate() : (date ? new Date(date) : null);
+      return d && !Number.isNaN(d.getTime())
+        ? new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" }).format(d)
+        : "—";
+    }catch{
+      return "—";
+    }
+  };
+  const fmtDateCell = (v)=> {
+    return fmtDateBRShort(v);
+  };
   const fromDateStr = (s)=> s ? new Date(s+"T00:00:00") : null;
   const addDays = (date, n)=> { const d = new Date(date); d.setDate(d.getDate()+n); return d; };
   const addMonthsSafe = (date, months)=> {
@@ -247,7 +246,23 @@
   };
   const now = ()=> new Date();
   const payPageUrl = ()=> `${location.origin}/pay.html`;
-  const fmtBRDate = (date)=> new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(date);
+  const fmtBRDate = (date)=> fmtDateBRShort(date);
+  const fmtDateTimeBR = (date)=> {
+    try{
+      const d = date?.toDate ? date.toDate() : (date ? new Date(date) : null);
+      return d && !Number.isNaN(d.getTime())
+        ? new Intl.DateTimeFormat("pt-BR", {
+            day:"2-digit",
+            month:"2-digit",
+            year:"numeric",
+            hour:"2-digit",
+            minute:"2-digit"
+          }).format(d)
+        : "—";
+    }catch{
+      return "—";
+    }
+  };
 
   function computeMembership({ invoices = [], summary = {} }) {
     if (summary.exempt === true) {
@@ -303,6 +318,20 @@
     return inv.planType ? (PLAN_LABEL[inv.planType] || inv.planType) : "-";
   }
 
+  function getLatestPaidInvoice(invoices = []){
+    const paid = invoices
+      .filter(i => ["pago", "paga", "paid"].includes(String(i.status || "").toLowerCase()))
+      .map(i => {
+        const paidMs = i.paidAt?.toMillis?.() ?? (i.paidAt ? new Date(i.paidAt).getTime() : null);
+        const recordedMs = i.recordedAt?.toMillis?.() ?? (i.recordedAt ? new Date(i.recordedAt).getTime() : null);
+        return { ...i, _sortMs: paidMs ?? recordedMs ?? 0 };
+      })
+      .filter(i => i._sortMs > 0)
+      .sort((a, b) => b._sortMs - a._sortMs);
+
+    return paid[0] || null;
+  }
+
   function wppUrl(phoneRaw, text){
     const p = (phoneRaw||"").replace(/\D/g,"");
     const msg = encodeURIComponent(text||"");
@@ -310,53 +339,203 @@
   }
 
   /* ===== Novo associado ===== */
-  const formNewAssoc = document.getElementById("formNewAssoc");
-  const naCPF = document.getElementById("naCPF");
-  const naPass = document.getElementById("naPass");
-  const naNome = document.getElementById("naNome");
-  const naTel  = document.getElementById("naTel");
-  const naEnd  = document.getElementById("naEnd");
-  const naMsg  = document.getElementById("naMsg");
+  let newAssocModalDiv = null;
+  document.getElementById("btnNewAssocModal")?.addEventListener("click", openNewAssocModal);
 
-  formNewAssoc?.addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    naMsg.textContent = "Criando associado...";
-    try{
-      const email = cpfToEmail(naCPF.value);
-      const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
-      const uid = cred.user.uid;
+  function renderFinanceSetupFields(prefix = "na"){
+    return `
+      <div class="col-12"><hr class="my-2"><h6 class="mb-0">Financeiro inicial</h6></div>
+      <div class="col-md-4">
+        <label class="form-label">Plano inicial</label>
+        <select class="form-select" id="${prefix}Plan">
+          <option value="">Sem plano inicial</option>
+          <option value="mensal">Mensal</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Valor pago (R$)</label>
+        <input type="number" step="0.01" class="form-control" id="${prefix}Amount">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Status financeiro</label>
+        <select class="form-select" id="${prefix}Status">
+          <option value="pago">pago</option>
+          <option value="em_aberto">em_aberto</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Início do plano</label>
+        <input type="date" class="form-control" id="${prefix}Start">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Fim do plano</label>
+        <input type="date" class="form-control" id="${prefix}End">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Data do pagamento</label>
+        <input type="date" class="form-control" id="${prefix}PaidAt">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Método</label>
+        <input type="text" class="form-control" id="${prefix}Method" placeholder="PIX, dinheiro, cartão">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Observação</label>
+        <input type="text" class="form-control" id="${prefix}Notes" placeholder="Opcional">
+      </div>
+    `;
+  }
 
-      await setDoc(doc(db,"users",uid), {
-        cpf: naCPF.value.trim().replace(/\D/g,""),
-        nome: naNome.value.trim(),
-        telefone: naTel.value.trim(),
-        endereco: naEnd.value.trim(),
-        role: "Associado",
-        ativo: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+  function bindPlanAutofill(root, prefix = "na"){
+    const input = (id)=> root.querySelector(`#${prefix}${id}`);
+    const syncEnd = ()=>{
+      const type = input("Plan").value;
+      if (!type || type === "custom") return;
+      let startStr = input("Start").value;
+      if (!startStr){
+        startStr = new Date().toISOString().slice(0,10);
+        input("Start").value = startStr;
+      }
+      const end = addMonthsSafe(fromDateStr(startStr), PLAN_MONTHS[type]);
+      input("End").value = end ? end.toISOString().slice(0,10) : "";
+    };
+    input("Plan")?.addEventListener("change", syncEnd);
+    input("Start")?.addEventListener("change", syncEnd);
+  }
 
-      await setDoc(doc(db,"users",uid,"finance","summary"), {
-        lastPayment: null, lastAmount: null, nextDue: null, activeUntil: null,
-        exempt: false, exemptUntil: null, updatedAt: serverTimestamp()
-      }, { merge:true });
+  async function createInitialFinanceIfNeeded(uid, root, prefix = "na"){
+    const input = (id)=> root.querySelector(`#${prefix}${id}`);
+    const planType = input("Plan").value || null;
+    const amount = input("Amount").value ? Number(input("Amount").value) : null;
+    const status = input("Status").value;
+    const planStart = input("Start").value ? fromDateStr(input("Start").value) : null;
+    const planEnd = input("End").value ? fromDateStr(input("End").value) : null;
+    const paidAt = input("PaidAt").value ? fromDateStr(input("PaidAt").value) : null;
+    const method = input("Method").value.trim() || null;
+    const notes = input("Notes").value.trim() || null;
+    if (!planType && amount == null && !planStart && !planEnd && !paidAt && !method && !notes) return;
+    const planName = planType ? (PLAN_LABEL[planType] || planType) : null;
+    await addDoc(collection(db,"users",uid,"financeInvoices"), {
+      planType,
+      planName,
+      amount,
+      status,
+      paidAt,
+      planStart,
+      planEnd,
+      dueDate: planEnd,
+      method,
+      notes,
+      recordedByUid: operatorProfile.uid || null,
+      recordedByName: operatorProfile.nome || null,
+      recordedByCPF: operatorProfile.cpf || null,
+      recordedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await refreshSummaryFromInvoices(uid);
+  }
 
-      naMsg.textContent = `Associado criado! UID: ${uid}`;
-      formNewAssoc.reset();
-      await signOutSec(secAuth);
-      listUsers("");
-    }catch(err){
-      console.error(err);
-      naMsg.textContent = "Erro: " + err.message;
-    }
-  });
+  function openNewAssocModal(){
+    if (newAssocModalDiv) newAssocModalDiv.remove();
+    newAssocModalDiv = document.createElement("div");
+    newAssocModalDiv.className = "modal fade";
+    newAssocModalDiv.tabIndex = -1;
+    newAssocModalDiv.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <form class="modal-content" id="formNewAssoc">
+          <div class="modal-header">
+            <h5 class="modal-title">Cadastrar novo associado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <div id="naMsg" class="d-none"></div>
+            <div class="row g-3">
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">CPF (somente números)</label>
+                <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Senha inicial</label>
+                <input type="password" class="form-control" id="naPass" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Nome completo</label>
+                <input type="text" class="form-control" id="naNome" required>
+              </div>
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="naTel">
+              </div>
+              <div class="col-sm-6 col-md-8">
+                <label class="form-label">Endereço</label>
+                <input type="text" class="form-control" id="naEnd">
+              </div>
+              ${renderFinanceSetupFields("na")}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Criar associado</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(newAssocModalDiv);
+    const modal = new bootstrap.Modal(newAssocModalDiv);
+    modal.show();
+    bindPlanAutofill(newAssocModalDiv, "na");
+    const form = newAssocModalDiv.querySelector("#formNewAssoc");
+    const msg = newAssocModalDiv.querySelector("#naMsg");
+    const showMsg = (text, kind = "info")=>{
+      msg.textContent = text;
+      msg.className = `alert alert-${kind}`;
+      msg.classList.remove("d-none");
+    };
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      showMsg("Criando associado...");
+      try{
+        const naCPF = newAssocModalDiv.querySelector("#naCPF");
+        const naPass = newAssocModalDiv.querySelector("#naPass");
+        const naNome = newAssocModalDiv.querySelector("#naNome");
+        const naTel  = newAssocModalDiv.querySelector("#naTel");
+        const naEnd  = newAssocModalDiv.querySelector("#naEnd");
+        const email = cpfToEmail(naCPF.value);
+        const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
+        const uid = cred.user.uid;
+        await setDoc(doc(db,"users",uid), {
+          cpf: naCPF.value.trim().replace(/\D/g,""),
+          nome: naNome.value.trim(),
+          telefone: naTel.value.trim(),
+          endereco: naEnd.value.trim(),
+          role: "Associado",
+          ativo: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        await setDoc(doc(db,"users",uid,"finance","summary"), {
+          lastPayment: null, lastAmount: null, nextDue: null, activeUntil: null,
+          exempt: false, exemptUntil: null, updatedAt: serverTimestamp()
+        }, { merge:true });
+        await createInitialFinanceIfNeeded(uid, newAssocModalDiv, "na");
+        await signOutSec(secAuth);
+        showMsg(`Associado criado! UID: ${uid}`, "success");
+        setTimeout(()=>{ modal.hide(); listUsers(""); }, 700);
+      }catch(err){
+        console.error(err);
+        showMsg("Erro: " + err.message, "danger");
+      }
+    });
+  }
 
   /* ===== Lista / filtros ===== */
   const usersWrap = document.getElementById("usersWrap");
   const searchQuery = document.getElementById("searchQuery");
   document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
-  document.getElementById("btnListAll")?.addEventListener("click", ()=> { searchQuery.value=""; listUsers(""); });
 
   let currentFilter = "all";
   document.querySelectorAll("[data-filter]").forEach(btn=>{
@@ -413,9 +592,10 @@
       <div class="user-row" id="row-${uid}">
         <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
         <button class="user-name" type="button" data-uid="${uid}">${u.nome||"Sem nome"}</button>
-        <div class="text-uppercase small col-role"><span class="badge badge-role">${(String(u.role||"associado")).toUpperCase()}</span></div>
-        <div class="user-status col-status"><span class="badge bg-secondary">Carregando...</span></div>
+        <div class="last-payment text-secondary small col-lastpay">—</div>
+        <div class="last-amount text-secondary small col-value">—</div>
         <div class="next-due text-secondary small col-next">—</div>
+        <div class="user-status col-status"><span class="badge bg-secondary">Carregando...</span></div>
       </div>
     `;
   }
@@ -453,7 +633,10 @@
       }
 
       const m = computeMembership({ invoices: invDocs, summary });
-      const nextDueStr = m.nextDue ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(m.nextDue)) : "—";
+      const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
+      const latestPaid = getLatestPaidInvoice(invDocs);
+      const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
+      const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
 
       if (currentFilter !== "all" && m.listCode !== currentFilter){
         row.classList.add("d-none");
@@ -470,6 +653,10 @@
       }
       const nd = row.querySelector(".next-due");
       if (nd) nd.textContent = nextDueStr;
+      const lp = row.querySelector(".last-payment");
+      if (lp) lp.textContent = lastPaymentDisplay;
+      const la = row.querySelector(".last-amount");
+      if (la) la.textContent = lastAmountValue != null ? fmtBRL(lastAmountValue) : "—";
     }catch(e){
       console.error("Falha ao carregar financeiro de", uid, e);
       const stEl = document.querySelector(`#row-${uid} .user-status .badge`);
@@ -504,7 +691,7 @@
     userModalDiv.tabIndex = -1;
 
     const m = computeMembership({ invoices: invDocs, summary });
-    const nextDueStr = m.nextDue ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(m.nextDue)) : "—";
+    const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
 
     const perfilHtml = renderProfileFormModal(u, summary);
     const financeiroHtml = renderFinanceBlock(uid, summary, invDocs, nextDueStr, m);
@@ -520,13 +707,13 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <ul class="nav nav-tabs" id="userTabs">
-              <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabProfile">Perfil</button></li>
-              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFinance">Financeiro</button></li>
-            </ul>
-            <div class="tab-content pt-3">
-              <div class="tab-pane fade show active" id="tabProfile">${perfilHtml}</div>
-              <div class="tab-pane fade" id="tabFinance">${financeiroHtml}</div>
+            <div class="mb-4">
+              <h6 class="border-bottom pb-2 mb-3">Perfil</h6>
+              ${perfilHtml}
+            </div>
+            <div id="tabFinance">
+              <h6 class="border-bottom pb-2 mb-3">Financeiro</h6>
+              ${financeiroHtml}
             </div>
           </div>
           <div class="modal-footer">
@@ -580,8 +767,11 @@
         const summary2 = sSnap.exists()? sSnap.data() : {};
         const invDocs2 = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
         const m2 = computeMembership({ invoices: invDocs2, summary: summary2 });
-        const nextDueStr2 = m2.nextDue ? new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(new Date(m2.nextDue)) : "—";
-        userModalDiv.querySelector("#tabFinance").innerHTML = renderFinanceBlock(uidReload, summary2, invDocs2, nextDueStr2, m2);
+        const nextDueStr2 = m2.nextDue ? fmtDateBRShort(new Date(m2.nextDue)) : "—";
+        userModalDiv.querySelector("#tabFinance").innerHTML = `
+          <h6 class="border-bottom pb-2 mb-3">Financeiro</h6>
+          ${renderFinanceBlock(uidReload, summary2, invDocs2, nextDueStr2, m2)}
+        `;
       }catch(e){ console.warn("reloadFinanceInsideModal", e); }
     }
   }
@@ -627,7 +817,7 @@
             <span class="badge ${isExempt ? 'text-bg-secondary' : 'text-bg-light border'}">
               ${isExempt ? 'ISENTO' : 'NÃO ISENTO'}
             </span>
-            ${isExempt && untilStr ? `<span class="small text-secondary">até <strong>${new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(untilStr)}</strong></span>` : ''}
+            ${isExempt && untilStr ? `<span class="small text-secondary">até <strong>${fmtBRDate(untilStr)}</strong></span>` : ''}
             <button class="btn btn-outline-secondary ms-auto" data-action="set-exempt">
               ${isExempt ? 'Editar/Remover isenção' : 'Marcar como isento'}
             </button>
@@ -655,9 +845,9 @@
         <tr>
           <td>${displayPlan(inv)}</td>
           <td>${fmtBRL(inv.amount)}</td>
-          <td>${toDateStr(inv.planStart)||"—"}</td>
-          <td>${toDateStr(inv.planEnd)||"—"}</td>
-          <td>${toDateStr(inv.dueDate)||"—"}</td>
+          <td>${fmtDateCell(inv.planStart)}</td>
+          <td>${fmtDateCell(inv.planEnd)}</td>
+          <td>${fmtDateCell(inv.dueDate)}</td>
           <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
           <td class="text-end">
             <button class="btn btn-sm btn-outline-primary" data-action="edit-invoice" data-uid="${uid}" data-invid="${inv.id}">Editar</button>
@@ -683,9 +873,6 @@
       <div class="d-flex flex-wrap gap-2 mb-2">
         <button class="btn btn-primary" data-action="new-payment" data-uid="${uid}">Registrar pagamento</button>
         <button class="btn btn-outline-primary" data-action="send-link" data-uid="${uid}">Enviar link</button>
-        <button class="btn btn-outline-secondary" data-action="set-exempt" data-uid="${uid}">
-          ${summary.exempt===true ? "Editar/Remover isenção" : "Marcar como isento"}
-        </button>
         <button class="btn btn-light" data-action="view-all" data-uid="${uid}">Ver todas</button>
       </div>
 
@@ -730,7 +917,7 @@
                     <option value="anual">Anual</option>
                     <option value="custom">Personalizado</option>
                   </select>
-                <div class="form-text">Ao selecionar, "Fim" e "Vencimento" são calculados.</div>
+                <div class="form-text">Ao selecionar, a data de fim é calculada automaticamente.</div>
               </div>
               <div class="col-md-4">
                 <label class="form-label">Valor (R$)</label>
@@ -755,30 +942,12 @@
                 <input type="date" class="form-control" id="pfEnd">
               </div>
               <div class="col-md-4">
-                <label class="form-label">Vencimento (igual ao Fim)</label>
-                <input type="date" class="form-control input-readonly" id="pfDue" disabled>
-              </div>
-
-              <div class="col-md-4">
                 <label class="form-label">Data do pagamento</label>
                 <input type="date" class="form-control" id="pfPaidAt">
               </div>
               <div class="col-md-4">
                 <label class="form-label">Método</label>
                 <input type="text" class="form-control" id="pfMethod" placeholder="PIX, MP, Dinheiro, Cartão">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">GatewayId / Ref</label>
-                <input type="text" class="form-control" id="pfGateway">
-              </div>
-
-              <div class="col-md-8">
-                <label class="form-label">Link de pagamento (opcional)</label>
-                <input type="url" class="form-control" id="pfPaymentUrl" placeholder="https://...">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Telefone/WhatsApp do associado</label>
-                <input type="text" class="form-control" id="pfPhone" placeholder="DDD+Número">
               </div>
 
               <div class="col-12">
@@ -802,7 +971,6 @@
     const input = (id)=> paymentModalDiv.querySelector(id);
     const showMsg = (t,k="info")=>{ payMsg.textContent=t; payMsg.className=`alert alert-${k}`; payMsg.classList.remove("d-none"); };
 
-    const syncDueFromEnd = ()=> { input("#pfDue").value = input("#pfEnd").value || ""; };
     const recalcEndByType = ()=>{
       const t = input("#pfPlan").value;
       if (!t || t==="custom") return;
@@ -814,7 +982,6 @@
       }
       const end = addMonthsSafe(fromDateStr(startStr), months);
       input("#pfEnd").value = end ? end.toISOString().slice(0,10) : "";
-      syncDueFromEnd();
     };
     input("#pfPlan").addEventListener("change", ()=>{
       const t = input("#pfPlan").value;
@@ -823,8 +990,6 @@
       if (t && t!=="custom") recalcEndByType();
     });
     input("#pfStart").addEventListener("change", ()=> recalcEndByType());
-    input("#pfEnd").addEventListener("change", ()=> syncDueFromEnd());
-
     (async ()=>{
       if (!invoiceId) {
         input("#pfEnd").setAttribute("disabled","disabled");
@@ -841,12 +1006,8 @@
         input("#pfPaidAt").value = toDateStr(inv.paidAt);
         input("#pfStart").value = toDateStr(inv.planStart);
         input("#pfEnd").value = toDateStr(inv.planEnd);
-        input("#pfDue").value = toDateStr(inv.dueDate);
         input("#pfMethod").value = inv.method||"";
-        input("#pfGateway").value = inv.gatewayId||"";
         input("#pfNotes").value = inv.notes||"";
-        input("#pfPaymentUrl").value = inv.paymentUrl||"";
-        input("#pfPhone").value = inv.customerPhone||"";
         input("#pfEnd").toggleAttribute("disabled", inv.planType && inv.planType!=="custom");
         input("#pfEnd").classList.toggle("input-readonly", inv.planType && inv.planType!=="custom");
       }catch(e){ console.error(e); showMsg("Falha ao carregar a fatura: "+e.message, "danger"); }
@@ -864,8 +1025,6 @@
     paymentModalDiv.querySelector("#paymentForm").addEventListener("submit", async (ev)=>{
       ev.preventDefault();
       try{
-        if (input("#pfEnd").value) input("#pfDue").value = input("#pfEnd").value;
-
         const planSel  = input("#pfPlan");
         const planName = planSel.options[planSel.selectedIndex]?.text?.trim() || null;
 
@@ -877,12 +1036,9 @@
           paidAt: input("#pfPaidAt").value ? fromDateStr(input("#pfPaidAt").value) : null,
           planStart: input("#pfStart").value ? fromDateStr(input("#pfStart").value) : null,
           planEnd: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
-          dueDate: input("#pfDue").value ? fromDateStr(input("#pfDue").value) : null,
+          dueDate: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
           method: input("#pfMethod").value.trim() || null,
-          gatewayId: input("#pfGateway").value.trim() || null,
           notes: input("#pfNotes").value.trim() || null,
-          paymentUrl: input("#pfPaymentUrl").value.trim() || null,
-          customerPhone: input("#pfPhone").value.trim() || null,
           recordedByUid: operatorProfile.uid || null,
           recordedByName: operatorProfile.nome || null,
           recordedByCPF: operatorProfile.cpf || null,
@@ -1059,9 +1215,9 @@ Qualquer dúvida, estamos à disposição.`;
         return `<tr>
           <td>${displayPlan(inv)}</td>
           <td>${fmtBRL(inv.amount)}</td>
-          <td>${toDateStr(inv.planStart)||"—"}</td>
-          <td>${toDateStr(inv.planEnd)||"—"}</td>
-          <td>${toDateStr(inv.dueDate)||"—"}</td>
+          <td>${fmtDateCell(inv.planStart)}</td>
+          <td>${fmtDateCell(inv.planEnd)}</td>
+          <td>${fmtDateCell(inv.dueDate)}</td>
           <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
           <td class="small">${inv.method||""}</td>
           <td class="small">${inv.gatewayId||""}</td>
@@ -1101,18 +1257,13 @@ Qualquer dúvida, estamos à disposição.`;
 
     let lastPayment=null, lastAmount=null, nextDue=null, activeUntil=null;
 
-    const paid = invoices.filter(i=> String(i.status||"").toLowerCase()==="pago");
-    if (paid.length){
-      paid.sort((a,b)=> {
-        const ap = a.paidAt?.toMillis?.() ?? new Date(a.paidAt||0).getTime();
-        const bp = b.paidAt?.toMillis?.() ?? new Date(b.paidAt||0).getTime();
-        return bp - ap;
-      });
-      lastPayment = paid[0].paidAt || null;
-      lastAmount = paid[0].amount ?? null;
+    const latestPaid = getLatestPaidInvoice(invoices);
+    if (latestPaid){
+      lastPayment = latestPaid.paidAt || latestPaid.recordedAt || null;
+      lastAmount = latestPaid.amount ?? null;
 
-      if (paid[0].planEnd){
-        const end = paid[0].planEnd?.toDate?.() ?? new Date(paid[0].planEnd);
+      if (latestPaid.planEnd){
+        const end = latestPaid.planEnd?.toDate?.() ?? new Date(latestPaid.planEnd);
         activeUntil = addDays(end, 10);
       }
     }
@@ -1139,6 +1290,7 @@ Qualquer dúvida, estamos à disposição.`;
   /* ===== Ações em massa ===== */
   document.getElementById("actionGenInvoices")?.addEventListener("click", openMassInvoiceModal);
   document.getElementById("actionSendReminders")?.addEventListener("click", massSendReminders);
+  document.getElementById("actionExportPdf")?.addEventListener("click", exportPdfSelected);
   document.getElementById("actionExportCsv")?.addEventListener("click", exportCsvSelected);
 
   function getSelectedUids(){
@@ -1302,6 +1454,70 @@ Qualquer dúvida, estamos à disposição.`;
     a.href = url; a.download = `associados_financeiro_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function exportPdfSelected(){
+    const uids = getSelectedUids();
+    if (!uids.length){ alert("Selecione pelo menos um associado."); return; }
+    const jsPDFCtor = window.jspdf?.jsPDF;
+    if (!jsPDFCtor){
+      alert("Biblioteca de PDF não carregada. Recarregue a página e tente novamente.");
+      return;
+    }
+
+    const rows = [];
+    for (const uid of uids){
+      try{
+        const [uSnap, sSnap, invSnap] = await Promise.all([
+          getDoc(doc(db,"users",uid)),
+          getDoc(doc(db,"users",uid,"finance","summary")),
+          getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+        ]);
+        const u = uSnap.data() || {};
+        const s = sSnap.data() || {};
+        const invoices = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const membership = computeMembership({ invoices, summary: s });
+        const latestPaid = getLatestPaidInvoice(invoices);
+        const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(s.lastPayment);
+        const lastAmountDisplay = (latestPaid?.amount ?? s.lastAmount) != null ? fmtBRL(latestPaid?.amount ?? s.lastAmount) : "—";
+        const nextDueDisplay = membership.nextDue ? fmtDateBRShort(new Date(membership.nextDue)) : "—";
+
+        rows.push([
+          u.nome || "—",
+          u.telefone || "—",
+          lastPaymentDisplay,
+          lastAmountDisplay,
+          nextDueDisplay,
+          membership.listBadge || "—"
+        ]);
+      }catch(e){
+        console.warn("pdf user fail", uid, e);
+      }
+    }
+
+    if (!rows.length){
+      alert("Não foi possível montar os dados para exportação.");
+      return;
+    }
+
+    const generatedAt = new Date();
+    const generatedAtDate = fmtDateBRShort(generatedAt).replace(/\//g, "-");
+    const generatedAtDateTime = fmtDateTimeBR(generatedAt);
+    const docPdf = new jsPDFCtor({ orientation:"landscape", unit:"mm", format:"a4" });
+    docPdf.setFontSize(14);
+    docPdf.text("CCBMG - Lista de Associados x Situação Financeira", 14, 15);
+    docPdf.setFontSize(9);
+    docPdf.text(`Gerado em ${generatedAtDateTime}`, 14, 21);
+    docPdf.autoTable({
+      startY: 26,
+      head: [["Nome", "Telefone", "Último pagamento", "Valor pago", "Próximo pagamento", "Situação financeira"]],
+      body: rows,
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      headStyles: { fillColor: [17, 18, 121] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: 10, right: 10 }
+    });
+    docPdf.save(`CCBMG - Lista de Associados x Situação Financeira - ${generatedAtDate}.pdf`);
   }
 </script>
 </body>
