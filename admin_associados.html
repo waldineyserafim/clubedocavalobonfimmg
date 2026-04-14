@@ -36,8 +36,114 @@
     .toolbar-actions{ display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
     .toolbar-filters{ justify-content:center; }
     .toolbar-actions{ justify-content:flex-end; }
+    .assoc-dashboard{
+      display:grid;
+      grid-template-columns:minmax(280px, 360px) minmax(0,1fr);
+      gap:1rem;
+      align-items:stretch;
+    }
+    .assoc-chart-card,
+    .assoc-metrics-card{
+      border:1px solid #e9ecef;
+      border-radius:1rem;
+      background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      padding:1rem;
+      height:100%;
+    }
+    .assoc-chart-wrap{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:1rem;
+      min-height:260px;
+    }
+    .assoc-pie{
+      --pie-bg:conic-gradient(#dfe6ee 0deg 360deg);
+      width:220px;
+      aspect-ratio:1;
+      border-radius:50%;
+      background:var(--pie-bg);
+      position:relative;
+      box-shadow:inset 0 0 0 1px rgba(17,18,121,.06);
+    }
+    .assoc-pie::after{
+      content:"";
+      position:absolute;
+      inset:22%;
+      background:#fff;
+      border-radius:50%;
+      box-shadow:0 0 0 1px rgba(17,18,121,.06);
+    }
+    .assoc-pie-center{
+      position:absolute;
+      inset:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      z-index:1;
+      text-align:center;
+      line-height:1.1;
+    }
+    .assoc-pie-center strong{
+      font-size:2rem;
+      color:var(--brand);
+    }
+    .assoc-legend{
+      display:grid;
+      gap:.75rem;
+      width:100%;
+    }
+    .assoc-legend-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:.75rem;
+      padding:.6rem .75rem;
+      border-radius:.85rem;
+      background:#fff;
+      border:1px solid #eef2f7;
+    }
+    .assoc-legend-label{
+      display:flex;
+      align-items:center;
+      gap:.6rem;
+      min-width:0;
+    }
+    .assoc-legend-swatch{
+      width:.85rem;
+      height:.85rem;
+      border-radius:50%;
+      flex:0 0 auto;
+    }
+    .assoc-metrics-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0,1fr));
+      gap:.9rem;
+      height:100%;
+    }
+    .assoc-metric{
+      border-radius:1rem;
+      padding:1rem;
+      color:#fff;
+      min-height:110px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      box-shadow:0 12px 28px rgba(15,23,42,.08);
+    }
+    .assoc-metric strong{
+      font-size:2rem;
+      line-height:1;
+    }
+    .assoc-metric-total{ background:linear-gradient(135deg, #111279 0%, #3949ab 100%); }
+    .assoc-metric-up{ background:linear-gradient(135deg, #198754 0%, #38b778 100%); }
+    .assoc-metric-pending{ background:linear-gradient(135deg, #f59f00 0%, #ffd166 100%); color:#3d2e00; }
+    .assoc-metric-inactive{ background:linear-gradient(135deg, #6c757d 0%, #adb5bd 100%); }
     @media (max-width:991.98px){
       .users-header, .user-row{ grid-template-columns: 34px minmax(180px,1fr) 120px 110px 120px 140px; }
+      .assoc-dashboard{ grid-template-columns:1fr; }
     }
     @media (max-width:1199.98px){
       .toolbar-filters,
@@ -49,6 +155,8 @@
       .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value{ display:none; }
       .toolbar-search{ flex-direction:column; align-items:stretch; }
       .toolbar-search .btn{ width:100%; }
+      .assoc-pie{ width:180px; }
+      .assoc-metrics-grid{ grid-template-columns:1fr; }
     }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
@@ -131,6 +239,51 @@
       </div>
 
       <hr class="my-3">
+
+      <section class="assoc-dashboard mb-4" aria-label="Resumo dos associados">
+        <div class="assoc-chart-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h6 mb-1">Dashboard de associados</h2>
+              <p class="small text-secondary mb-0">Visão rápida da situação atual do quadro de associados.</p>
+            </div>
+          </div>
+          <div class="assoc-chart-wrap">
+            <div id="assocPie" class="assoc-pie" aria-hidden="true">
+              <div class="assoc-pie-center">
+                <span class="small text-secondary">Total</span>
+                <strong id="assocPieTotal">0</strong>
+              </div>
+            </div>
+            <div id="assocLegend" class="assoc-legend"></div>
+          </div>
+        </div>
+
+        <div class="assoc-metrics-card">
+          <div class="assoc-metrics-grid">
+            <div class="assoc-metric assoc-metric-total">
+              <span class="small text-uppercase">Associados</span>
+              <strong id="metricTotal">0</strong>
+              <span class="small opacity-75">Base carregada na listagem atual</span>
+            </div>
+            <div class="assoc-metric assoc-metric-up">
+              <span class="small text-uppercase">Em dia</span>
+              <strong id="metricUpToDate">0</strong>
+              <span class="small opacity-75">Inclui isentos ativos</span>
+            </div>
+            <div class="assoc-metric assoc-metric-pending">
+              <span class="small text-uppercase">Pendentes</span>
+              <strong id="metricPending">0</strong>
+              <span class="small opacity-75">Com pagamento em atraso ou vencido</span>
+            </div>
+            <div class="assoc-metric assoc-metric-inactive">
+              <span class="small text-uppercase">Inativos</span>
+              <strong id="metricInactive">0</strong>
+              <span class="small opacity-75">Associados com cadastro desativado</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div class="users-header">
         <div><input type="checkbox" id="chkAll"></div>
@@ -535,7 +688,73 @@
   /* ===== Lista / filtros ===== */
   const usersWrap = document.getElementById("usersWrap");
   const searchQuery = document.getElementById("searchQuery");
+  const assocPie = document.getElementById("assocPie");
+  const assocPieTotal = document.getElementById("assocPieTotal");
+  const assocLegend = document.getElementById("assocLegend");
+  const metricTotal = document.getElementById("metricTotal");
+  const metricUpToDate = document.getElementById("metricUpToDate");
+  const metricPending = document.getElementById("metricPending");
+  const metricInactive = document.getElementById("metricInactive");
   document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
+
+  function renderDashboard(stats = { total:0, emDia:0, pendente:0, inativo:0 }){
+    const total = Number(stats.total || 0);
+    const emDia = Number(stats.emDia || 0);
+    const pendente = Number(stats.pendente || 0);
+    const inativo = Number(stats.inativo || 0);
+    const segments = [
+      { label:"Em dia", value: emDia, color:"#198754" },
+      { label:"Pendentes", value: pendente, color:"#f59f00" },
+      { label:"Inativos", value: inativo, color:"#6c757d" }
+    ];
+
+    metricTotal.textContent = total;
+    metricUpToDate.textContent = emDia;
+    metricPending.textContent = pendente;
+    metricInactive.textContent = inativo;
+    assocPieTotal.textContent = total;
+
+    if (!total) {
+      assocPie.style.setProperty("--pie-bg", "conic-gradient(#dfe6ee 0deg 360deg)");
+      assocLegend.innerHTML = `
+        <div class="assoc-legend-item">
+          <div class="assoc-legend-label">
+            <span class="assoc-legend-swatch" style="background:#dfe6ee"></span>
+            <span class="small text-secondary">Nenhum associado encontrado na busca atual.</span>
+          </div>
+          <strong>0</strong>
+        </div>
+      `;
+      return;
+    }
+
+    let currentDeg = 0;
+    const stops = [];
+    for (const item of segments) {
+      const sliceDeg = (item.value / total) * 360;
+      const nextDeg = currentDeg + sliceDeg;
+      stops.push(`${item.color} ${currentDeg}deg ${nextDeg}deg`);
+      currentDeg = nextDeg;
+    }
+    assocPie.style.setProperty("--pie-bg", `conic-gradient(${stops.join(", ")})`);
+    assocLegend.innerHTML = segments.map(item => `
+      <div class="assoc-legend-item">
+        <div class="assoc-legend-label">
+          <span class="assoc-legend-swatch" style="background:${item.color}"></span>
+          <span>${item.label}</span>
+        </div>
+        <strong>${item.value}</strong>
+      </div>
+    `).join("");
+  }
+
+  function classifyMemberForDashboard(userData, membership){
+    const statusStr = String(userData?.status ?? userData?.situacao ?? userData?.sit ?? "")
+      .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    const isInactive = userData?.ativo === false || userData?.isActive === false || /inativ|suspens|bloquead/.test(statusStr);
+    if (isInactive) return "inativo";
+    return membership?.listCode === "pendente" ? "pendente" : "emDia";
+  }
 
   let currentFilter = "all";
   document.querySelectorAll("[data-filter]").forEach(btn=>{
@@ -553,6 +772,7 @@
   async function listUsers(term){
     if(!usersWrap) return;
     usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
+    renderDashboard();
     let docs=[];
     try{
       if(!term){
@@ -569,11 +789,13 @@
     }catch(e){
       console.error("Falha ao consultar usuários", e);
       usersWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao consultar usuários.</div>`;
+      renderDashboard();
       return;
     }
 
     if(!docs.length){
       usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`;
+      renderDashboard();
       return;
     }
 
@@ -583,7 +805,14 @@
     }).join("");
     attachUserRowHandlers();
 
-    for (const d of docs){ await loadFinanceForRow(d.id); }
+    const results = await Promise.all(docs.map(d => loadFinanceForRow(d.id, d.data())));
+    const stats = { total: docs.length, emDia: 0, pendente: 0, inativo: 0 };
+    for (const result of results) {
+      if (result === "inativo") stats.inativo += 1;
+      else if (result === "pendente") stats.pendente += 1;
+      else stats.emDia += 1;
+    }
+    renderDashboard(stats);
   }
 
   function renderUserRow(u){
@@ -614,7 +843,7 @@
     }catch(e){ console.warn("autoPatchInvoices", uid, e); }
   }
 
-  async function loadFinanceForRow(uid){
+  async function loadFinanceForRow(uid, userData = null){
     const row = document.getElementById(`row-${uid}`);
     if (!row) return;
 
@@ -633,12 +862,13 @@
       }
 
       const m = computeMembership({ invoices: invDocs, summary });
+      const dashboardStatus = classifyMemberForDashboard(userData, m);
       const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
       const latestPaid = getLatestPaidInvoice(invDocs);
       const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
       const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
 
-      if (currentFilter !== "all" && m.listCode !== currentFilter){
+      if (currentFilter !== "all" && (dashboardStatus === "inativo" ? "inativo" : m.listCode) !== currentFilter){
         row.classList.add("d-none");
       } else {
         row.classList.remove("d-none");
@@ -646,10 +876,11 @@
 
       const stEl = row.querySelector(".user-status .badge");
       if (stEl){
-        stEl.className = "badge " + (m.listCode==="em_dia" ? "bg-success"
+        stEl.className = "badge " + (dashboardStatus==="inativo" ? "bg-secondary"
+                          : m.listCode==="em_dia" ? "bg-success"
                           : m.listCode==="pendente" ? "bg-warning text-dark"
                           : m.listCode==="isento" ? "text-bg-secondary" : "text-bg-secondary");
-        stEl.textContent = m.listBadge;
+        stEl.textContent = dashboardStatus === "inativo" ? "Inativo" : m.listBadge;
       }
       const nd = row.querySelector(".next-due");
       if (nd) nd.textContent = nextDueStr;
@@ -657,10 +888,12 @@
       if (lp) lp.textContent = lastPaymentDisplay;
       const la = row.querySelector(".last-amount");
       if (la) la.textContent = lastAmountValue != null ? fmtBRL(lastAmountValue) : "—";
+      return dashboardStatus;
     }catch(e){
       console.error("Falha ao carregar financeiro de", uid, e);
       const stEl = document.querySelector(`#row-${uid} .user-status .badge`);
       if (stEl){ stEl.className = "badge text-bg-secondary"; stEl.textContent = "—"; }
+      return "inativo";
     }
   }
 
