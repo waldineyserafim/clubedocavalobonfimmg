@@ -463,7 +463,7 @@
 
     const listCode = (detail === "atrasado" || detail === "vencido") ? "pendente" : "em_dia";
     const listBadge = listCode === "pendente" ? "Pendente" : "Em dia";
-    return { listCode, listBadge, detail, nextDue: earliestDue || null };
+    return { listCode, listBadge, detail, nextDue: earliestDue || lastPaidEnd || null };
   }
 
   function displayPlan(inv){
@@ -625,7 +625,7 @@
               </div>
               <div class="col-sm-6 col-md-8">
                 <label class="form-label">Endereço</label>
-                <input type="text" class="form-control" id="naEnd">
+                <input type="text" class="form-control" id="naEndereco">
               </div>
               ${renderFinanceSetupFields("na")}
             </div>
@@ -656,7 +656,7 @@
         const naPass = newAssocModalDiv.querySelector("#naPass");
         const naNome = newAssocModalDiv.querySelector("#naNome");
         const naTel  = newAssocModalDiv.querySelector("#naTel");
-        const naEnd  = newAssocModalDiv.querySelector("#naEnd");
+        const naEndereco = newAssocModalDiv.querySelector("#naEndereco");
         const email = cpfToEmail(naCPF.value);
         const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
         const uid = cred.user.uid;
@@ -664,7 +664,7 @@
           cpf: naCPF.value.trim().replace(/\D/g,""),
           nome: naNome.value.trim(),
           telefone: naTel.value.trim(),
-          endereco: naEnd.value.trim(),
+          endereco: naEndereco.value.trim(),
           role: "Associado",
           ativo: true,
           createdAt: serverTimestamp(),
@@ -960,6 +960,7 @@
     const modal = new bootstrap.Modal(userModalDiv); modal.show();
 
     userModalDiv.querySelector(".btn-save-profile")?.addEventListener("click", async (e)=>{
+      const saveBtn = e.currentTarget;
       const q = (sel)=> userModalDiv.querySelector(sel);
       const payload = {
         nome: q('#pfNome').value.trim(),
@@ -972,8 +973,8 @@
       };
       try{
         await updateDoc(doc(db,"users",uid), payload);
-        e.currentTarget.textContent = "Perfil salvo!";
-        setTimeout(()=> e.currentTarget.textContent = "Salvar Perfil", 1200);
+        if(saveBtn) saveBtn.textContent = "Perfil salvo!";
+        setTimeout(()=>{ if(saveBtn) saveBtn.textContent = "Salvar Perfil"; }, 1200);
       }catch(err){ alert("Erro ao salvar perfil: "+err.message); }
     });
 
