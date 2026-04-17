@@ -25,7 +25,7 @@
     header .container{ padding-top:1rem; padding-bottom:1rem; }
     @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
     .badge-role{ background:var(--accent); }
-    .users-header, .user-row{ display:grid; grid-template-columns: 34px minmax(220px,1fr) 130px 120px 130px 130px 160px; gap:12px; align-items:center; }
+    .users-header, .user-row{ display:grid; grid-template-columns: 34px minmax(150px,1fr) minmax(120px,1fr) 130px 120px 130px 130px 160px; gap:12px; align-items:center; }
     .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
     .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
     .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
@@ -186,7 +186,7 @@
     .assoc-metric-pending{ background:linear-gradient(135deg, #f59f00 0%, #ffd166 100%); color:#3d2e00; }
     .assoc-metric-inactive{ background:linear-gradient(135deg, #6c757d 0%, #adb5bd 100%); }
     @media (max-width:991.98px){
-      .users-header, .user-row{ grid-template-columns: 34px minmax(180px,1fr) 120px 110px 120px 110px 140px; }
+      .users-header, .user-row{ grid-template-columns: 34px minmax(150px,1fr) minmax(100px,1fr) 120px 110px 110px 110px 140px; }
       .assoc-dashboard{ grid-template-columns:1fr; }
     }
     @media (max-width:1199.98px){
@@ -196,7 +196,7 @@
     @media (max-width:767.98px){
       .users-header{ display:none; }
       .user-row{ grid-template-columns: 34px 1fr 120px; }
-      .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan{ display:none; }
+      .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan, .user-row .col-apelido{ display:none; }
       .toolbar-search{ flex-direction:column; align-items:stretch; }
       .toolbar-search .btn{ width:100%; }
       .assoc-pie{ width:180px; }
@@ -332,6 +332,7 @@
       <div class="users-header">
         <div><input type="checkbox" id="chkAll"></div>
         <div>Nome</div>
+        <div class="col-apelido">Apelido</div>
         <div class="col-plan">Plano</div>
         <div class="col-lastpay">Último pagamento</div>
         <div class="col-value">Valor pago</div>
@@ -663,6 +664,10 @@
                 <input type="password" class="form-control" id="naPass" required>
               </div>
               <div class="col-md-6">
+                <label class="form-label">Apelido</label>
+                <input type="text" class="form-control" id="naApelido" placeholder="Opcional">
+              </div>
+              <div class="col-md-6">
                 <label class="form-label">Nome completo</label>
                 <input type="text" class="form-control" id="naNome" required>
               </div>
@@ -701,6 +706,7 @@
       try{
         const naCPF = newAssocModalDiv.querySelector("#naCPF");
         const naPass = newAssocModalDiv.querySelector("#naPass");
+        const naApelido = newAssocModalDiv.querySelector("#naApelido");
         const naNome = newAssocModalDiv.querySelector("#naNome");
         const naTel  = newAssocModalDiv.querySelector("#naTel");
         const naEndereco = newAssocModalDiv.querySelector("#naEndereco");
@@ -709,6 +715,7 @@
         const uid = cred.user.uid;
         await setDoc(doc(db,"users",uid), {
           cpf: naCPF.value.trim().replace(/\D/g,""),
+          apelido: naApelido.value.trim() || null,
           nome: naNome.value.trim(),
           telefone: naTel.value.trim(),
           endereco: naEndereco.value.trim(),
@@ -948,6 +955,7 @@
       <div class="user-row" id="row-${uid}">
         <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
         <button class="user-name" type="button" data-uid="${uid}">${u.nome||"Sem nome"}</button>
+        <div class="apelido-display col-apelido text-secondary small">${u.apelido||"—"}</div>
         <div class="plan-display col-plan">—</div>
         <div class="last-payment text-secondary small col-lastpay">—</div>
         <div class="last-amount text-secondary small col-value">—</div>
@@ -1104,6 +1112,7 @@
       const q = (sel)=> userModalDiv.querySelector(sel);
       const payload = {
         nome: q('#pfNome').value.trim(),
+        apelido: q('#pfApelido').value.trim() || null,
         cpf: q('#pfCPF').value.trim().replace(/\D/g,""),
         telefone: q('#pfTelefone').value.trim(),
         endereco: q('#pfEndereco').value.trim(),
@@ -1115,6 +1124,16 @@
         await updateDoc(doc(db,"users",uid), payload);
         if(saveBtn) saveBtn.textContent = "Perfil salvo!";
         setTimeout(()=>{ if(saveBtn) saveBtn.textContent = "Salvar Perfil"; }, 1200);
+        // Atualizar a linha do usuário na tabela
+        const row = document.getElementById(`row-${uid}`);
+        if (row) {
+          const apelidoEl = row.querySelector('.apelido-display');
+          if (apelidoEl) apelidoEl.textContent = payload.apelido || "—";
+          const nomeEl = row.querySelector('.user-name');
+          if (nomeEl) nomeEl.textContent = payload.nome || "Sem nome";
+        }
+        // Atualizar financeiro para refletir possíveis mudanças de status
+        await loadFinanceForRow(uid, payload);
       }catch(err){ alert("Erro ao salvar perfil: "+err.message); }
     });
 
@@ -1162,6 +1181,10 @@
         <div class="col-md-4">
           <label class="form-label">Nome</label>
           <input type="text" id="pfNome" class="form-control" value="${u.nome||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Apelido</label>
+          <input type="text" id="pfApelido" class="form-control" value="${u.apelido||''}" placeholder="Opcional">
         </div>
         <div class="col-md-2">
           <label class="form-label">CPF</label>
