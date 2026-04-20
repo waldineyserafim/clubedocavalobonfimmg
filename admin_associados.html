@@ -47,9 +47,10 @@
     .toolbar-search{ display:flex; align-items:center; gap:.75rem; }
     .toolbar-search .form-control{ flex:1 1 auto; min-width:0; }
     .toolbar-filters,
-    .toolbar-actions{ display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+    .toolbar-actions{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
     .toolbar-filters{ justify-content:center; }
     .toolbar-actions{ justify-content:flex-end; }
+    .toolbar-filters .btn{ font-size:.75rem; padding:.25rem .5rem; white-space:nowrap; }
     .assoc-dashboard{
       display:grid;
       grid-template-columns:minmax(280px, 360px) minmax(0,1fr);
@@ -262,8 +263,10 @@
         <div class="col-12 col-xl-3">
           <div class="toolbar-filters">
             <button class="btn btn-sm btn-outline-primary" data-filter="all">Todos</button>
-            <button class="btn btn-sm btn-outline-primary" data-filter="pendente">Pendente</button>
-            <button class="btn btn-sm btn-outline-primary" data-filter="isento">Isento</button>
+            <button class="btn btn-sm btn-outline-warning" data-filter="expiring_5days">À vencer em 5 dias</button>
+            <button class="btn btn-sm btn-outline-danger" data-filter="due_today">Vence Hoje</button>
+            <button class="btn btn-sm btn-outline-secondary" data-filter="overdue_5days">Vencido 5-10 dias</button>
+            <button class="btn btn-sm btn-outline-dark" data-filter="overdue_more_10days">Vencido > 10 dias</button>
           </div>
         </div>
         <div class="col-12 col-xl-5">
@@ -1010,11 +1013,52 @@
       const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
       const planClass = planType ? `plan-chip plan-chip-${planType}` : "plan-chip plan-chip-none";
 
-      // Aplicar filtros combinados (toolbar + dashboard)
-      const toolbarFilterMatch = currentFilter === "all" || (dashboardStatus === "inativo" ? "inativo" : m.listCode) === currentFilter;
+      // Lógica de filtros baseados em data de vencimento (Próximo Pagamento)
+      let dateFilterMatch = true;
+      // Usar m.nextDue que já é calculado pela função computeMembership
+      const planEndDate = m.nextDue;
+
+      // Excluir associados Inativo e Isento dos filtros de data
+      const dateFilters = ["expiring_5days", "due_today", "overdue_5days", "overdue_more_10days"];
+      if (dateFilters.includes(currentFilter)) {
+        if (dashboardStatus === "inativo" || m.listCode === "isento") {
+          dateFilterMatch = false;
+        }
+      }
+
+      if (planEndDate && dateFilterMatch) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDate = new Date(planEndDate);
+        const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+        const daysDiff = Math.floor((dueDay - today) / (24 * 3600 * 1000));
+
+        if (currentFilter === "expiring_5days") {
+          // À vencer em 5 dias: vence entre hoje e 5 dias no futuro
+          dateFilterMatch = daysDiff >= 0 && daysDiff <= 5;
+        } else if (currentFilter === "due_today") {
+          // Vence Hoje
+          dateFilterMatch = daysDiff === 0;
+        } else if (currentFilter === "overdue_5days") {
+          // Vencido entre 5 e 10 dias
+          dateFilterMatch = daysDiff < 0 && daysDiff >= -10 && daysDiff < -5;
+        } else if (currentFilter === "overdue_more_10days") {
+          // Vencido há 10 dias ou mais
+          dateFilterMatch = daysDiff < -10;
+        }
+      } else {
+        // Se não há data de vencimento, não corresponde aos filtros de data
+        if (dateFilters.includes(currentFilter)) {
+          dateFilterMatch = false;
+        }
+      }
+
+      // Aplicar filtros combinados (toolbar + dashboard + data)
+      const isDateFilter = dateFilters.includes(currentFilter);
+      const toolbarFilterMatch = currentFilter === "all" || isDateFilter || (dashboardStatus === "inativo" ? "inativo" : m.listCode) === currentFilter;
       const dashboardFilterMatch = dashboardFilter === "all" || dashboardStatus === dashboardFilter || (dashboardFilter === "em_dia" && dashboardStatus === "emDia");
 
-      if (!toolbarFilterMatch || !dashboardFilterMatch) {
+      if (!toolbarFilterMatch || !dashboardFilterMatch || !dateFilterMatch) {
         row.classList.add("d-none");
       } else {
         row.classList.remove("d-none");
