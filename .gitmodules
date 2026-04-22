@@ -1,0 +1,3 @@
+[submodule "ccbmg-payments-api"]
+	path = ccbmg-payments-api
+	url = https://github.com/waldineyserafim/ccbmg-payments-api.git

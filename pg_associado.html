@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Anti-cache leve -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <title>Área do Associado — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Área do associado com benefícios, destaques, produtos, serviços e classificados.">
+  <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png" />
+
+  <style>
+    :root{ --brand:#111279; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; filter:brightness(0) invert(1); }
+    @media (min-width:992px){ .brand-logo{ height:42px; } }
+
+    header{ padding-top:1.25rem; padding-bottom:1rem; }
+    .chip{ border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:999px; padding:.35rem .75rem; font-size:.85rem; display:inline-flex; gap:.5rem; align-items:center; }
+    .chip .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
+    .dot-ok{ background:#28a745; } .dot-warn{ background:#ffc107; } .dot-bad{ background:#dc3545; }
+
+    .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+    @media (min-width:992px){ .subnav{ top:64px; } }
+    .subnav .btn{ border-radius:999px; }
+
+    .carousel-banner{ position:relative; border-radius:16px; overflow:hidden; }
+    .banner-mosaic{
+      display:grid; gap:6px; height: clamp(200px, 28vw, 320px);
+      grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr;
+      background:#f8f9fa;
+    }
+    .banner-mosaic .big{ grid-column:1; grid-row:1 / span 2; }
+    .banner-mosaic .small.top{ grid-column:2; grid-row:1; }
+    .banner-mosaic .small.bottom{ grid-column:2; grid-row:2; }
+
+    .tile-img{
+      width:100%; height:100%;
+      background-size: contain; background-position: center center;
+      background-repeat: no-repeat; background-color:#f8f9fa; display:block;
+    }
+    .tile-overlay{
+      position:absolute; inset:auto 0 0 0; padding:.75rem .9rem;
+      background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 100%);
+      color:#fff; display:flex; flex-direction:column; gap:.35rem;
+      z-index:5;
+    }
+    .badge-soft{ background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.35); }
+    .carousel-control-prev, .carousel-control-next{ filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); z-index:1; }
+    .carousel-indicators [data-bs-target]{ background:#6c757d; }
+    .carousel-indicators .active{ background:#212529; }
+
+    .alert-soft{ background:#fff3cd; border:1px solid #ffe69c; }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
+        <li class="nav-item d-none" id="adminBtn"><a class="btn btn-warning text-dark ms-4" href="admin.html">Painel Admin</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== HEADER / CHIPS ===== -->
+<header class="bg-light border-bottom">
+  <div class="container d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+    <div class="w-100">
+      <h1 class="h4 mb-1">Área do Associado</h1>
+      <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">—</strong></div>
+      <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+        <span id="chipPlan" class="chip d-none">Plano: <strong id="chipPlanText" class="ms-1">—</strong></span>
+        <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">Situação: —</span></span>
+        <span id="chipNextDue" class="chip d-none">Vencimento: <strong id="chipNextDueText" class="ms-1">—</strong></span>
+        <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">Renovar plano</a>
+      </div>
+    </div>
+
+    <!-- ===== BOTOEIRA (2 linhas como no print) ===== -->
+    <div class="d-flex flex-column align-items-md-end gap-1">
+
+      <!-- linha 2: Trocar senha | Sair -->
+      <div class="d-flex gap-1 flex-nowrap justify-content-end">
+        <button id="btnOpenPwModal" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#pwModal">
+          Trocar senha
+        </button>
+        <button id="logoutBtn" class="btn btn-primary">Sair</button>
+      </div>
+      <!-- linha 1: Cadastrar classificado -->
+      <button id="btnNewClassified" class="btn btn-outline-primary btn-sm text-nowrap d-none" data-bs-toggle="modal" data-bs-target="#classifiedModal">
+        Cadastrar classificado
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== SUB NAV (atalhos) ===== -->
+<div class="subnav">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>🟢Exclusivos para Associados:</strong></div>
+  </div>
+  <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
+    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html">Produtos</a>
+    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html">Serviços</a>
+    <a class="btn btn-sm btn-outline-primary" href="classificados.html">Classificados</a>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<main class="container my-3">
+
+  <!-- Aviso financeiro quando inativo -->
+  <div id="alertFinance" class="alert alert-soft d-none" role="alert">
+    Seu acesso está <strong>limitado</strong> até a regularização. <a class="alert-link" href="pay.html">Clique para renovar</a>.
+  </div>
+
+  <!-- ===== Destaques: Carousel ===== -->
+  <section class="mt-4">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h2 class="h5 m-0">🔰Destaques</h2>
+    </div>
+
+    <div id="deckLoading" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status"></div>
+      <div class="mt-2 text-secondary small">Carregando destaques…</div>
+    </div>
+
+    <div id="deckEmpty" class="text-center text-muted py-5 d-none">Nenhum destaque disponível no momento.</div>
+
+    <!-- Carousel container (render dinâmico) -->
+    <div id="destaquesCarouselWrap" class="d-none">
+      <div id="destaquesCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3000">
+        <div class="carousel-indicators" id="carIndicators"></div>
+        <div class="carousel-inner" id="carInner"></div>
+
+        <button class="carousel-control-prev" type="button" data-bs-target="#destaquesCarousel" data-bs-slide="prev" aria-label="Anterior">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#destaquesCarousel" data-bs-slide="next" aria-label="Próximo">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+
+    <div id="deckError" class="alert alert-danger d-none mt-3"></div>
+  </section>
+
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- ===== APP SCRIPT ===== -->
+<script type="module">
+  import { auth, db, getUserProfile, getUserStatus, uploadImageFile } from "./firebase.js";
+  import {
+    onAuthStateChanged, signOut,
+    reauthenticateWithCredential, updatePassword, EmailAuthProvider
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { collection, getDocs, query, where, doc, addDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  
+  // ====== UI refs ======
+  const memberNameEl = document.getElementById("memberName");
+  const btnRenewPlan = document.getElementById("btnRenewPlan");
+  const chipPlan = document.getElementById("chipPlan");
+  const chipPlanText = document.getElementById("chipPlanText");
+  const chipPayStatus = document.getElementById("chipPayStatus");
+  const chipPayText = document.getElementById("chipPayText");
+  const chipPayDot = document.getElementById("chipPayDot");
+  const chipNextDue = document.getElementById("chipNextDue");
+  const chipNextDueText = document.getElementById("chipNextDueText");
+  const adminBtn = document.getElementById("adminBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
+  const alertFinance = document.getElementById("alertFinance");
+  const btnNewClassified = document.getElementById("btnNewClassified");
+
+  const deckLoading = document.getElementById("deckLoading");
+  const deckEmpty = document.getElementById("deckEmpty");
+  const deckError = document.getElementById("deckError");
+  const carWrap = document.getElementById("destaquesCarouselWrap");
+  const carInner = document.getElementById("carInner");
+  const carIndicators = document.getElementById("carIndicators");
+
+  // ===== Modal Novo Classificado (DOM refs)
+  const classifiedModalEl = document.getElementById("classifiedModal");
+  const classifiedForm = document.getElementById("classifiedForm");
+  const clsTitle = document.getElementById("clsTitle");
+  const clsPrice = document.getElementById("clsPrice");
+  const clsContact = document.getElementById("clsContact");
+  const clsDesc = document.getElementById("clsDesc");
+  const clsFeedback = document.getElementById("clsFeedback");
+  const clsImagesInput = document.getElementById("clsImages");
+  const btnPickImgs = document.getElementById("btnPickImgs");
+  const btnClearImgs = document.getElementById("btnClearImgs");
+  const imgPreviewGrid = document.getElementById("imgPreviewGrid");
+  const imgProgressList = document.getElementById("imgProgressList");
+  let selectedFiles = [];
+
+  // ===== Modal Trocar Senha (DOM refs)
+  const pwOld = document.getElementById("pwOld");
+  const pwNew = document.getElementById("pwNew");
+  const pwNew2 = document.getElementById("pwNew2");
+  const btnChangePw = document.getElementById("btnChangePw");
+  const btnTogglePw = document.getElementById("btnTogglePw");
+  const pwMsg = document.getElementById("pwMsg");
+
+  const PAYMENT_URL = "https://mpago.la/1mJpCsd";
+
+  const fmtDate = (ts)=> {
+    if (!ts) return "—";
+    try { const d = ts?.toDate ? ts.toDate() : new Date(ts);
+      return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
+    } catch { return "—"; }
+  };
+
+  function setPayStatusBadge(kind){
+    const s = String(kind||"").toLowerCase();
+    chipPayStatus.classList.remove("d-none");
+    if (s.includes("em dia")) { chipPayText.textContent="Situação: Em dia"; chipPayDot.className="dot dot-ok"; }
+    else if (s.includes("atras")) { chipPayText.textContent="Situação: Atrasada"; chipPayDot.className="dot dot-warn"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
+    else { chipPayText.textContent="Situação: Vencida"; chipPayDot.className="dot dot-bad"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
+  }
+
+  const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
+
+  function applySummaryToUI(summary){
+    const planType = String(summary?.planType || "").toLowerCase();
+    if (planType && PLAN_LABEL[planType]) {
+      chipPlanText.textContent = PLAN_LABEL[planType];
+      chipPlan.classList.remove("d-none");
+    }
+    if (summary?.nextDue) {
+      chipNextDueText.textContent = fmtDate(summary.nextDue);
+      chipNextDue.classList.remove("d-none");
+    }
+    try {
+      const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
+      const active = !!activeUntil && activeUntil.getTime() > Date.now();
+      if (active) {
+        setPayStatusBadge("Em dia");
+        btnRenewPlan.classList.add("d-none");
+        alertFinance.classList.add("d-none");
+        btnNewClassified?.classList.remove("d-none");
+      } else {
+        btnRenewPlan.classList.remove("d-none");
+        alertFinance.classList.remove("d-none");
+        btnNewClassified?.classList.add("d-none");
+      }
+    } catch(_) {}
+  }
+
+  const RENEW_SOON_DAYS = 5;
+  const GRACE_OVERDUE_DAYS = 10;
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+  function toDateMaybe(ts){
+    try { return ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null); }
+    catch { return null; }
+  }
+  function daysDiffFromNow(date){
+    if (!date) return null;
+    const d = toDateMaybe(date);
+    if (!d || isNaN(d.getTime())) return null;
+    return Math.floor((d.getTime() - Date.now()) / MS_PER_DAY);
+  }
+  function applyRenewRules(dueDate){
+    const days = daysDiffFromNow(dueDate);
+    if (days == null) return;
+
+    if (days >= 0) {
+      if (days <= RENEW_SOON_DAYS) {
+        btnRenewPlan.classList.remove("d-none");
+      }
+      return;
+    }
+
+    const overdueDays = Math.abs(days);
+    if (overdueDays <= GRACE_OVERDUE_DAYS) {
+      btnRenewPlan.classList.remove("d-none");
+      alertFinance.classList.remove("d-none");
+    } else {
+      location.href = "pay.html?reason=overdue_block";
+    }
+  }
+
+  // ===== Auth / Header =====
+  onAuthStateChanged(auth, async (user)=>{
+    if(!user){ location.href="login.html"; return; }
+
+    const p = await getUserProfile(user.uid) || {};
+    memberNameEl.textContent = p.nome || (user.email?.split("@")[0]) || "associado";
+    const role = String(p.role||"").toLowerCase();
+    if (/(admin|master)/.test(role)) adminBtn.classList.remove("d-none");
+
+    const st = await getUserStatus(user.uid);
+    let planName = p.planName || p.plano || (p.finance?.summary?.planName) || "—";
+    let nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || (p.finance?.summary?.nextDue);
+
+    if (planName && planName!=="—"){ chipPlanText.textContent = planName; chipPlan.classList.remove("d-none"); }
+    if (nextDue){ chipNextDueText.textContent = fmtDate(nextDue); chipNextDue.classList.remove("d-none"); }
+
+    if (!st || st.active){ setPayStatusBadge("Em dia"); }
+    else if (st.pending){ setPayStatusBadge("Atrasada"); }
+    else { setPayStatusBadge("Vencida"); }
+    if (!st?.active){ btnRenewPlan.classList.remove("d-none"); }
+
+    if (st?.active) {
+      btnNewClassified?.classList.remove("d-none");
+    } else {
+      btnNewClassified?.classList.add("d-none");
+    }
+
+    applyRenewRules(nextDue);
+
+    try {
+      const sumRef = doc(db, "users", user.uid, "finance", "summary");
+      onSnapshot(sumRef, (snap) => {
+        if (!snap.exists()) return;
+        const summary = snap.data() || {};
+        applySummaryToUI(summary);
+        const duePref = summary?.nextDue || summary?.activeUntil || null;
+        applyRenewRules(duePref);
+      });
+    } catch(err) { /* opcional */ }
+
+    // Carregar destaques (banner)
+    loadHighlights();
+  });
+
+  logoutBtn?.addEventListener("click", async ()=>{
+    try{ await signOut(auth); location.href="login.html"; }
+    catch(e){ alert("Não foi possível sair: " + e.message); }
+  });
+
+  // ===== Destaques helpers (banner) =====
+  function pickFeaturedFlag(doc){
+    return (doc?.destaque === true) || (doc?.featured === true) || (doc?.isFeatured === true);
+  }
+  function pickActiveFlag(doc){
+    const inactive = (doc?.active === false) || (doc?.ativo === false);
+    return !inactive;
+  }
+
+  function collectImages(obj){
+    let arr = [];
+    if (Array.isArray(obj?.imageUrls)) arr = obj.imageUrls;
+    else if (Array.isArray(obj?.images)) arr = obj.images;
+    else if (obj?.imageUrl) arr = [obj.imageUrl];
+    else if (obj?.img) arr = [obj.img];
+
+    arr = arr
+      .map(v => {
+        if (!v) return null;
+        if (typeof v === "string") return v.trim();
+        if (typeof v === "object" && v.url) return String(v.url).trim();
+        return null;
+      })
+      .filter(Boolean)
+      .filter(u => /^https?:\/\//i.test(u) || /^data:image\//i.test(u));
+    if (!arr.length) arr = ["assets/img/placeholder.png"];
+    return arr.slice(0,3);
+  }
+  function primaryImage(obj){
+    const imgs = collectImages(obj);
+    return imgs[0];
+  }
+  function whatsUrl(v){
+    const w = (v||"").toString().replace(/\D/g,"");
+    return w ? `https://wa.me/${w}?text=${encodeURIComponent("Olá! Vi seu anúncio no Clube do Cavalo.")}` : "";
+  }
+  function toEpoch(x){
+    try{
+      if (!x) return 0;
+      if (x.toDate) return x.toDate().getTime();
+      const d = new Date(x);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    }catch{ return 0; }
+  }
+
+  async function fetchCollection(colName, typeLabel){
+    const snap = await getDocs(collection(db, colName));
+    const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+      .filter(r => pickActiveFlag(r) && pickFeaturedFlag(r))
+      .map(r => ({ ...r,
+        __type:typeLabel,
+        __imgs: collectImages(r),
+        __img: primaryImage(r),
+        __wpp: whatsUrl(r.whatsapp),
+        __created: toEpoch(r.createdAt),
+        __price: r.price
+      }));
+    return rows;
+  }
+
+  async function fetchClassificados(){
+    const candidates = ["classificados","classifieds","memberClassifieds"];
+    for (const col of candidates){
+      try{
+        const snap = await getDocs(collection(db,col));
+        if (!snap.empty){
+          const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+            .filter(r => pickActiveFlag(r) && pickFeaturedFlag(r))
+            .map(r => ({ ...r,
+              __type:"Classificado",
+              __imgs: collectImages(r),
+              __img: primaryImage(r),
+              __wpp: whatsUrl(r.whatsapp),
+              __created: toEpoch(r.createdAt),
+              __price: r.price
+            }));
+          return rows;
+        }
+      }catch(e){ /* tenta próximo */ }
+    }
+    return [];
+  }
+
+  function renderSlideHTML(it){
+    const href = (it.__type==="Produto") ? "produtos_associado.html"
+               : (it.__type==="Serviço") ? "servicos_associado.html"
+               : "classificados.html";
+    const title = it.title || it.nome || "—";
+    const imgs = it.__imgs?.length ? it.__imgs.slice(0,3) : [it.__img];
+    while (imgs.length < 3) imgs.push(imgs[imgs.length-1]);
+
+    const priceStr = (it.__price!=null && it.__price!=="") 
+      ? Number(it.__price).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+      : "";
+
+    return `
+      <div class="carousel-item">
+        <div class="carousel-banner shadow-sm">
+          <div class="banner-mosaic">
+            <a href="${href}" class="tile-img big" style="background-image:url('${imgs[0]}')" aria-label="${title}"></a>
+            <a href="${href}" class="tile-img small top" style="background-image:url('${imgs[1]}')" aria-label="${title}"></a>
+            <a href="${href}" class="tile-img small bottom" style="background-image:url('${imgs[2]}')" aria-label="${title}"></a>
+          </div>
+          <div class="tile-overlay">
+            <div class="small fw-semibold text-truncate" title="${title}">${title}</div>
+            ${priceStr ? `
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">${priceStr}</span>
+                ${it.__wpp ? `<a class="btn btn-sm btn-success no-slide" target="_blank" href="${it.__wpp}">Chamar WhatsApp</a>` : ""}
+              </div>` : `
+              <div class="d-flex align-items-center gap-2">
+                ${it.__wpp ? `<a class="btn btn-sm btn-success no-slide" target="_blank" href="${it.__wpp}">Chamar WhatsApp</a>` : ""}
+              </div>`
+            }
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function buildCarousel(items){
+    if(!items.length) return;
+
+    carIndicators.innerHTML = items.map((_,i)=>`
+      <button type="button" data-bs-target="#destaquesCarousel" data-bs-slide-to="${i}" ${i===0?'class="active" aria-current="true"':''} aria-label="Slide ${i+1}"></button>
+    `).join("");
+
+    carInner.innerHTML = items.map((it,i)=>{
+      const html = renderSlideHTML(it);
+      return i===0 ? html.replace('class="carousel-item"', 'class="carousel-item active"') : html;
+    }).join("");
+
+    carWrap.classList.remove("d-none");
+  }
+
+  async function loadHighlights(){
+    deckLoading.classList.remove("d-none");
+    deckEmpty.classList.add("d-none");
+    deckError.classList.add("d-none");
+    carWrap.classList.add("d-none");
+    carIndicators.innerHTML = "";
+    carInner.innerHTML = "";
+
+    try{
+      const [prods, servs, classifs] = await Promise.all([
+        fetchCollection("memberProducts","Produto").catch(()=>[]),
+        fetchCollection("memberServices","Serviço").catch(()=>[]),
+        fetchClassificados().catch(()=>[])
+      ]);
+
+      const all = [...prods, ...servs, ...classifs].sort((a,b)=> b.__created - a.__created);
+
+      deckLoading.classList.add("d-none");
+
+      if (!all.length){ deckEmpty.classList.remove("d-none"); return; }
+
+      buildCarousel(all);
+
+      const carousel = new bootstrap.Carousel('#destaquesCarousel', {
+        interval: 5000, ride: 'carousel', pause: false, touch: true, wrap: true
+      });
+    }catch(e){
+      console.error(e);
+      deckLoading.classList.add("d-none");
+      deckError.textContent = "Não foi possível carregar os destaques.";
+      deckError.classList.remove("d-none");
+    }
+
+    (function shieldCarouselButtons(){
+      const stop = e => { if (e.target.closest('.no-slide')) e.stopPropagation(); };
+      ['click','pointerdown','mousedown','touchstart'].forEach(ev =>
+        document.addEventListener(ev, stop, {capture:true, passive:false})
+      );
+    })();
+  }
+
+  /* ===== Novo Classificado ===== */
+  const onlyDigits = (s="") => String(s).replace(/\D+/g,"");
+
+  btnPickImgs?.addEventListener("click", ()=> clsImagesInput.click());
+  btnClearImgs?.addEventListener("click", ()=>{
+    selectedFiles = [];
+    clsImagesInput.value = "";
+    renderImgPreviews();
+    imgProgressList.innerHTML = "";
+  });
+  clsImagesInput?.addEventListener("change", ()=>{
+    const files = Array.from(clsImagesInput.files || []);
+    if (!files.length) return;
+    for (const f of files){
+      if (selectedFiles.length >= 3) break;
+      if (!f.type.startsWith("image/")) continue;
+      if (f.size > 10*1024*1024){ alert(`A imagem ${f.name} excede 10MB.`); continue; }
+      selectedFiles.push(f);
+    }
+    if (selectedFiles.length > 3) selectedFiles = selectedFiles.slice(0,3);
+    renderImgPreviews();
+  });
+
+  function renderImgPreviews(){
+    imgPreviewGrid.innerHTML = selectedFiles.map((f,idx)=>{
+      const url = URL.createObjectURL(f);
+      return `
+        <div class="col-4">
+          <div class="position-relative">
+            <img src="${url}" alt="preview ${idx+1}" class="w-100 rounded" style="height:140px;object-fit:cover">
+            <button type="button" class="btn btn-sm btn-dark position-absolute top-0 end-0 m-1" data-idx="${idx}" title="Remover">×</button>
+          </div>
+          <div class="small text-truncate mt-1" title="${f.name}">${f.name}</div>
+        </div>`;
+    }).join("");
+    imgPreviewGrid.querySelectorAll("button[data-idx]")?.forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const i = Number(btn.getAttribute("data-idx"));
+        selectedFiles.splice(i,1);
+        renderImgPreviews();
+      });
+    });
+  }
+
+  classifiedForm?.addEventListener("submit", async (ev)=>{
+    ev.preventDefault();
+    if (!auth.currentUser){ alert("Sessão expirada. Faça login novamente."); return; }
+
+    clsFeedback.classList.add("d-none"); clsFeedback.classList.remove("alert-danger","alert-success"); clsFeedback.textContent = "";
+
+    const title = (clsTitle.value||"").trim();
+    const price = clsPrice.value ? Number(clsPrice.value) : null;
+    const contact = onlyDigits(clsContact.value);
+    const description = (clsDesc.value||"").trim();
+
+    if (!title || price==null || isNaN(price) || !contact){
+      clsFeedback.textContent = "Preencha Título, Valor e WhatsApp.";
+      clsFeedback.classList.remove("d-none"); clsFeedback.classList.add("alert","alert-danger");
+      return;
+    }
+
+    try{
+      const { serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js");
+
+      const docRef = await addDoc(collection(db,"memberClassifieds"), {
+        title, description, price,
+        whatsapp: contact,
+        imageUrls: [],
+        active: false, approved: false,
+        paymentStatus: "pending",
+        paymentUrl: PAYMENT_URL,
+        pricePerDay: 1.00,
+        minDays: 30,
+        plannedActiveDays: 30,
+        paymentCreatedAt: serverTimestamp(),
+        ownerUid: auth.currentUser.uid,
+        ownerEmail: auth.currentUser.email || null,
+        ownerName: memberNameEl.textContent || "associado",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      const urls = [];
+      imgProgressList.innerHTML = "";
+      if (selectedFiles.length){
+        const bars = selectedFiles.map((_,i)=>{
+          const id = `bar_${i}`;
+          imgProgressList.insertAdjacentHTML("beforeend", `
+            <div class="progress mb-2" style="height:6px">
+              <div id="${id}" class="progress-bar" role="progressbar" style="width:0%"></div>
+            </div>`);
+          return document.getElementById(id);
+        });
+
+        for (let i=0;i<selectedFiles.length;i++){
+          const f = selectedFiles[i], bar = bars[i];
+          const pathBase = `classifieds/${auth.currentUser.uid}/${docRef.id}`;
+          const { url } = await uploadImageFile(f, pathBase, (pct)=>{ if (bar) bar.style.width = pct + "%"; }, { targetKB: 200 });
+          urls.push(url);
+        }
+        await updateDoc(doc(db,"memberClassifieds", docRef.id), { imageUrls: urls, updatedAt: serverTimestamp() });
+      }
+
+      clsFeedback.innerHTML = `
+        <strong>Classificado enviado!</strong><br>
+        ${urls.length ? `${urls.length} foto(s) anexada(s).<br>` : ""}
+        Ele ficará ativo por <strong>30 dias</strong> após a confirmação do pagamento.<br>
+        <a href="${PAYMENT_URL}" target="_blank" rel="noopener">Concluir pagamento</a>.
+      `;
+      clsFeedback.classList.remove("d-none"); clsFeedback.classList.add("alert","alert-success");
+
+      classifiedForm.reset(); selectedFiles = []; renderImgPreviews(); imgProgressList.innerHTML = "";
+
+      setTimeout(()=>{
+        const modal = bootstrap.Modal.getInstance(classifiedModalEl);
+        modal?.hide();
+        window.location.href = PAYMENT_URL;
+      }, 1200);
+
+    }catch(err){
+      console.error(err);
+      clsFeedback.textContent = "Não foi possível enviar seu classificado. Tente novamente.";
+      clsFeedback.classList.remove("d-none"); clsFeedback.classList.add("alert","alert-danger");
+    }
+  });
+
+  /* ===== Troca de senha — lógica ===== */
+  function setPwMsg(text, ok=false){
+    pwMsg.textContent = text || "";
+    pwMsg.classList.toggle("text-muted", !text);
+    pwMsg.classList.toggle("text-success", !!ok);
+    pwMsg.classList.toggle("text-danger", !!text && !ok);
+  }
+
+  btnTogglePw?.addEventListener("click", ()=>{
+    const fields = [pwOld, pwNew, pwNew2];
+    const show = (pwOld?.type === "password");
+    fields.forEach(f => { if (f) f.type = show ? "text" : "password"; });
+  });
+
+  btnChangePw?.addEventListener("click", async ()=>{
+    setPwMsg("");
+    const a = (pwOld?.value || "").trim();
+    const b = (pwNew?.value || "").trim();
+    const c = (pwNew2?.value || "").trim();
+
+    if (!a || !b || !c){ alert("Preencha todos os campos."); return; }
+    if (b.length < 6){ alert("A nova senha deve ter pelo menos 6 caracteres."); return; }
+    if (b !== c){ alert("A confirmação está diferente da nova senha."); return; }
+
+    if (!auth.currentUser){ alert("Sessão expirada. Faça login novamente."); return; }
+    btnChangePw.disabled = true; setPwMsg("Atualizando…");
+
+    try{
+      const email = auth.currentUser.email; // email de login (ex.: cpf@cpf.local)
+      const cred = EmailAuthProvider.credential(email, a);
+      await reauthenticateWithCredential(auth.currentUser, cred);
+      await updatePassword(auth.currentUser, b);
+
+      setPwMsg("Senha alterada com sucesso.", true);
+      pwOld.value = pwNew.value = pwNew2.value = "";
+
+      setTimeout(()=>{
+        const modal = bootstrap.Modal.getInstance(document.getElementById('pwModal'));
+        modal?.hide();
+        setPwMsg("");
+      }, 1200);
+
+    } catch(e){
+      console.error(e);
+      const msg = e?.code === "auth/wrong-password" ? "Senha atual inválida."
+                : e?.code === "auth/too-many-requests" ? "Muitas tentativas. Tente mais tarde."
+                : e?.message || "Erro ao alterar a senha.";
+      setPwMsg(msg, false);
+      alert(msg);
+    } finally{
+      btnChangePw.disabled = false;
+    }
+  });
+
+</script>
+
+<!-- ===== MODAL: Trocar senha ===== -->
+<div class="modal fade" id="pwModal" tabindex="-1" aria-labelledby="pwModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pwModalLabel">Trocar senha</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-12">
+            <label class="form-label">Senha atual</label>
+            <input id="pwOld" type="password" class="form-control" autocomplete="current-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Nova senha</label>
+            <input id="pwNew" type="password" class="form-control" autocomplete="new-password">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Confirmar nova senha</label>
+            <input id="pwNew2" type="password" class="form-control" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+          <button id="btnChangePw" class="btn btn-primary">Salvar nova senha</button>
+          <button id="btnTogglePw" class="btn btn-outline-secondary btn-sm" type="button">Mostrar/Ocultar</button>
+          <span id="pwMsg" class="small text-muted"></span>
+        </div>
+        <div class="form-text mt-2">
+          Requisitos: mínimo de 6 caracteres. Caso tenha esquecido a senha e não consiga entrar, contate a Secretaria.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Novo classificado ===== -->
+<div class="modal fade" id="classifiedModal" tabindex="-1" aria-labelledby="classifiedLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="classifiedForm">
+      <div class="modal-header">
+        <h5 class="modal-title" id="classifiedLabel">Cadastrar novo classificado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <strong>Atenção:</strong> o anúncio tem custo de <strong>R$ 1,00 por dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias após a confirmação do pagamento</strong>.
+        </div>
+
+        <div id="clsFeedback" class="d-none"></div>
+
+        <div class="mb-3">
+          <label class="form-label">Título <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="clsTitle" required>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label">Valor (R$) <span class="text-danger">*</span></label>
+            <input type="number" step="0.01" class="form-control" id="clsPrice" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label">Contato (WhatsApp) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="clsContact" placeholder="DDD+Número" required>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label">Descrição (opcional)</label>
+          <textarea class="form-control" id="clsDesc" rows="3" placeholder="Detalhes do anúncio"></textarea>
+        </div>
+
+        <!-- Fotos -->
+        <div class="mt-3">
+          <label class="form-label d-flex align-items-center justify-content-between">
+            <span>Fotos do anúncio (até 3 imagens)</span>
+            <small class="text-secondary">JPEG/PNG · ~200 KB por foto (comprimido automaticamente)</small>
+          </label>
+
+          <div class="d-flex gap-2 mb-2">
+            <input type="file" id="clsImages" accept="image/*" multiple class="d-none">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btnPickImgs">Selecionar fotos</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearImgs">Limpar</button>
+          </div>
+
+          <div id="imgPreviewGrid" class="row g-2"></div>
+          <div id="imgProgressList" class="mt-2"></div>
+
+          <div class="form-text">
+            Dica: escolha a principal em primeiro lugar. Você pode remover uma foto clicando no “x” da miniatura.
+          </div>
+        </div>
+
+        <div class="form-text mt-2">
+          Após cadastrar, você será direcionado para a <strong>página de pagamento</strong> para concluir (Mercado Pago).
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <a class="btn btn-outline-secondary" href="classificados.html">Ver classificados</a>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Enviar e ir para pagamento</button>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

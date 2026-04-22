@@ -1,0 +1,1970 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Admin — Associados | Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Gestão de associados com financeiro e faturas.">
+  <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <style>
+    :root{ --brand:#111279; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .navbar .container{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+    .navbar-brand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    header { background:#f8f9fa; border-bottom:1px solid #e9ecef; }
+    header .container{ padding-top:1rem; padding-bottom:1rem; }
+    @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
+    .badge-role{ background:var(--accent); }
+    .users-header, .user-row{ display:grid; grid-template-columns: 34px minmax(150px,1fr) minmax(120px,1fr) 130px 120px 130px 130px 160px; gap:12px; align-items:center; }
+    .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
+    .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
+    .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
+    .user-status .badge{ min-width:96px; }
+    .plan-chip{
+      display:inline-block;
+      padding:.25rem .5rem;
+      border-radius:.5rem;
+      font-size:.75rem;
+      font-weight:500;
+      white-space:nowrap;
+    }
+    .plan-chip-mensal{ background:#e3f2fd; color:#1565c0; }
+    .plan-chip-trimestral{ background:#e8f5e9; color:#2e7d32; }
+    .plan-chip-semestral{ background:#fff3e0; color:#ef6c00; }
+    .plan-chip-anual{ background:#f3e5f5; color:#7b1fa2; }
+    .plan-chip-custom{ background:#f5f5f5; color:#616161; }
+    .plan-chip-none{ background:#f8f9fa; color:#6c757d; font-style:italic; }
+    .toolbar-search{ display:flex; align-items:center; gap:.75rem; }
+    .toolbar-search .form-control{ flex:1 1 auto; min-width:0; }
+    .toolbar-filters,
+    .toolbar-actions{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+    .toolbar-filters{ justify-content:center; }
+    .toolbar-actions{ justify-content:flex-end; }
+    .toolbar-filters .btn{ font-size:.75rem; padding:.25rem .5rem; white-space:nowrap; }
+    .assoc-dashboard{
+      display:grid;
+      grid-template-columns:minmax(280px, 360px) minmax(0,1fr);
+      gap:1rem;
+      align-items:stretch;
+    }
+    .assoc-chart-card,
+    .assoc-metrics-card{
+      border:1px solid #e9ecef;
+      border-radius:1rem;
+      background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      padding:1rem;
+      height:100%;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .assoc-chart-card:hover,
+    .assoc-metrics-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+    .assoc-chart-wrap{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:1rem;
+      min-height:260px;
+    }
+    .assoc-pie{
+      --pie-bg:conic-gradient(#dfe6ee 0deg 360deg);
+      width:220px;
+      aspect-ratio:1;
+      border-radius:50%;
+      background:var(--pie-bg);
+      position:relative;
+      box-shadow:inset 0 0 0 1px rgba(17,18,121,.06);
+      cursor: pointer;
+      transition: box-shadow 0.2s ease;
+    }
+    .assoc-pie:hover{
+      box-shadow: 0 8px 20px rgba(17,18,121,0.15);
+    }
+    .assoc-pie::after{
+      content:"";
+      position:absolute;
+      inset:22%;
+      background:#fff;
+      border-radius:50%;
+      box-shadow:0 0 0 1px rgba(17,18,121,.06);
+    }
+    .assoc-pie-center{
+      position:absolute;
+      inset:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      z-index:1;
+      text-align:center;
+      line-height:1.1;
+    }
+    .assoc-pie-center strong{
+      font-size:2rem;
+      color:var(--brand);
+    }
+    .assoc-legend{
+      display:grid;
+      gap:.75rem;
+      width:100%;
+    }
+    .assoc-legend-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:.75rem;
+      padding:.6rem .75rem;
+      border-radius:.85rem;
+      background:#fff;
+      border:1px solid #eef2f7;
+      cursor: pointer;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .assoc-legend-item:hover{
+      background:#f8f9fa;
+      border-color: var(--brand);
+    }
+    .assoc-legend-item.active{
+      background: linear-gradient(135deg, rgba(17,18,121,0.05) 0%, rgba(17,18,121,0.1) 100%);
+      border-color: var(--brand);
+      box-shadow: 0 2px 8px rgba(17,18,121,0.15);
+    }
+    .assoc-legend-label{
+      display:flex;
+      align-items:center;
+      gap:.6rem;
+      min-width:0;
+    }
+    .assoc-legend-swatch{
+      width:.85rem;
+      height:.85rem;
+      border-radius:50%;
+      flex:0 0 auto;
+    }
+    .assoc-metrics-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0,1fr));
+      gap:.9rem;
+      height:100%;
+    }
+    .assoc-metric{
+      border-radius:1rem;
+      padding:1rem;
+      color:#fff;
+      min-height:110px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      box-shadow:0 12px 28px rgba(15,23,42,.08);
+      cursor: pointer;
+      transition: box-shadow 0.2s ease;
+    }
+    .assoc-metric:hover{
+      box-shadow: 0 16px 35px rgba(15,23,42,.15);
+    }
+    .assoc-metric strong{
+      font-size:2rem;
+      line-height:1;
+    }
+    .assoc-metric.metric-active{
+      box-shadow: 0 16px 35px rgba(15,23,42,.25);
+    }
+    .assoc-metric-total{ background:linear-gradient(135deg, #111279 0%, #3949ab 100%); }
+    .assoc-metric-up{ background:linear-gradient(135deg, #198754 0%, #38b778 100%); }
+    .assoc-metric-pending{ background:linear-gradient(135deg, #f59f00 0%, #ffd166 100%); color:#3d2e00; }
+    .assoc-metric-inactive{ background:linear-gradient(135deg, #6c757d 0%, #adb5bd 100%); }
+    @media (max-width:991.98px){
+      .users-header, .user-row{ grid-template-columns: 34px minmax(150px,1fr) minmax(100px,1fr) 120px 110px 110px 110px 140px; }
+      .assoc-dashboard{ grid-template-columns:1fr; }
+    }
+    @media (max-width:1199.98px){
+      .toolbar-filters,
+      .toolbar-actions{ justify-content:flex-start; }
+    }
+    @media (max-width:767.98px){
+      .users-header{ display:none; }
+      .user-row{ grid-template-columns: 34px 1fr 120px; }
+      .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan, .user-row .col-apelido{ display:none; }
+      .toolbar-search{ flex-direction:column; align-items:stretch; }
+      .toolbar-search .btn{ width:100%; }
+      .assoc-pie{ width:180px; }
+      .assoc-metrics-grid{ grid-template-columns:1fr; }
+    }
+    main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+    .small-muted{ font-size:.875rem; color:#6c757d; }
+    .input-readonly[disabled]{ background-color:#f2f2f2; }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo Clube do Cavalo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
+        <li class="nav-item me-2"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 h3-md mb-1">Administração — Associados</h1>
+      <p class="text-secondary mb-0">Cadastro, financeiro e automações.</p>
+    </div>
+    <div class="text-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
+  </div>
+</header>
+
+<div class="subnav">
+  <div class="container">
+    <div class="d-flex flex-wrap gap-2 py-2">
+      <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Associados</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html">Produtos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html">Serviços</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html">Classificados</a>
+    </div>
+  </div>
+</div>
+
+<main class="container">
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="row g-3 align-items-center">
+        <div class="col-12 col-xl-4">
+          <div class="toolbar-search">
+            <input type="search" id="searchQuery" class="form-control" placeholder="Buscar por nome ou CPF">
+            <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
+          </div>
+        </div>
+        <div class="col-12 col-xl-3">
+          <div class="toolbar-filters">
+            <button class="btn btn-sm btn-outline-primary" data-filter="all">Todos</button>
+            <button class="btn btn-sm btn-outline-warning" data-filter="expiring_5days">À vencer em 5 dias</button>
+            <button class="btn btn-sm btn-outline-danger" data-filter="due_today">Vence Hoje</button>
+            <button class="btn btn-sm btn-outline-secondary" data-filter="overdue_5days">Vencido 5-10 dias</button>
+            <button class="btn btn-sm btn-outline-dark" data-filter="overdue_more_10days">Vencido > 10 dias</button>
+          </div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="toolbar-actions">
+            <button class="btn btn-outline-primary" id="btnNewAssocModal">Cadastrar associado</button>
+            <div class="dropdown">
+              <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">Ações em massa</button>
+              <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:280px">
+                <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
+                <button class="dropdown-item" id="actionSendReminders">Enviar lembrete (WhatsApp)</button>
+                <button class="dropdown-item" id="actionExportPdf">Baixar PDF</button>
+                <button class="dropdown-item" id="actionExportCsv">Baixar CSV</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <section class="assoc-dashboard mb-4" aria-label="Resumo dos associados">
+        <div class="assoc-chart-card">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 class="h6 mb-1">Dashboard de associados</h2>
+              <p class="small text-secondary mb-0">Visão rápida da situação atual do quadro de associados.</p>
+            </div>
+          </div>
+          <div class="assoc-chart-wrap">
+            <div id="assocPie" class="assoc-pie" aria-hidden="true">
+              <div class="assoc-pie-center">
+                <span class="small text-secondary">Total</span>
+                <strong id="assocPieTotal">0</strong>
+              </div>
+            </div>
+            <div id="assocLegend" class="assoc-legend"></div>
+          </div>
+        </div>
+
+        <div class="assoc-metrics-card">
+          <div class="assoc-metrics-grid">
+            <div class="assoc-metric assoc-metric-total">
+              <span class="small text-uppercase">Associados</span>
+              <strong id="metricTotal">0</strong>
+              <span class="small opacity-75">Base carregada na listagem atual</span>
+            </div>
+            <div class="assoc-metric assoc-metric-up">
+              <span class="small text-uppercase">Em dia</span>
+              <strong id="metricUpToDate">0</strong>
+              <span class="small opacity-75">Inclui isentos ativos</span>
+            </div>
+            <div class="assoc-metric assoc-metric-pending">
+              <span class="small text-uppercase">Pendentes</span>
+              <strong id="metricPending">0</strong>
+              <span class="small opacity-75">Com pagamento em atraso ou vencido</span>
+            </div>
+            <div class="assoc-metric assoc-metric-inactive">
+              <span class="small text-uppercase">Inativos</span>
+              <strong id="metricInactive">0</strong>
+              <span class="small opacity-75">Associados com cadastro desativado</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="users-header">
+        <div><input type="checkbox" id="chkAll"></div>
+        <div>Nome</div>
+        <div class="col-apelido">Apelido</div>
+        <div class="col-plan">Plano</div>
+        <div class="col-lastpay">Último pagamento</div>
+        <div class="col-value">Valor pago</div>
+        <div class="col-next">Próximo pagamento</div>
+        <div class="col-status d-flex align-items-center gap-2">
+          Situação financeira
+          <i class="bi bi-info-circle text-secondary"
+            data-bs-toggle="popover"
+            data-bs-title="Regras de status"
+            data-bs-html="true"
+            data-bs-content="
+              <strong>Em dia</strong>: plano ativo (até o fim).<br>
+              <strong>Atrasado</strong>: vencido há ≤ 10 dias.<br>
+              <strong>Vencido</strong>: vencido há &gt; 10 dias.<br>
+              <strong>Cancelado</strong>: sem acesso.<br>
+              <strong>Na lista</strong>: exibimos <em>Pendente</em> quando está <em>Atrasado</em> ou <em>Vencido</em>.">
+          </i>
+        </div>
+      </div>
+      <div id="usersWrap" class="mt-2">
+        <div class="text-center text-secondary py-3">Use a busca ou liste todos.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script type="module">
+  import { requireAuth, cpfToEmail } from "./firebase.js";
+  import { auth, db } from "./firebase.js";
+  import {
+    collection, getDocs, query, orderBy, where, limit, addDoc,
+    doc, getDoc, setDoc, updateDoc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signOut as signOutSec, signOut }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  const bootstrap = window.bootstrap;
+  [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el => new bootstrap.Popover(el));
+
+  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+
+  const opNameEl = document.getElementById("opName");
+  const opRoleEl = document.getElementById("opRole");
+  let currentRole = "";
+  let operatorProfile = { uid:"", nome:"", cpf:"" };
+  const normalizeRole = (r) => String(r || "").trim().toLowerCase();
+
+  const secondaryApp = initializeApp(auth.app?.options || {}, "op-secondary");
+  const secAuth = getAuth(secondaryApp);
+
+  auth.onAuthStateChanged(async (user)=>{
+    if(!user) return;
+    const snap = await getDoc(doc(db,"users",user.uid));
+    const d = snap.exists()? snap.data() : {};
+    opNameEl.textContent = d.nome || "Operador(a)";
+    const role = normalizeRole(d.role) || "admin";
+    currentRole = role;
+    opRoleEl.textContent = role.toUpperCase();
+    opRoleEl.classList.remove("d-none");
+    operatorProfile = { uid:user.uid, nome: d.nome || "", cpf: (d.cpf||"").replace(/\D/g,"") };
+    try { if (document.getElementById("usersWrap")) listUsers(""); } catch(e){ console.error(e); }
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async ()=>{
+    try{ await signOut(auth); location.href="login.html"; }
+    catch(e){ alert("Não foi possível sair: " + e.message); }
+  });
+
+  const PLAN_MONTHS = { mensal:1, trimestral:3, semestral:6, anual:12 };
+  const PLAN_LABEL  = { mensal:"Mensal", trimestral:"Trimestral", semestral:"Semestral", anual:"Anual", custom:"Personalizado" };
+
+  const fmtBRL = (v)=> (v==null||v==="") ? "" : Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+  const toDateStr = (v)=> { try{ const d = v?.toDate ? v.toDate() : (v? new Date(v) : null); return d? d.toISOString().slice(0,10) : ""; } catch { return ""; } };
+  const fmtDateBRShort = (date)=> {
+    try{
+      const d = date?.toDate ? date.toDate() : (date ? new Date(date) : null);
+      return d && !Number.isNaN(d.getTime())
+        ? new Intl.DateTimeFormat("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric" }).format(d)
+        : "—";
+    }catch{
+      return "—";
+    }
+  };
+  const fmtDateCell = (v)=> {
+    return fmtDateBRShort(v);
+  };
+  const fromDateStr = (s)=> s ? new Date(s+"T00:00:00") : null;
+  const addDays = (date, n)=> { const d = new Date(date); d.setDate(d.getDate()+n); return d; };
+  const addMonthsSafe = (date, months)=> {
+    if(!date) return null;
+    const d = new Date(date);
+    const day = d.getDate();
+    d.setMonth(d.getMonth()+months);
+    if (d.getDate() < day) d.setDate(0);
+    return d;
+  };
+  const now = ()=> new Date();
+  const payPageUrl = ()=> `${location.origin}/pay.html`;
+  const fmtBRDate = (date)=> fmtDateBRShort(date);
+  const fmtDateTimeBR = (date)=> {
+    try{
+      const d = date?.toDate ? date.toDate() : (date ? new Date(date) : null);
+      return d && !Number.isNaN(d.getTime())
+        ? new Intl.DateTimeFormat("pt-BR", {
+            day:"2-digit",
+            month:"2-digit",
+            year:"numeric",
+            hour:"2-digit",
+            minute:"2-digit"
+          }).format(d)
+        : "—";
+    }catch{
+      return "—";
+    }
+  };
+
+  function computeMembership({ invoices = [], summary = {} }) {
+    if (summary.exempt === true) {
+      const untilMs = summary.exemptUntil?.toMillis?.() ?? (summary.exemptUntil ? new Date(summary.exemptUntil).getTime() : null);
+      if (!untilMs || untilMs > Date.now()) {
+        return { listCode: "isento", listBadge: "Isento", detail: "isento", nextDue: null };
+      }
+    }
+
+    const unpaid = invoices.filter(i => {
+      const s = String(i.status || "").toLowerCase();
+      return !["pago", "paga", "paid"].includes(s);
+    });
+
+    let earliestDue = null;
+    for (const inv of unpaid) {
+      const dueMs = inv.dueDate?.toMillis?.() ?? (inv.dueDate ? new Date(inv.dueDate).getTime() : null);
+      if (dueMs && (earliestDue === null || dueMs < earliestDue)) earliestDue = dueMs;
+    }
+
+    if (earliestDue && earliestDue < Date.now()) {
+      const daysOver = Math.floor((Date.now() - earliestDue) / (24 * 3600 * 1000));
+      const detail = daysOver <= 10 ? "atrasado" : "vencido";
+      return { listCode: "pendente", listBadge: "Pendente", detail, nextDue: earliestDue };
+    }
+
+    const paid = invoices.filter(i => ["pago", "paid"].includes(String(i.status || "").toLowerCase()));
+    let lastPaidEnd = null;
+    if (paid.length) {
+      paid.sort((a, b) => {
+        const ap = a.planEnd?.toMillis?.() ?? new Date(a.planEnd || 0).getTime();
+        const bp = b.planEnd?.toMillis?.() ?? new Date(b.planEnd || 0).getTime();
+        return bp - ap;
+      });
+      lastPaidEnd = paid[0].planEnd?.toDate?.() ?? new Date(paid[0].planEnd);
+    }
+
+    let detail = "vencido";
+    if (lastPaidEnd) {
+      const graceEnd = addDays(lastPaidEnd, 10);
+      if (now() <= lastPaidEnd) detail = "em_dia";
+      else if (now() <= graceEnd) detail = "atrasado";
+      else detail = "vencido";
+    }
+
+    const listCode = (detail === "atrasado" || detail === "vencido") ? "pendente" : "em_dia";
+    const listBadge = listCode === "pendente" ? "Pendente" : "Em dia";
+    return { listCode, listBadge, detail, nextDue: earliestDue || lastPaidEnd || null };
+  }
+
+  function displayPlan(inv){
+    if (inv.planName) return inv.planName;
+    return inv.planType ? (PLAN_LABEL[inv.planType] || inv.planType) : "-";
+  }
+
+  function getLatestPaidInvoice(invoices = []){
+    const paid = invoices
+      .filter(i => ["pago", "paga", "paid"].includes(String(i.status || "").toLowerCase()))
+      .map(i => {
+        const paidMs = i.paidAt?.toMillis?.() ?? (i.paidAt ? new Date(i.paidAt).getTime() : null);
+        const recordedMs = i.recordedAt?.toMillis?.() ?? (i.recordedAt ? new Date(i.recordedAt).getTime() : null);
+        return { ...i, _sortMs: paidMs ?? recordedMs ?? 0 };
+      })
+      .filter(i => i._sortMs > 0)
+      .sort((a, b) => b._sortMs - a._sortMs);
+
+    return paid[0] || null;
+  }
+
+  function wppUrl(phoneRaw, text){
+    const p = (phoneRaw||"").replace(/\D/g,"");
+    const msg = encodeURIComponent(text||"");
+    return p ? `https://wa.me/${p}?text=${msg}` : `https://wa.me/?text=${msg}`;
+  }
+
+  /* ===== Novo associado ===== */
+  let newAssocModalDiv = null;
+  document.getElementById("btnNewAssocModal")?.addEventListener("click", openNewAssocModal);
+
+  function renderFinanceSetupFields(prefix = "na"){
+    return `
+      <div class="col-12"><hr class="my-2"><h6 class="mb-0">Financeiro inicial</h6></div>
+      <div class="col-md-4">
+        <label class="form-label">Plano inicial</label>
+        <select class="form-select" id="${prefix}Plan">
+          <option value="">Sem plano inicial</option>
+          <option value="mensal">Mensal</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Valor pago (R$)</label>
+        <input type="number" step="0.01" class="form-control" id="${prefix}Amount">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Status financeiro</label>
+        <select class="form-select" id="${prefix}Status">
+          <option value="pago">pago</option>
+          <option value="em_aberto">em_aberto</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Início do plano</label>
+        <input type="date" class="form-control" id="${prefix}Start">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Fim do plano</label>
+        <input type="date" class="form-control" id="${prefix}End">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Data do pagamento</label>
+        <input type="date" class="form-control" id="${prefix}PaidAt">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Método</label>
+        <input type="text" class="form-control" id="${prefix}Method" placeholder="PIX, dinheiro, cartão">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Observação</label>
+        <input type="text" class="form-control" id="${prefix}Notes" placeholder="Opcional">
+      </div>
+    `;
+  }
+
+  function bindPlanAutofill(root, prefix = "na"){
+    const input = (id)=> root.querySelector(`#${prefix}${id}`);
+    const syncEnd = ()=>{
+      const type = input("Plan").value;
+      if (!type || type === "custom") return;
+      let startStr = input("Start").value;
+      if (!startStr){
+        startStr = new Date().toISOString().slice(0,10);
+        input("Start").value = startStr;
+      }
+      const end = addMonthsSafe(fromDateStr(startStr), PLAN_MONTHS[type]);
+      input("End").value = end ? end.toISOString().slice(0,10) : "";
+      // Preencher automaticamente a data de pagamento com a data de início
+      input("PaidAt").value = startStr;
+    };
+    input("Plan")?.addEventListener("change", syncEnd);
+    input("Start")?.addEventListener("change", syncEnd);
+  }
+
+  async function createInitialFinanceIfNeeded(uid, root, prefix = "na"){
+    const input = (id)=> root.querySelector(`#${prefix}${id}`);
+    const planType = input("Plan").value || null;
+    const amount = input("Amount").value ? Number(input("Amount").value) : null;
+    const status = input("Status").value;
+    const planStart = input("Start").value ? fromDateStr(input("Start").value) : null;
+    const planEnd = input("End").value ? fromDateStr(input("End").value) : null;
+    const paidAt = input("PaidAt").value ? fromDateStr(input("PaidAt").value) : null;
+    const method = input("Method").value.trim() || null;
+    const notes = input("Notes").value.trim() || null;
+    if (!planType && amount == null && !planStart && !planEnd && !paidAt && !method && !notes) return;
+    const planName = planType ? (PLAN_LABEL[planType] || planType) : null;
+    await addDoc(collection(db,"users",uid,"financeInvoices"), {
+      planType,
+      planName,
+      amount,
+      status,
+      paidAt,
+      planStart,
+      planEnd,
+      dueDate: planEnd,
+      method,
+      notes,
+      recordedByUid: operatorProfile.uid || null,
+      recordedByName: operatorProfile.nome || null,
+      recordedByCPF: operatorProfile.cpf || null,
+      recordedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    await refreshSummaryFromInvoices(uid);
+  }
+
+  function openNewAssocModal(){
+    if (newAssocModalDiv) newAssocModalDiv.remove();
+    newAssocModalDiv = document.createElement("div");
+    newAssocModalDiv.className = "modal fade";
+    newAssocModalDiv.tabIndex = -1;
+    newAssocModalDiv.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <form class="modal-content" id="formNewAssoc">
+          <div class="modal-header">
+            <h5 class="modal-title">Cadastrar novo associado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <div id="naMsg" class="d-none"></div>
+            <div class="row g-3">
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">CPF (somente números)</label>
+                <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
+              </div>
+              <div class="col-sm-6 col-md-3">
+                <label class="form-label">Senha inicial</label>
+                <input type="password" class="form-control" id="naPass" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Apelido</label>
+                <input type="text" class="form-control" id="naApelido" placeholder="Opcional">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Nome completo</label>
+                <input type="text" class="form-control" id="naNome" required>
+              </div>
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label">Telefone</label>
+                <input type="text" class="form-control" id="naTel">
+              </div>
+              <div class="col-sm-6 col-md-8">
+                <label class="form-label">Endereço</label>
+                <input type="text" class="form-control" id="naEndereco">
+              </div>
+              ${renderFinanceSetupFields("na")}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Criar associado</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(newAssocModalDiv);
+    const modal = new bootstrap.Modal(newAssocModalDiv);
+    modal.show();
+    bindPlanAutofill(newAssocModalDiv, "na");
+    const form = newAssocModalDiv.querySelector("#formNewAssoc");
+    const msg = newAssocModalDiv.querySelector("#naMsg");
+    const showMsg = (text, kind = "info")=>{
+      msg.textContent = text;
+      msg.className = `alert alert-${kind}`;
+      msg.classList.remove("d-none");
+    };
+    form.addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      showMsg("Criando associado...");
+      try{
+        const naCPF = newAssocModalDiv.querySelector("#naCPF");
+        const naPass = newAssocModalDiv.querySelector("#naPass");
+        const naApelido = newAssocModalDiv.querySelector("#naApelido");
+        const naNome = newAssocModalDiv.querySelector("#naNome");
+        const naTel  = newAssocModalDiv.querySelector("#naTel");
+        const naEndereco = newAssocModalDiv.querySelector("#naEndereco");
+        const email = cpfToEmail(naCPF.value);
+        const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
+        const uid = cred.user.uid;
+        await setDoc(doc(db,"users",uid), {
+          cpf: naCPF.value.trim().replace(/\D/g,""),
+          apelido: naApelido.value.trim() || null,
+          nome: naNome.value.trim(),
+          telefone: naTel.value.trim(),
+          endereco: naEndereco.value.trim(),
+          role: "Associado",
+          ativo: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        await setDoc(doc(db,"users",uid,"finance","summary"), {
+          lastPayment: null, lastAmount: null, nextDue: null, activeUntil: null,
+          exempt: false, exemptUntil: null, updatedAt: serverTimestamp()
+        }, { merge:true });
+        await createInitialFinanceIfNeeded(uid, newAssocModalDiv, "na");
+        await signOutSec(secAuth);
+        showMsg(`Associado criado! UID: ${uid}`, "success");
+        setTimeout(async()=>{
+          modal.hide();
+          await listUsers("");
+          // Atualizar dashboard
+          const docs = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+          const results = await Promise.all(docs.docs.map(d => loadFinanceForRow(d.id, d.data())));
+          const stats = { total: docs.docs.length, emDia: 0, pendente: 0, inativo: 0 };
+          for (const result of results) {
+            if (result === "inativo") stats.inativo += 1;
+            else if (result === "pendente") stats.pendente += 1;
+            else stats.emDia += 1;
+          }
+          renderDashboard(stats);
+        }, 700);
+      }catch(err){
+        console.error(err);
+        showMsg("Erro: " + err.message, "danger");
+      }
+    });
+  }
+
+  /* ===== Lista / filtros ===== */
+  const usersWrap = document.getElementById("usersWrap");
+  const searchQuery = document.getElementById("searchQuery");
+  const assocPie = document.getElementById("assocPie");
+  const assocPieTotal = document.getElementById("assocPieTotal");
+  const assocLegend = document.getElementById("assocLegend");
+  const metricTotal = document.getElementById("metricTotal");
+  const metricUpToDate = document.getElementById("metricUpToDate");
+  const metricPending = document.getElementById("metricPending");
+  const metricInactive = document.getElementById("metricInactive");
+  document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
+
+  function renderDashboard(stats = { total:0, emDia:0, pendente:0, inativo:0 }){
+    const total = Number(stats.total || 0);
+    const emDia = Number(stats.emDia || 0);
+    const pendente = Number(stats.pendente || 0);
+    const inativo = Number(stats.inativo || 0);
+    const segments = [
+      { label:"Em dia", value: emDia, color:"#198754", filter:"em_dia" },
+      { label:"Pendentes", value: pendente, color:"#f59f00", filter:"pendente" },
+      { label:"Inativos", value: inativo, color:"#6c757d", filter:"inativo" }
+    ];
+
+    metricTotal.textContent = total;
+    metricUpToDate.textContent = emDia;
+    metricPending.textContent = pendente;
+    metricInactive.textContent = inativo;
+    assocPieTotal.textContent = total;
+
+    if (!total) {
+      assocPie.style.setProperty("--pie-bg", "conic-gradient(#dfe6ee 0deg 360deg)");
+      assocLegend.innerHTML = `
+        <div class="assoc-legend-item">
+          <div class="assoc-legend-label">
+            <span class="assoc-legend-swatch" style="background:#dfe6ee"></span>
+            <span class="small text-secondary">Nenhum associado encontrado na busca atual.</span>
+          </div>
+          <strong>0</strong>
+        </div>
+      `;
+      return;
+    }
+
+    let currentDeg = 0;
+    const stops = [];
+    for (const item of segments) {
+      const sliceDeg = (item.value / total) * 360;
+      const nextDeg = currentDeg + sliceDeg;
+      stops.push(`${item.color} ${currentDeg}deg ${nextDeg}deg`);
+      currentDeg = nextDeg;
+    }
+    assocPie.style.setProperty("--pie-bg", `conic-gradient(${stops.join(", ")})`);
+    assocLegend.innerHTML = segments.map(item => `
+      <div class="assoc-legend-item" data-filter="${item.filter}">
+        <div class="assoc-legend-label">
+          <span class="assoc-legend-swatch" style="background:${item.color}"></span>
+          <span>${item.label}</span>
+        </div>
+        <strong>${item.value}</strong>
+      </div>
+    `).join("");
+
+    // Remover event listeners anteriores para evitar duplicação
+    const oldLegendItems = document.querySelectorAll('.assoc-legend-item[data-filter]');
+    oldLegendItems.forEach(item => {
+      const newItem = item.cloneNode(true);
+      item.parentNode.replaceChild(newItem, item);
+    });
+
+    // Adicionar event listeners para cliques na legenda
+    document.querySelectorAll('.assoc-legend-item[data-filter]').forEach(item => {
+      item.addEventListener('click', () => {
+        const filter = item.getAttribute('data-filter');
+        applyDashboardFilter(filter, item);
+      });
+    });
+
+    // Atualizar estado ativo visual (apenas se houver filtro ativo)
+    if (dashboardFilter !== 'all') {
+      updateActiveFilterState();
+    }
+  }
+
+  function classifyMemberForDashboard(userData, membership){
+    const statusStr = String(userData?.status ?? userData?.situacao ?? userData?.sit ?? "")
+      .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    const isInactive = userData?.ativo === false || userData?.isActive === false || /inativ|suspens|bloquead/.test(statusStr);
+    if (isInactive) return "inativo";
+    return membership?.listCode === "pendente" ? "pendente" : "emDia";
+  }
+
+  let currentFilter = "all";
+  let dashboardFilter = "all"; // Filtro do dashboard (em_dia, pendente, inativo, all)
+  document.querySelectorAll("[data-filter]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      currentFilter = btn.getAttribute("data-filter");
+      document.querySelectorAll("[data-filter]").forEach(b=> b.classList.remove("active"));
+      btn.classList.add("active");
+      listUsers(searchQuery.value.trim());
+    });
+  });
+  document.getElementById("chkAll")?.addEventListener("change", (e)=>{
+    document.querySelectorAll(".row-check").forEach(c=> c.checked = e.target.checked);
+  });
+
+  // Funções de filtragem do dashboard
+  function applyDashboardFilter(filter, clickedItem) {
+    dashboardFilter = filter;
+    updateActiveFilterState();
+    listUsers(searchQuery.value.trim());
+  }
+
+  function updateActiveFilterState() {
+    // Atualizar legenda
+    document.querySelectorAll('.assoc-legend-item[data-filter]').forEach(item => {
+      const filter = item.getAttribute('data-filter');
+      if (filter === dashboardFilter) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
+      }
+    });
+
+    // Atualizar cards de métricas usando classes
+    const metricCards = {
+      'em_dia': document.querySelector('.assoc-metric-up'),
+      'pendente': document.querySelector('.assoc-metric-pending'),
+      'inativo': document.querySelector('.assoc-metric-inactive'),
+      'all': document.querySelector('.assoc-metric-total')
+    };
+
+    Object.keys(metricCards).forEach(key => {
+      if (metricCards[key]) {
+        if (key === dashboardFilter) {
+          metricCards[key].classList.add('metric-active');
+        } else {
+          metricCards[key].classList.remove('metric-active');
+        }
+      }
+    });
+  }
+
+  // Adicionar interatividade aos cards de métricas
+  document.querySelector('.assoc-metric-up')?.addEventListener('click', () => applyDashboardFilter('em_dia'));
+  document.querySelector('.assoc-metric-pending')?.addEventListener('click', () => applyDashboardFilter('pendente'));
+  document.querySelector('.assoc-metric-inactive')?.addEventListener('click', () => applyDashboardFilter('inativo'));
+  document.querySelector('.assoc-metric-total')?.addEventListener('click', () => applyDashboardFilter('all'));
+
+  // Clicar no gráfico de pizza para limpar filtro
+  document.getElementById('assocPie')?.addEventListener('click', () => applyDashboardFilter('all'));
+
+  async function listUsers(term){
+    if(!usersWrap) return;
+    usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
+    renderDashboard();
+    let docs=[];
+    try{
+      if(!term){
+        const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+        docs = snap.docs;
+      }else if(/^\d{5,}$/.test(term.replace(/\D/g,""))){
+        const snap = await getDocs(query(collection(db,"users"), where("cpf","==", term.replace(/\D/g,""))));
+        docs = snap.docs;
+      }else{
+        const snap = await getDocs(query(collection(db,"users"), orderBy("nome"), limit(100)));
+        const lower = term.toLowerCase();
+        docs = snap.docs.filter(d => (d.data().nome||"").toLowerCase().includes(lower));
+      }
+    }catch(e){
+      console.error("Falha ao consultar usuários", e);
+      usersWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao consultar usuários.</div>`;
+      renderDashboard();
+      return;
+    }
+
+    if(!docs.length){
+      usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`;
+      renderDashboard();
+      return;
+    }
+
+    usersWrap.innerHTML = docs.map(d=>{
+      const u = d.data(); const uid = d.id;
+      return renderUserRow({ uid, ...u });
+    }).join("");
+    attachUserRowHandlers();
+
+    const results = await Promise.all(docs.map(d => loadFinanceForRow(d.id, d.data())));
+    const stats = { total: docs.length, emDia: 0, pendente: 0, inativo: 0 };
+    for (const result of results) {
+      if (result === "inativo") stats.inativo += 1;
+      else if (result === "pendente") stats.pendente += 1;
+      else stats.emDia += 1;
+    }
+    renderDashboard(stats);
+  }
+
+  function renderUserRow(u){
+    const uid = u.uid;
+    return `
+      <div class="user-row" id="row-${uid}">
+        <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
+        <button class="user-name" type="button" data-uid="${uid}">${u.nome||"Sem nome"}</button>
+        <div class="apelido-display col-apelido text-secondary small">${u.apelido||"—"}</div>
+        <div class="plan-display col-plan">—</div>
+        <div class="last-payment text-secondary small col-lastpay">—</div>
+        <div class="last-amount text-secondary small col-value">—</div>
+        <div class="next-due text-secondary small col-next">—</div>
+        <div class="user-status col-status"><span class="badge bg-secondary">Carregando...</span></div>
+      </div>
+    `;
+  }
+
+  async function autoPatchInvoices(uid){
+    try{
+      const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
+      for (const d of invSnap.docs){
+        const inv = d.data();
+        const status = String(inv.status||"").toLowerCase();
+        const dueMs = inv.dueDate?.toMillis?.() ?? (inv.dueDate ? new Date(inv.dueDate).getTime() : null);
+        if (status==="em_aberto" && dueMs!=null && dueMs < Date.now()){
+          await updateDoc(doc(db,"users",uid,"financeInvoices",d.id), { status:"atrasado", updatedAt: serverTimestamp() });
+        }
+      }
+    }catch(e){ console.warn("autoPatchInvoices", uid, e); }
+  }
+
+  async function loadFinanceForRow(uid, userData = null){
+    const row = document.getElementById(`row-${uid}`);
+    if (!row) return;
+
+    await autoPatchInvoices(uid);
+
+    try{
+      const sumSnap = await getDoc(doc(db,"users",uid,"finance","summary"));
+      const summary = sumSnap.exists()? sumSnap.data() : {};
+
+      let invDocs = [];
+      try{
+        const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
+        invDocs = invSnap.docs.map(x=>({ id:x.id, ...x.data() }));
+      }catch(errInv){
+        console.warn("Falha ao ler financeInvoices de", uid, errInv);
+      }
+
+      const m = computeMembership({ invoices: invDocs, summary });
+      const dashboardStatus = classifyMemberForDashboard(userData, m);
+      const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
+      const latestPaid = getLatestPaidInvoice(invDocs);
+      const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
+      const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
+
+      // Obter último plano pago para exibição
+      const planType = latestPaid?.planType || null;
+      const planName = latestPaid?.planName || null;
+      const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
+      const planClass = planType ? `plan-chip plan-chip-${planType}` : "plan-chip plan-chip-none";
+
+      // Lógica de filtros baseados em data de vencimento (Próximo Pagamento)
+      let dateFilterMatch = true;
+      // Usar m.nextDue que já é calculado pela função computeMembership
+      const planEndDate = m.nextDue;
+
+      // Excluir associados Inativo e Isento dos filtros de data
+      const dateFilters = ["expiring_5days", "due_today", "overdue_5days", "overdue_more_10days"];
+      if (dateFilters.includes(currentFilter)) {
+        if (dashboardStatus === "inativo" || m.listCode === "isento") {
+          dateFilterMatch = false;
+        }
+      }
+
+      if (planEndDate && dateFilterMatch) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dueDate = new Date(planEndDate);
+        const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+        const daysDiff = Math.floor((dueDay - today) / (24 * 3600 * 1000));
+
+        if (currentFilter === "expiring_5days") {
+          // À vencer em 5 dias: vence entre hoje e 5 dias no futuro
+          dateFilterMatch = daysDiff >= 0 && daysDiff <= 5;
+        } else if (currentFilter === "due_today") {
+          // Vence Hoje
+          dateFilterMatch = daysDiff === 0;
+        } else if (currentFilter === "overdue_5days") {
+          // Vencido entre 5 e 10 dias
+          dateFilterMatch = daysDiff < 0 && daysDiff >= -10 && daysDiff < -5;
+        } else if (currentFilter === "overdue_more_10days") {
+          // Vencido há 10 dias ou mais
+          dateFilterMatch = daysDiff < -10;
+        }
+      } else {
+        // Se não há data de vencimento, não corresponde aos filtros de data
+        if (dateFilters.includes(currentFilter)) {
+          dateFilterMatch = false;
+        }
+      }
+
+      // Aplicar filtros combinados (toolbar + dashboard + data)
+      const isDateFilter = dateFilters.includes(currentFilter);
+      const toolbarFilterMatch = currentFilter === "all" || isDateFilter || (dashboardStatus === "inativo" ? "inativo" : m.listCode) === currentFilter;
+      const dashboardFilterMatch = dashboardFilter === "all" || dashboardStatus === dashboardFilter || (dashboardFilter === "em_dia" && dashboardStatus === "emDia");
+
+      if (!toolbarFilterMatch || !dashboardFilterMatch || !dateFilterMatch) {
+        row.classList.add("d-none");
+      } else {
+        row.classList.remove("d-none");
+      }
+
+      const stEl = row.querySelector(".user-status .badge");
+      if (stEl){
+        stEl.className = "badge " + (dashboardStatus==="inativo" ? "bg-secondary"
+                          : m.listCode==="em_dia" ? "bg-success"
+                          : m.listCode==="pendente" ? "bg-warning text-dark"
+                          : m.listCode==="isento" ? "text-bg-secondary" : "text-bg-secondary");
+        stEl.textContent = dashboardStatus === "inativo" ? "Inativo" : m.listBadge;
+      }
+      const pd = row.querySelector(".plan-display");
+      if (pd) pd.innerHTML = `<span class="${planClass}">${planDisplay}</span>`;
+      const nd = row.querySelector(".next-due");
+      if (nd) nd.textContent = nextDueStr;
+      const lp = row.querySelector(".last-payment");
+      if (lp) lp.textContent = lastPaymentDisplay;
+      const la = row.querySelector(".last-amount");
+      if (la) la.textContent = lastAmountValue != null ? fmtBRL(lastAmountValue) : "—";
+      return dashboardStatus;
+    }catch(e){
+      console.error("Falha ao carregar financeiro de", uid, e);
+      const stEl = document.querySelector(`#row-${uid} .user-status .badge`);
+      if (stEl){ stEl.className = "badge text-bg-secondary"; stEl.textContent = "—"; }
+      return "inativo";
+    }
+  }
+
+  function attachUserRowHandlers(){
+    document.querySelectorAll(".user-name").forEach(btn=>{
+      btn.addEventListener("click", ()=> openUserModal(btn.getAttribute("data-uid")));
+    });
+  }
+
+  /* ===== Modal do Usuário (Perfil + Financeiro) ===== */
+  let userModalDiv = null;
+  async function openUserModal(uid){
+    let u = {}, summary = {}, invDocs = [];
+    try{
+      const [uSnap, sSnap, invSnap] = await Promise.all([
+        getDoc(doc(db,"users",uid)),
+        getDoc(doc(db,"users",uid,"finance","summary")),
+        getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+      ]);
+      u = uSnap.exists()? { uid, ...uSnap.data() } : { uid };
+      summary = sSnap.exists()? sSnap.data() : {};
+      invDocs = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+    }catch(e){ console.warn("openUserModal fetch", e); }
+
+    if (userModalDiv) userModalDiv.remove();
+    userModalDiv = document.createElement("div");
+    userModalDiv.className = "modal fade";
+    userModalDiv.tabIndex = -1;
+
+    const m = computeMembership({ invoices: invDocs, summary });
+    const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
+
+    const perfilHtml = renderProfileFormModal(u, summary);
+    const financeiroHtml = renderFinanceBlock(uid, summary, invDocs, nextDueStr, m);
+
+    userModalDiv.innerHTML = `
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h5 class="modal-title">${u.nome || "Associado"}</h5>
+              <div class="small text-secondary">CPF: ${(u.cpf||"").replace(/\D/g,"") || "—"}</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-4">
+              <h6 class="border-bottom pb-2 mb-3">Perfil</h6>
+              ${perfilHtml}
+            </div>
+            <div id="tabFinance">
+              <h6 class="border-bottom pb-2 mb-3">Financeiro</h6>
+              ${financeiroHtml}
+            </div>
+          </div>
+          <div class="modal-footer">
+            <span class="me-auto small text-secondary">Situação: <strong>${m.listBadge}</strong> • Próxima cobrança: <strong>${nextDueStr}</strong></span>
+            <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(userModalDiv);
+    const modal = new bootstrap.Modal(userModalDiv); modal.show();
+
+    userModalDiv.querySelector(".btn-save-profile")?.addEventListener("click", async (e)=>{
+      const saveBtn = e.currentTarget;
+      const q = (sel)=> userModalDiv.querySelector(sel);
+      const payload = {
+        nome: q('#pfNome').value.trim(),
+        apelido: q('#pfApelido').value.trim() || null,
+        cpf: q('#pfCPF').value.trim().replace(/\D/g,""),
+        telefone: q('#pfTelefone').value.trim(),
+        endereco: q('#pfEndereco').value.trim(),
+        email: q('#pfEmail').value.trim() || null,
+        ativo: q('#pfAtivo').checked,
+        updatedAt: serverTimestamp()
+      };
+      try{
+        await updateDoc(doc(db,"users",uid), payload);
+        if(saveBtn) saveBtn.textContent = "Perfil salvo!";
+        setTimeout(()=>{ if(saveBtn) saveBtn.textContent = "Salvar Perfil"; }, 1200);
+        // Atualizar a linha do usuário na tabela
+        const row = document.getElementById(`row-${uid}`);
+        if (row) {
+          const apelidoEl = row.querySelector('.apelido-display');
+          if (apelidoEl) apelidoEl.textContent = payload.apelido || "—";
+          const nomeEl = row.querySelector('.user-name');
+          if (nomeEl) nomeEl.textContent = payload.nome || "Sem nome";
+        }
+        // Atualizar financeiro para refletir possíveis mudanças de status
+        await loadFinanceForRow(uid, payload);
+      }catch(err){ alert("Erro ao salvar perfil: "+err.message); }
+    });
+
+    userModalDiv.addEventListener("click", (ev)=>{
+      const btn = ev.target.closest("button[data-action],a[data-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-action");
+      if (action==="new-payment"){ openPaymentModal({ uid, onSaved: async()=> await reloadFinanceInsideModal(uid) }); }
+      if (action==="send-link"){ openSendLinkModal(uid); }
+      if (action==="set-exempt"){ openExemptModal(uid).then(async()=> { await reloadFinanceInsideModal(uid); }); }
+      if (action==="view-all"){ openAllInvoicesModal(uid); }
+      if (action==="edit-invoice"){
+        const invoiceId = btn.getAttribute("data-invid");
+        openPaymentModal({ uid, invoiceId, onSaved: async()=> await reloadFinanceInsideModal(uid) });
+      }
+    });
+
+    async function reloadFinanceInsideModal(uidReload){
+      try{
+        const [sSnap, invSnap] = await Promise.all([
+          getDoc(doc(db,"users",uidReload,"finance","summary")),
+          getDocs(query(collection(db,"users",uidReload,"financeInvoices"), orderBy("dueDate","asc")))
+        ]);
+        const summary2 = sSnap.exists()? sSnap.data() : {};
+        const invDocs2 = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const m2 = computeMembership({ invoices: invDocs2, summary: summary2 });
+        const nextDueStr2 = m2.nextDue ? fmtDateBRShort(new Date(m2.nextDue)) : "—";
+        userModalDiv.querySelector("#tabFinance").innerHTML = `
+          <h6 class="border-bottom pb-2 mb-3">Financeiro</h6>
+          ${renderFinanceBlock(uidReload, summary2, invDocs2, nextDueStr2, m2)}
+        `;
+      }catch(e){ console.warn("reloadFinanceInsideModal", e); }
+    }
+  }
+
+  function renderProfileFormModal(u, summary = {}) {
+    const ativo = (u.ativo !== false);
+    const isExempt = summary.exempt === true;
+    const untilStr = summary.exemptUntil
+        ? (summary.exemptUntil.toDate?.() ?? new Date(summary.exemptUntil))
+        : null;
+
+    return `
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Nome</label>
+          <input type="text" id="pfNome" class="form-control" value="${u.nome||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Apelido</label>
+          <input type="text" id="pfApelido" class="form-control" value="${u.apelido||''}" placeholder="Opcional">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">CPF</label>
+          <input type="text" id="pfCPF" class="form-control" value="${u.cpf||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Telefone</label>
+          <input type="text" id="pfTelefone" class="form-control" value="${u.telefone||''}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">E-mail (opcional)</label>
+          <input type="email" id="pfEmail" class="form-control" value="${u.email||''}" placeholder="ex.: pessoa@email.com">
+        </div>
+        <div class="col-md-9">
+          <label class="form-label">Endereço</label>
+          <input type="text" id="pfEndereco" class="form-control" value="${u.endereco||''}">
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mt-4">
+            <input class="form-check-input" id="pfAtivo" type="checkbox" ${ativo?'checked':''}>
+            <label class="form-check-label">Ativo</label>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="d-flex flex-wrap gap-2 align-items-center p-2 border rounded">
+            <span class="badge ${isExempt ? 'text-bg-secondary' : 'text-bg-light border'}">
+              ${isExempt ? 'ISENTO' : 'NÃO ISENTO'}
+            </span>
+            ${isExempt && untilStr ? `<span class="small text-secondary">até <strong>${fmtBRDate(untilStr)}</strong></span>` : ''}
+            <button class="btn btn-outline-secondary ms-auto" data-action="set-exempt">
+              ${isExempt ? 'Editar/Remover isenção' : 'Marcar como isento'}
+            </button>
+          </div>
+        </div>
+
+        <div class="col-12 text-end">
+          <button class="btn btn-outline-primary btn-save-profile">Salvar Perfil</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFinanceBlock(uid, summary, invDocs, nextDueStr, membership){
+    const last3 = [...invDocs].sort((a,b)=>{
+      const ad = a.paidAt?.toMillis?.() ?? a.recordedAt?.toMillis?.() ?? new Date(a.paidAt || a.recordedAt || 0).getTime();
+      const bd = b.paidAt?.toMillis?.() ?? b.recordedAt?.toMillis?.() ?? new Date(b.paidAt || b.recordedAt || 0).getTime();
+      return bd - ad;
+    }).slice(0,3);
+
+    const rows = last3.map(inv=>{
+      const s = String(inv.status||"").toLowerCase();
+      const badge = s==="pago" ? "bg-success" : s==="atrasado" ? "bg-danger" : s==="cancelado" ? "bg-secondary" : "bg-warning text-dark";
+      return `
+        <tr>
+          <td>${displayPlan(inv)}</td>
+          <td>${fmtBRL(inv.amount)}</td>
+          <td>${fmtDateCell(inv.planStart)}</td>
+          <td>${fmtDateCell(inv.planEnd)}</td>
+          <td>${fmtDateCell(inv.dueDate)}</td>
+          <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-primary" data-action="edit-invoice" data-uid="${uid}" data-invid="${inv.id}">Editar</button>
+          </td>
+        </tr>
+      `;
+    }).join("") || `<tr><td colspan="7" class="text-center text-secondary">Sem faturas visíveis.</td></tr>`;
+
+    const overdueAlert = (membership.detail==="atrasado")
+      ? `<div class="alert alert-warning d-flex justify-content-between align-items-center">
+           <div>Este associado está <strong>Atrasado</strong> (até 10 dias do vencimento).</div>
+           <button class="btn btn-sm btn-danger" data-action="send-link" data-uid="${uid}">Notificar via WhatsApp</button>
+         </div>`
+      : (membership.detail==="vencido")
+        ? `<div class="alert alert-danger d-flex justify-content-between align-items-center">
+             <div>Este associado está <strong>Vencido</strong> (mais de 10 dias do vencimento).</div>
+             <button class="btn btn-sm btn-danger" data-action="send-link" data-uid="${uid}">Enviar cobrança (WhatsApp)</button>
+           </div>`
+        : "";
+
+    return `
+      ${overdueAlert}
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <button class="btn btn-primary" data-action="new-payment" data-uid="${uid}">Registrar pagamento</button>
+        <button class="btn btn-outline-primary" data-action="send-link" data-uid="${uid}">Enviar link</button>
+        <button class="btn btn-light" data-action="view-all" data-uid="${uid}">Ver todas</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr>
+            <th>Plano</th><th>Valor</th><th>Início</th><th>Fim</th><th>Vencimento</th><th>Status</th><th class="text-end">Ações</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+
+      <div class="small-muted">Próxima cobrança: <strong>${nextDueStr||"—"}</strong> (igual ao vencimento).</div>
+    `;
+  }
+
+  /* ===== Modal: Pagamento/Fatura ===== */
+  let paymentModalDiv = null;
+  function openPaymentModal({ uid, invoiceId=null, onSaved=null }){
+    if (paymentModalDiv) paymentModalDiv.remove();
+    paymentModalDiv = document.createElement("div");
+    paymentModalDiv.className = "modal fade"; paymentModalDiv.tabIndex = -1;
+
+    const isEdit = !!invoiceId;
+    paymentModalDiv.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <form class="modal-content" id="paymentForm">
+          <div class="modal-header">
+            <h5 class="modal-title">${isEdit ? "Editar fatura / pagamento" : "Registrar pagamento"}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <div id="payMsg" class="d-none"></div>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Plano</label>
+                  <select class="form-select" id="pfPlan">
+                    <option value="">— selecione —</option>
+                    <option value="mensal">Mensal</option>
+                    <option value="trimestral">Trimestral</option>
+                    <option value="semestral">Semestral</option>
+                    <option value="anual">Anual</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                <div class="form-text">Ao selecionar, a data de fim é calculada automaticamente.</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Valor (R$)</label>
+                <input type="number" step="0.01" class="form-control" id="pfAmount" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="pfStatus">
+                  <option value="pago">pago</option>
+                  <option value="em_aberto">em_aberto</option>
+                  <option value="atrasado">atrasado</option>
+                  <option value="cancelado">cancelado</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label">Início do plano</label>
+                <input type="date" class="form-control" id="pfStart">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Fim do plano</label>
+                <input type="date" class="form-control" id="pfEnd">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Data do pagamento</label>
+                <input type="date" class="form-control" id="pfPaidAt">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Método</label>
+                <input type="text" class="form-control" id="pfMethod" placeholder="PIX, MP, Dinheiro, Cartão">
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Observação</label>
+                <textarea class="form-control" id="pfNotes" rows="2" placeholder="Qualquer detalhe adicional"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            ${isEdit ? `<button type="button" class="btn btn-danger me-auto" id="pfDelete">Excluir fatura</button>` : ``}
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">${isEdit? "Salvar alterações" : "Salvar pagamento"}</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(paymentModalDiv);
+    const modal = new bootstrap.Modal(paymentModalDiv); modal.show();
+
+    const payMsg = paymentModalDiv.querySelector("#payMsg");
+    const input = (id)=> paymentModalDiv.querySelector(id);
+    const showMsg = (t,k="info")=>{ payMsg.textContent=t; payMsg.className=`alert alert-${k}`; payMsg.classList.remove("d-none"); };
+
+    const recalcEndByType = ()=>{
+      const t = input("#pfPlan").value;
+      if (!t || t==="custom") return;
+      const months = PLAN_MONTHS[t];
+      let startStr = input("#pfStart").value;
+      if (!startStr){
+        const today = new Date(); startStr = today.toISOString().slice(0,10);
+        input("#pfStart").value = startStr;
+      }
+      const end = addMonthsSafe(fromDateStr(startStr), months);
+      input("#pfEnd").value = end ? end.toISOString().slice(0,10) : "";
+      // Preencher automaticamente a data de pagamento com a data de início
+      input("#pfPaidAt").value = startStr;
+    };
+    input("#pfPlan").addEventListener("change", ()=>{
+      const t = input("#pfPlan").value;
+      input("#pfEnd").toggleAttribute("disabled", t && t!=="custom");
+      input("#pfEnd").classList.toggle("input-readonly", t && t!=="custom");
+      if (t && t!=="custom") recalcEndByType();
+    });
+    input("#pfStart").addEventListener("change", ()=> recalcEndByType());
+    (async ()=>{
+      if (!invoiceId) {
+        input("#pfEnd").setAttribute("disabled","disabled");
+        input("#pfEnd").classList.add("input-readonly");
+        return;
+      }
+      try{
+        const invSnap = await getDoc(doc(db,"users",uid,"financeInvoices",invoiceId));
+        if (!invSnap.exists()) return;
+        const inv = invSnap.data();
+        input("#pfPlan").value  = inv.planType || "custom";
+        input("#pfAmount").value = inv.amount ?? "";
+        input("#pfStatus").value = inv.status || "em_aberto";
+        input("#pfPaidAt").value = toDateStr(inv.paidAt);
+        input("#pfStart").value = toDateStr(inv.planStart);
+        input("#pfEnd").value = toDateStr(inv.planEnd);
+        input("#pfMethod").value = inv.method||"";
+        input("#pfNotes").value = inv.notes||"";
+        input("#pfEnd").toggleAttribute("disabled", inv.planType && inv.planType!=="custom");
+        input("#pfEnd").classList.toggle("input-readonly", inv.planType && inv.planType!=="custom");
+      }catch(e){ console.error(e); showMsg("Falha ao carregar a fatura: "+e.message, "danger"); }
+    })();
+
+    paymentModalDiv.querySelector("#pfDelete")?.addEventListener("click", async ()=>{
+      if(!confirm("Excluir esta fatura (marcar como cancelada)?")) return;
+      try{
+        await updateDoc(doc(db,"users",uid,"financeInvoices",invoiceId), { status:"cancelado", updatedAt: serverTimestamp() });
+        showMsg("Fatura marcada como cancelada.", "success");
+        setTimeout(()=>{ modal.hide(); }, 600);
+      }catch(e){ showMsg("Erro ao excluir (cancelar) fatura: "+e.message, "danger"); }
+    });
+
+    paymentModalDiv.querySelector("#paymentForm").addEventListener("submit", async (ev)=>{
+      ev.preventDefault();
+      try{
+        const planSel  = input("#pfPlan");
+        const planName = planSel.options[planSel.selectedIndex]?.text?.trim() || null;
+
+        const payload = {
+          planType: input("#pfPlan").value || null,
+          amount: input("#pfAmount").value ? Number(input("#pfAmount").value) : null,
+          planName,
+          status: input("#pfStatus").value,
+          paidAt: input("#pfPaidAt").value ? fromDateStr(input("#pfPaidAt").value) : null,
+          planStart: input("#pfStart").value ? fromDateStr(input("#pfStart").value) : null,
+          planEnd: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
+          dueDate: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
+          method: input("#pfMethod").value.trim() || null,
+          notes: input("#pfNotes").value.trim() || null,
+          recordedByUid: operatorProfile.uid || null,
+          recordedByName: operatorProfile.nome || null,
+          recordedByCPF: operatorProfile.cpf || null,
+          recordedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        };
+
+        let invRef;
+        if (invoiceId){
+          invRef = doc(db,"users",uid,"financeInvoices",invoiceId);
+          await setDoc(invRef, payload, { merge:true });
+        } else {
+          invRef = await addDoc(collection(db,"users",uid,"financeInvoices"), payload);
+          invoiceId = invRef.id;
+        }
+
+        await refreshSummaryFromInvoices(uid);
+        showMsg("Dados financeiros salvos com sucesso.", "success");
+        if (onSaved && typeof onSaved === 'function') {
+          await onSaved();
+        }
+        setTimeout(()=>{ modal.hide(); }, 600);
+      }catch(e){
+        console.error(e);
+        showMsg("Erro ao salvar: "+e.message, "danger");
+      }
+    });
+  }
+
+  /* ===== Modal: Isenção ===== */
+  let exemptDiv = null;
+  async function openExemptModal(uid){
+    if (exemptDiv) exemptDiv.remove();
+    exemptDiv = document.createElement("div");
+    exemptDiv.className = "modal fade"; exemptDiv.tabIndex = -1;
+
+    let summary = {};
+    try{
+      const s = await getDoc(doc(db,"users",uid,"finance","summary"));
+      summary = s.exists()? s.data() : {};
+    }catch{}
+
+    const currentExempt = summary.exempt===true;
+    const currentUntil = summary.exemptUntil ? (summary.exemptUntil.toDate?.() ?? new Date(summary.exemptUntil)) : null;
+
+    exemptDiv.innerHTML = `
+      <div class="modal-dialog">
+        <form class="modal-content" id="exForm">
+          <div class="modal-header">
+            <h5 class="modal-title">${currentExempt? "Editar/Remover isenção" : "Marcar como isento"}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ${currentExempt ? `<div class="alert alert-info">Isento até: <strong>${currentUntil ? fmtBRDate(currentUntil) : "(sem data definida)"}</strong></div>` : ""}
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label">Duração</label>
+                <select id="exMonths" class="form-select">
+                  <option value="1">1 mês</option>
+                  <option value="3">3 meses</option>
+                  <option value="6">6 meses</option>
+                  <option value="12" selected>12 meses</option>
+                  <option value="custom">Personalizado…</option>
+                </select>
+              </div>
+              <div class="col-sm-6 d-none" id="exCustomWrap">
+                <label class="form-label">Meses (personalizado)</label>
+                <input type="number" min="1" step="1" id="exCustom" class="form-control" placeholder="ex.: 18">
+              </div>
+              <div class="col-12"><div class="form-text">Conta a partir de hoje.</div></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            ${currentExempt ? `<button type="button" class="btn btn-danger me-auto" id="exRemove">Remover isenção</button>` : ``}
+            <button class="btn btn-light" data-bs-dismiss="modal" type="button">Cancelar</button>
+            <button class="btn btn-primary" type="submit">${currentExempt? "Atualizar" : "Aplicar"}</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(exemptDiv);
+    const modal = new bootstrap.Modal(exemptDiv); modal.show();
+
+    const sel = exemptDiv.querySelector("#exMonths");
+    const customWrap = exemptDiv.querySelector("#exCustomWrap");
+    const custom = exemptDiv.querySelector("#exCustom");
+    sel.addEventListener("change", ()=> customWrap.classList.toggle("d-none", sel.value!=="custom"));
+
+    exemptDiv.querySelector("#exRemove")?.addEventListener("click", async ()=>{
+      if(!confirm("Remover isenção deste associado?")) return;
+      try{
+        await setDoc(doc(db,"users",uid,"finance","summary"), { exempt:false, exemptUntil:null, updatedAt: serverTimestamp() }, { merge:true });
+        modal.hide();
+      }catch(e){ alert("Falha ao remover isenção: "+e.message); }
+    });
+
+    exemptDiv.querySelector("#exForm").addEventListener("submit", async (ev)=>{
+      ev.preventDefault();
+      try{
+        const months = sel.value==="custom" ? Math.max(1, Number(custom.value||"1")) : Number(sel.value);
+        const until = addMonthsSafe(now(), months);
+        await setDoc(doc(db,"users",uid,"finance","summary"), { exempt:true, exemptUntil: until, updatedAt: serverTimestamp() }, { merge:true });
+        modal.hide();
+      }catch(e){ alert("Falha ao aplicar isenção: "+e.message); }
+    });
+  }
+
+  /* ===== Modal: WhatsApp ===== */
+  let sendLinkDiv = null;
+  async function openSendLinkModal(uid){
+    if (sendLinkDiv) sendLinkDiv.remove();
+    sendLinkDiv = document.createElement("div");
+    sendLinkDiv.className = "modal fade"; sendLinkDiv.tabIndex = -1;
+
+    let phone = "", due = "";
+    try{
+      const [uSnap, sSnap] = await Promise.all([
+        getDoc(doc(db,"users",uid)),
+        getDoc(doc(db,"users",uid,"finance","summary"))
+      ]);
+      phone = uSnap.exists() ? (uSnap.data().telefone || "") : "";
+      const sd = sSnap.exists()? sSnap.data() : {};
+      due = toDateStr(sd.nextDue);
+    }catch(e){ console.warn("sendLink query", e); }
+
+    const dueText = due ? fmtBRDate(new Date(due+"T00:00:00")) : "(data de vencimento)";
+    const msg = `Olá! Aqui é do Clube do Cavalo. Sua associação vencerá dia ${dueText}. Segue o link para o pagamento: ${payPageUrl()}.
+Qualquer dúvida, estamos à disposição.`;
+
+    sendLinkDiv.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Enviar link de pagamento</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <div class="mb-2">
+              <label class="form-label">Telefone/WhatsApp</label>
+              <input type="text" class="form-control" id="slPhone" value="${phone}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">Mensagem</label>
+              <textarea class="form-control" id="slMsg" rows="4">${msg}</textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <a class="btn btn-success" id="slOpen" target="_blank" rel="noopener" data-action="open-wpp">Abrir WhatsApp</a>
+            <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(sendLinkDiv);
+    const modal = new bootstrap.Modal(sendLinkDiv); modal.show();
+
+    const phoneEl = sendLinkDiv.querySelector("#slPhone");
+    const msgEl = sendLinkDiv.querySelector("#slMsg");
+    const openBtn = sendLinkDiv.querySelector("#slOpen");
+    const refresh = ()=> openBtn.href = wppUrl(phoneEl.value, msgEl.value);
+    [phoneEl, msgEl].forEach(el => el.addEventListener("input", refresh));
+    refresh();
+  }
+
+  /* ===== Todas as faturas ===== */
+  let allInvDiv = null;
+  async function openAllInvoicesModal(uid){
+    if (allInvDiv) allInvDiv.remove();
+    allInvDiv = document.createElement("div");
+    allInvDiv.className = "modal fade"; allInvDiv.tabIndex = -1;
+
+    let rows="";
+    try{
+      const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
+      const list = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+      rows = list.map(inv=>{
+        const s = String(inv.status||"").toLowerCase();
+        const badge = s==="pago" ? "bg-success" : s==="atrasado" ? "bg-danger" : s==="cancelado" ? "bg-secondary" : "bg-warning text-dark";
+        return `<tr>
+          <td>${displayPlan(inv)}</td>
+          <td>${fmtBRL(inv.amount)}</td>
+          <td>${fmtDateCell(inv.planStart)}</td>
+          <td>${fmtDateCell(inv.planEnd)}</td>
+          <td>${fmtDateCell(inv.dueDate)}</td>
+          <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
+          <td class="small">${inv.method||""}</td>
+          <td class="small">${inv.gatewayId||""}</td>
+          <td class="small">${inv.recordedByName||""}</td>
+        </tr>`;
+      }).join("") || `<tr><td colspan="9" class="text-center text-secondary">Sem faturas.</td></tr>`;
+    }catch(e){ console.error(e); rows = `<tr><td colspan="9" class="text-center text-danger">Falha ao carregar.</td></tr>`; }
+
+    allInvDiv.innerHTML = `
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Faturas do associado</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr>
+                  <th>Plano</th><th>Valor</th><th>Início</th><th>Fim</th><th>Vencimento</th><th>Status</th>
+                  <th>Método</th><th>GatewayId</th><th>Registrado por</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Fechar</button></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(allInvDiv);
+    new bootstrap.Modal(allInvDiv).show();
+  }
+
+  /* ===== Summary ===== */
+  async function refreshSummaryFromInvoices(uid){
+    const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
+    const invoices = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+
+    let lastPayment=null, lastAmount=null, nextDue=null, activeUntil=null;
+
+    const latestPaid = getLatestPaidInvoice(invoices);
+    if (latestPaid){
+      lastPayment = latestPaid.paidAt || latestPaid.recordedAt || null;
+      lastAmount = latestPaid.amount ?? null;
+
+      if (latestPaid.planEnd){
+        const end = latestPaid.planEnd?.toDate?.() ?? new Date(latestPaid.planEnd);
+        activeUntil = addDays(end, 10);
+      }
+    }
+
+    const open = invoices.filter(i=> !["pago","cancelado"].includes(String(i.status||"").toLowerCase()));
+    if (open.length){
+      open.sort((a,b)=>{
+        const ad = a.dueDate?.toMillis?.() ?? new Date(a.dueDate||0).getTime();
+        const bd = b.dueDate?.toMillis?.() ?? new Date(b.dueDate||0).getTime();
+        return ad - bd;
+      });
+      nextDue = open[0].dueDate || null;
+    }
+
+    await setDoc(doc(db,"users",uid,"finance","summary"), {
+      lastPayment: lastPayment || null,
+      lastAmount: lastAmount ?? null,
+      nextDue: nextDue || null,
+      activeUntil: activeUntil || null,
+      updatedAt: serverTimestamp()
+    }, { merge:true });
+  }
+
+  /* ===== Ações em massa ===== */
+  document.getElementById("actionGenInvoices")?.addEventListener("click", openMassInvoiceModal);
+  document.getElementById("actionSendReminders")?.addEventListener("click", massSendReminders);
+  document.getElementById("actionExportPdf")?.addEventListener("click", exportPdfSelected);
+  document.getElementById("actionExportCsv")?.addEventListener("click", exportCsvSelected);
+
+  function getSelectedUids(){
+    return Array.from(document.querySelectorAll(".row-check:checked")).map(c=> c.getAttribute("data-uid"));
+  }
+
+  let massInvDiv = null;
+  function openMassInvoiceModal(){
+    const uids = getSelectedUids();
+    if (!uids.length){ alert("Selecione pelo menos um associado."); return; }
+    if (massInvDiv) massInvDiv.remove();
+    massInvDiv = document.createElement("div");
+    massInvDiv.className = "modal fade"; massInvDiv.tabIndex = -1;
+    massInvDiv.innerHTML = `
+      <div class="modal-dialog">
+        <form class="modal-content" id="massForm">
+          <div class="modal-header"><h5 class="modal-title">Gerar fatura para ${uids.length} associado(s)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label">Plano</label>
+                <select class="form-select" id="mType" required>
+                  <option value="">— selecione —</option>
+                  <option value="mensal">Mensal</option>
+                  <option value="trimestral">Trimestral</option>
+                  <option value="semestral">Semestral</option>
+                  <option value="anual">Anual</option>
+                </select>
+              </div>
+              <div class="col-sm-3">
+                <label class="form-label">Valor (R$)</label>
+                <input type="number" step="0.01" class="form-control" id="mAmount" required>
+              </div>
+              <div class="col-sm-3">
+                <label class="form-label">Início do plano</label>
+                <input type="date" class="form-control" id="mStart" required>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label">Fim do plano</label>
+                <input type="date" class="form-control input-readonly" id="mEnd" disabled>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label">Vencimento</label>
+                <input type="date" class="form-control input-readonly" id="mDue" disabled>
+              </div>
+              <div class="col-sm-12">
+                <label class="form-label">Link de pagamento (opcional)</label>
+                <input type="url" class="form-control" id="mUrl" placeholder="https://...">
+              </div>
+              <div class="col-12"><div class="form-text">Faturas criadas com status <strong>em_aberto</strong>.</div></div>
+            </div>
+            <div id="mMsg" class="d-none mt-2"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal" type="button">Cancelar</button>
+            <button class="btn btn-primary" type="submit">Criar faturas</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(massInvDiv);
+    const modal = new bootstrap.Modal(massInvDiv); modal.show();
+
+    const msg = massInvDiv.querySelector("#mMsg");
+    const show = (t,k="info")=>{ msg.textContent=t; msg.className=`alert alert-${k}`; msg.classList.remove("d-none"); };
+
+    const mType = massInvDiv.querySelector("#mType");
+    const mStart = massInvDiv.querySelector("#mStart");
+    const mEnd   = massInvDiv.querySelector("#mEnd");
+    const mDue   = massInvDiv.querySelector("#mDue");
+    const recalcMass = ()=>{
+      if (!mType.value || !mStart.value) return;
+      const months = PLAN_MONTHS[mType.value];
+      const end = addMonthsSafe(fromDateStr(mStart.value), months);
+      mEnd.value = end ? end.toISOString().slice(0,10) : "";
+      mDue.value = mEnd.value;
+    };
+    mType.addEventListener("change", recalcMass);
+    mStart.addEventListener("change", recalcMass);
+
+    massInvDiv.querySelector("#massForm").addEventListener("submit", async (ev)=>{
+      ev.preventDefault();
+      const amount = Number(massInvDiv.querySelector("#mAmount").value);
+      const type = mType.value;
+      const planName = mType.options[mType.selectedIndex].text.trim();
+      const start = fromDateStr(mStart.value);
+      const end = fromDateStr(mEnd.value);
+      const due = end;
+      const url = massInvDiv.querySelector("#mUrl").value.trim() || null;
+
+      try{
+        for(const uid of uids){
+          await addDoc(collection(db,"users",uid,"financeInvoices"), {
+            planType: type, amount, status:"em_aberto",
+            planName,
+            planStart: start, planEnd: end, dueDate: due,
+            paymentUrl: url, recordedAt: serverTimestamp(),
+            recordedByUid: operatorProfile.uid, recordedByName: operatorProfile.nome, recordedByCPF: operatorProfile.cpf
+          });
+          await refreshSummaryFromInvoices(uid);
+        }
+        show("Faturas criadas com sucesso.", "success");
+        setTimeout(()=>{ modal.hide(); listUsers(searchQuery.value.trim()); }, 600);
+      }catch(e){ console.error(e); show("Erro: "+e.message, "danger"); }
+    });
+  }
+
+  async function massSendReminders(){
+    const uids = getSelectedUids();
+    if (!uids.length){ alert("Selecione pelo menos um associado."); return; }
+    for (const uid of uids){
+      try{
+        const [uSnap, sSnap] = await Promise.all([
+          getDoc(doc(db,"users",uid)),
+          getDoc(doc(db,"users",uid,"finance","summary"))
+        ]);
+        const phone = uSnap.exists() ? (uSnap.data().telefone || "") : "";
+        const due = sSnap.exists()? toDateStr(sSnap.data().nextDue) : "";
+        const dueTxt = due ? fmtBRDate(new Date(due+"T00:00:00")) : "(data de vencimento)";
+        const msg = `Olá! Aqui é do Clube do Cavalo. Sua associação vencerá dia ${dueTxt}. Segue o link para o pagamento: ${payPageUrl()}.
+Qualquer dúvida, estamos à disposição.`;
+        window.open(wppUrl(phone,msg), "_blank","noopener");
+      }catch(e){ console.warn("reminder fail", uid, e); }
+    }
+  }
+
+  async function exportCsvSelected(){
+    const uids = getSelectedUids();
+    if (!uids.length){ alert("Selecione pelo menos um associado."); return; }
+    const lines = [["uid","nome","cpf","status_lista","nextDue","lastPayment","lastAmount"].join(",")];
+
+    for (const uid of uids){
+      try{
+        const [uSnap, sSnap, invSnap] = await Promise.all([
+          getDoc(doc(db,"users",uid)),
+          getDoc(doc(db,"users",uid,"finance","summary")),
+          getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+        ]);
+        const u = uSnap.data()||{};
+        const s = sSnap.data()||{};
+        const invoices = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const m = computeMembership({ invoices, summary:s });
+
+        const row = [
+          uid,
+          JSON.stringify(u.nome||""),
+          JSON.stringify((u.cpf||"").replace(/\D/g,"")),
+          m.listCode,
+          toDateStr(s.nextDue)||"",
+          toDateStr(s.lastPayment)||"",
+          s.lastAmount!=null ? String(s.lastAmount).replace(".",",") : ""
+        ];
+        lines.push(row.join(","));
+      }catch(e){ console.warn("csv user fail", uid, e); }
+    }
+
+    const blob = new Blob([lines.join("\n")], { type:"text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `associados_financeiro_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportPdfSelected(){
+    const uids = getSelectedUids();
+    if (!uids.length){ alert("Selecione pelo menos um associado."); return; }
+    const jsPDFCtor = window.jspdf?.jsPDF;
+    if (!jsPDFCtor){
+      alert("Biblioteca de PDF não carregada. Recarregue a página e tente novamente.");
+      return;
+    }
+
+    const rows = [];
+    for (const uid of uids){
+      try{
+        const [uSnap, sSnap, invSnap] = await Promise.all([
+          getDoc(doc(db,"users",uid)),
+          getDoc(doc(db,"users",uid,"finance","summary")),
+          getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+        ]);
+        const u = uSnap.data() || {};
+        const s = sSnap.data() || {};
+        const invoices = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
+        const membership = computeMembership({ invoices, summary: s });
+        const latestPaid = getLatestPaidInvoice(invoices);
+        const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(s.lastPayment);
+        const lastAmountDisplay = (latestPaid?.amount ?? s.lastAmount) != null ? fmtBRL(latestPaid?.amount ?? s.lastAmount) : "—";
+        const nextDueDisplay = membership.nextDue ? fmtDateBRShort(new Date(membership.nextDue)) : "—";
+
+        rows.push([
+          u.nome || "—",
+          u.telefone || "—",
+          lastPaymentDisplay,
+          lastAmountDisplay,
+          nextDueDisplay,
+          membership.listBadge || "—"
+        ]);
+      }catch(e){
+        console.warn("pdf user fail", uid, e);
+      }
+    }
+
+    if (!rows.length){
+      alert("Não foi possível montar os dados para exportação.");
+      return;
+    }
+
+    const generatedAt = new Date();
+    const generatedAtDate = fmtDateBRShort(generatedAt).replace(/\//g, "-");
+    const generatedAtDateTime = fmtDateTimeBR(generatedAt);
+    const docPdf = new jsPDFCtor({ orientation:"landscape", unit:"mm", format:"a4" });
+    docPdf.setFontSize(14);
+    docPdf.text("CCBMG - Lista de Associados x Situação Financeira", 14, 15);
+    docPdf.setFontSize(9);
+    docPdf.text(`Gerado em ${generatedAtDateTime}`, 14, 21);
+    docPdf.autoTable({
+      startY: 26,
+      head: [["Nome", "Telefone", "Último pagamento", "Valor pago", "Próximo pagamento", "Situação financeira"]],
+      body: rows,
+      styles: { fontSize: 9, cellPadding: 2.5 },
+      headStyles: { fillColor: [17, 18, 121] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: 10, right: 10 }
+    });
+    docPdf.save(`CCBMG - Lista de Associados x Situação Financeira - ${generatedAtDate}.pdf`);
+  }
+</script>
+</body>
+</html>
