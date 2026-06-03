@@ -1079,11 +1079,9 @@
       const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
       const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
 
-      // Plano: lê da última fatura paga; fallback para qualquer fatura; fallback para campo do usuário
-      const planType = latestPaid?.planType
-        || invDocs.find(i => i.planType)?.planType
-        || userData.planType
-        || null;
+      // Plano: lê da última fatura paga; fallback para fatura mais recente; fallback para campo do usuário
+      const latestAnyPlan = [...invDocs].reverse().find(i => i.planType)?.planType;
+      const planType = latestPaid?.planType || latestAnyPlan || userData.planType || null;
       const planName = latestPaid?.planName || null;
       const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
       const planClass = planType ? `plan-chip plan-chip-${planType}` : "plan-chip plan-chip-none";

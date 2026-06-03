@@ -1011,9 +1011,13 @@ exports.createDefaultInvoices = functions
 
       if (userData.ativo === false) { results.skipped++; continue; }
 
-      // Verifica se já tem alguma fatura
-      const invSnap = await userDoc.ref.collection('financeInvoices').limit(1).get();
-      if (!invSnap.empty) { results.skipped++; continue; }
+      // Verifica se já tem alguma fatura PAGA — se tiver, pula
+      const invSnap = await userDoc.ref.collection('financeInvoices').get();
+      const hasPaid = invSnap.docs.some(d => {
+        const s = String(d.data().status || '').toLowerCase();
+        return ['pago', 'paga', 'paid'].includes(s);
+      });
+      if (hasPaid) { results.skipped++; continue; }
 
       const planType = String(userData.planType || 'mensal').toLowerCase().trim();
       const amount   = PLAN_VALUE[planType] || 30;
