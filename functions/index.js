@@ -9,6 +9,14 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const ASAAS_BASE_URL = 'https://api.asaas.com/v3';
 const ASAAS_SECRET   = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 
+// Mesma lógica do firebase.js: trim + normalize + includes
+function mapRoleServer(r) {
+  const n = (r || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
+  if (n.includes('master')) return 'master';
+  if (n.includes('admin'))  return 'admin';
+  return 'associado';
+}
+
 
 admin.initializeApp();
 
@@ -745,7 +753,7 @@ exports.syncAllAssociadosToAsaas = functions
     }
 
     const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = String(callerSnap.data()?.role || '').toLowerCase();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
     if (!['admin', 'master'].includes(callerRole)) {
       throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
     }
