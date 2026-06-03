@@ -1084,11 +1084,12 @@ exports.fixAsaasPhoneNumbers = functions
 
       try {
         const resp = await fetch(`${ASAAS_BASE_URL}/customers/${userData.asaasId}`, {
-          method: 'PATCH',
+          method: 'POST',
           headers: { access_token: apiKey, 'Content-Type': 'application/json' },
           body: JSON.stringify({ mobilePhone: phone }),
         });
-        const data = await resp.json();
+        const text = await resp.text();
+        const data = text ? JSON.parse(text) : {};
 
         if (!resp.ok) {
           throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
