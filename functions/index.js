@@ -17,6 +17,15 @@ function mapRoleServer(r) {
   return 'associado';
 }
 
+// Remove prefixo 55 se o número já vier com código do país (13 dígitos)
+// Asaas espera número local: DDD + número (11 dígitos para celular)
+function formatPhoneForAsaas(raw) {
+  const d = (raw || '').replace(/\D/g, '');
+  if (!d) return undefined;
+  if (d.length === 13 && d.startsWith('55')) return d.slice(2);
+  return d;
+}
+
 
 admin.initializeApp();
 
@@ -724,7 +733,7 @@ async function findOrCreateAsaasCustomer(apiKey, user) {
   const body = {
     name: (user.nome || 'Associado').trim(),
     cpfCnpj: cpf,
-    mobilePhone: (user.telefone || '').replace(/\D/g, '') || undefined,
+    mobilePhone: formatPhoneForAsaas(user.telefone),
     externalReference: user.uid || undefined,
   };
 
@@ -921,6 +930,8 @@ exports.createAsaasSubscriptions = functions
             cycle: PLAN_CYCLE[planType],
             description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}`,
             externalReference: userDoc.id,
+            interest: { value: 0.01 },
+            notificationEnabled: true,
           }),
         });
         const subData = await subResp.json();
@@ -1043,5 +1054,54 @@ exports.createDefaultInvoices = functions
     }
 
     console.log('createDefaultInvoices result:', results);
+    return results;
+  });
+
+// Callable: corrige os telefones no Asaas para todos os associados com asaasId
+exports.fixAsaasPhoneNumbers = functions
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey   = await getAsaasApiKey();
+    const usersSnap = await db.collection('users').get();
+    const results  = { updated: 0, skipped: 0, errors: [] };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = { uid: userDoc.id, ...userDoc.data() };
+
+      if (!userData.asaasId || !userData.telefone) { results.skipped++; continue; }
+
+      const phone = formatPhoneForAsaas(userData.telefone);
+      if (!phone) { results.skipped++; continue; }
+
+      try {
+        const resp = await fetch(`${ASAAS_BASE_URL}/customers/${userData.asaasId}`, {
+          method: 'PATCH',
+          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobilePhone: phone }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
+        }
+        results.updated++;
+      } catch (err) {
+        console.error('fixAsaasPhoneNumbers error:', userDoc.id, err.message);
+        results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
+      }
+
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    console.log('fixAsaasPhoneNumbers result:', results);
     return results;
   });
