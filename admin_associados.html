@@ -287,8 +287,8 @@
                 <button class="dropdown-item" id="actionCreateDefaultInvoices">
                   <i class="bi bi-file-earmark-plus me-1 text-primary"></i>Criar fatura jun/2026 (sem fatura)
                 </button>
-                <button class="dropdown-item" id="actionFixAsaasPhones">
-                  <i class="bi bi-telephone-fill me-1 text-danger"></i>Corrigir telefones no Asaas
+                <button class="dropdown-item" id="actionConfigureNotifications">
+                  <i class="bi bi-bell-fill me-1 text-warning"></i>Configurar notificações Asaas
                 </button>
                 <hr class="dropdown-divider my-1">
                 <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
@@ -2224,27 +2224,34 @@ Qualquer dúvida, estamos à disposição.`;
     }
   });
 
-  /* ── Corrigir telefones no Asaas ── */
-  document.getElementById('actionFixAsaasPhones')?.addEventListener('click', async () => {
-    if (!confirm('Corrigir os números de telefone de todos os associados no Asaas?\n\nIsso remove o prefixo 55 duplicado e garante o formato correto para WhatsApp e SMS.')) return;
+  /* ── Configurar notificações Asaas ── */
+  document.getElementById('actionConfigureNotifications')?.addEventListener('click', async () => {
+    if (!confirm(
+      'Configurar notificações automáticas do Asaas para todos os associados?\n\n' +
+      'Serão ativados 3 avisos por SMS:\n' +
+      '• 5 dias antes do vencimento\n' +
+      '• No dia do vencimento\n' +
+      '• 5 dias após o vencimento\n\n' +
+      'Deseja continuar?'
+    )) return;
 
-    const btn = document.getElementById('actionFixAsaasPhones');
+    const btn = document.getElementById('actionConfigureNotifications');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Corrigindo...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Configurando...';
 
     try {
       const fns = getFunctions(auth.app);
-      const fn  = httpsCallable(fns, 'fixAsaasPhoneNumbers', { timeout: 540000 });
+      const fn  = httpsCallable(fns, 'configureAsaasNotifications', { timeout: 540000 });
       const { data } = await fn();
       const errosTxt = data.errors?.length
         ? `\n\n⚠ ${data.errors.length} erro(s):\n` + data.errors.map(e => `• ${e.nome}: ${e.error}`).join('\n')
         : '';
-      alert(`Concluído!\n✅ ${data.updated} telefone(s) corrigido(s).\n⏭ ${data.skipped} sem telefone ou sem cadastro no Asaas.${errosTxt}`);
+      alert(`Concluído!\n✅ ${data.configured} associado(s) configurado(s).\n⏭ ${data.skipped} ignorado(s).${errosTxt}`);
     } catch (err) {
       alert('Erro: ' + err.message);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-telephone-fill me-1 text-danger"></i>Corrigir telefones no Asaas';
+      btn.innerHTML = '<i class="bi bi-bell-fill me-1 text-warning"></i>Configurar notificações Asaas';
     }
   });
 

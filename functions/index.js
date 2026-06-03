@@ -1057,6 +1057,94 @@ exports.createDefaultInvoices = functions
     return results;
   });
 
+// Callable: configura o agendamento das notificações do Asaas para todos os associados
+// - 5 dias antes do vencimento (PAYMENT_DUEDATE_WARNING)
+// - No dia do vencimento     (PAYMENT_DUEDATE_REACHED)
+// - 5 dias após o vencimento  (PAYMENT_OVERDUE)
+exports.configureAsaasNotifications = functions
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey    = await getAsaasApiKey();
+    const usersSnap = await db.collection('users').get();
+    const results   = { configured: 0, skipped: 0, errors: [] };
+
+    const NOTIF_CONFIG = {
+      PAYMENT_DUEDATE_WARNING: { scheduleOffset: 5 },
+      PAYMENT_DUEDATE_REACHED: { scheduleOffset: 0 },
+      PAYMENT_OVERDUE:         { scheduleOffset: 5 },
+    };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = { uid: userDoc.id, ...userDoc.data() };
+
+      if (!userData.asaasId || userData.ativo === false) {
+        results.skipped++;
+        continue;
+      }
+
+      try {
+        // Lista as notificações atuais do cliente no Asaas
+        const listResp = await fetch(
+          `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications`,
+          { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+        );
+        const listText = await listResp.text();
+        const listData = listText ? JSON.parse(listText) : {};
+
+        if (!listResp.ok) {
+          throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+        }
+
+        for (const notif of (listData.data || [])) {
+          const cfg = NOTIF_CONFIG[notif.event];
+          if (!cfg) continue;
+
+          const updResp = await fetch(
+            `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications/${notif.id}`,
+            {
+              method: 'PUT',
+              headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                enabled:                    true,
+                scheduleOffset:             cfg.scheduleOffset,
+                smsEnabledForCustomer:      true,
+                emailEnabledForCustomer:    false,
+                whatsappEnabledForCustomer: false,
+              }),
+            }
+          );
+          const updText = await updResp.text();
+          const updData = updText ? JSON.parse(updText) : {};
+
+          if (!updResp.ok) {
+            throw new Error(updData.errors?.[0]?.description || `HTTP ${updResp.status}`);
+          }
+
+          await new Promise(r => setTimeout(r, 100));
+        }
+
+        results.configured++;
+      } catch (err) {
+        console.error('configureAsaasNotifications error:', userDoc.id, err.message);
+        results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
+      }
+
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    console.log('configureAsaasNotifications result:', results);
+    return results;
+  });
+
 // Callable: corrige os telefones no Asaas para todos os associados com asaasId
 exports.fixAsaasPhoneNumbers = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
