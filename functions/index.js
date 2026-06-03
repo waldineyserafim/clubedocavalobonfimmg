@@ -811,3 +811,143 @@ exports.onNewAssociadoCriado = functions.firestore
 
     return null;
   });
+
+/* =======================================================================
+   ASAAS — ASSINATURAS
+   ======================================================================= */
+
+const PLAN_CYCLE = { mensal: 'MONTHLY', trimestral: 'QUARTERLY', semestral: 'SEMIANNUALLY' };
+const PLAN_VALUE = { mensal: 30, trimestral: 85, semestral: 170 };
+const PLAN_LABEL = { mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral' };
+const PENDING_RESTART_DATE = '2026-06-10';
+
+// Retorna o planType da fatura mais recente (paga ou em aberto)
+function detectPlanType(invoices) {
+  if (!invoices.length) return null;
+
+  const paid = invoices.filter(i =>
+    ['pago', 'paga', 'paid'].includes(String(i.status || '').toLowerCase())
+  );
+
+  const sorted = (paid.length ? paid : invoices).slice().sort((a, b) => {
+    const aMs = a.paidAt?.toMillis?.() ?? a.createdAt?.toMillis?.() ?? 0;
+    const bMs = b.paidAt?.toMillis?.() ?? b.createdAt?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+
+  for (const inv of sorted) {
+    const pt = String(inv.planType || '').toLowerCase().trim();
+    if (PLAN_CYCLE[pt]) return pt;
+  }
+  return null;
+}
+
+// Retorna a data de fim do último plano pago (Date | null)
+function getLastPlanEndDate(invoices) {
+  const paid = invoices.filter(i =>
+    ['pago', 'paga', 'paid'].includes(String(i.status || '').toLowerCase())
+  );
+  if (!paid.length) return null;
+
+  paid.sort((a, b) => {
+    const aMs = a.planEnd?.toMillis?.() ?? (a.planEnd ? new Date(a.planEnd).getTime() : 0);
+    const bMs = b.planEnd?.toMillis?.() ?? (b.planEnd ? new Date(b.planEnd).getTime() : 0);
+    return bMs - aMs;
+  });
+
+  const raw = paid[0].planEnd;
+  if (!raw) return null;
+  return raw?.toDate?.() ?? new Date(raw);
+}
+
+// Callable: cria assinaturas no Asaas para todos os associados com asaasId
+exports.createAsaasSubscriptions = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey = await getAsaasApiKey();
+    const usersSnap = await db.collection('users').get();
+    const results = { created: 0, skipped: 0, errors: [] };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = { uid: userDoc.id, ...userDoc.data() };
+
+      // Pula sem asaasId, já com assinatura ou inativos
+      if (!userData.asaasId || userData.asaasSubscriptionId || userData.ativo === false) {
+        results.skipped++;
+        continue;
+      }
+
+      try {
+        const invSnap = await db
+          .collection('users').doc(userDoc.id)
+          .collection('financeInvoices').get();
+        const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const planType = detectPlanType(invoices);
+        if (!planType) {
+          results.errors.push({
+            uid: userDoc.id,
+            nome: userData.nome || '—',
+            error: 'Plano não identificado — sem faturas registradas',
+          });
+          continue;
+        }
+
+        // Define data de vencimento da 1ª cobrança
+        const membership = computeMembership({ invoices, summary: {} });
+        let nextDueDate;
+
+        if (membership.listCode === 'em_dia') {
+          const planEnd = getLastPlanEndDate(invoices);
+          nextDueDate = planEnd
+            ? planEnd.toISOString().slice(0, 10)
+            : PENDING_RESTART_DATE;
+        } else {
+          nextDueDate = PENDING_RESTART_DATE;
+        }
+
+        const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
+          method: 'POST',
+          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer: userData.asaasId,
+            billingType: 'UNDEFINED',
+            value: PLAN_VALUE[planType],
+            nextDueDate,
+            cycle: PLAN_CYCLE[planType],
+            description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}`,
+            externalReference: userDoc.id,
+          }),
+        });
+        const subData = await subResp.json();
+
+        if (!subResp.ok) {
+          throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+        }
+
+        await userDoc.ref.update({
+          asaasSubscriptionId: subData.id,
+          asaasSubscriptionSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        results.created++;
+      } catch (err) {
+        console.error('createAsaasSubscriptions error:', userDoc.id, err.message);
+        results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
+      }
+
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    console.log('createAsaasSubscriptions result:', results);
+    return results;
+  });
