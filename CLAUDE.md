@@ -96,6 +96,25 @@ events / partners  (coleções simples)
 
 ---
 
+## Integração Asaas
+
+Arquivo: `functions/index.js`
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `syncAllAssociadosToAsaas` | HTTP Callable | Migração em massa — cria/verifica todos os usuários ativos sem `asaasId` no Asaas. Requer role admin/master. |
+| `onNewAssociadoCriado` | Firestore onCreate trigger | Sincroniza automaticamente cada novo usuário criado em `users/{uid}`. |
+
+**Campos enviados ao Asaas:** `name` (nome), `cpfCnpj` (CPF), `mobilePhone` (telefone), `externalReference` (Firebase UID)
+
+**Campos salvos no Firestore após sync:** `asaasId` (string), `asaasSyncedAt` (Timestamp)
+
+**Segredo no Secret Manager:** `projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest`
+
+**UI:** Botão "Sincronizar Asaas" em `admin_associados.html` → modal com progresso e resumo de erros.
+
+---
+
 ## Cloud Function: Relatório Diário
 
 - Arquivo: `functions/index.js`

@@ -6,7 +6,9 @@ const nodemailer = require('nodemailer');
 
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
- 
+const ASAAS_BASE_URL = 'https://api.asaas.com/v3';
+const ASAAS_SECRET   = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
+
 
 admin.initializeApp();
 
@@ -685,3 +687,119 @@ function generateEmailHtml(data) {
   `;
 
 }
+
+/* =======================================================================
+   INTEGRAÇÃO ASAAS
+   ======================================================================= */
+
+async function getAsaasApiKey() {
+  return getSecret(ASAAS_SECRET);
+}
+
+// Busca cliente no Asaas pelo CPF; cria se não existir.
+// Retorna { asaasId, action: 'found' | 'created' }
+async function findOrCreateAsaasCustomer(apiKey, user) {
+  const cpf = (user.cpf || '').replace(/\D/g, '');
+  if (!cpf) throw new Error('CPF ausente');
+
+  // 1) Busca pelo CPF
+  const searchResp = await fetch(
+    `${ASAAS_BASE_URL}/customers?cpfCnpj=${cpf}`,
+    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+  );
+  const searchData = await searchResp.json();
+  if (searchData.data && searchData.data.length > 0) {
+    return { asaasId: searchData.data[0].id, action: 'found' };
+  }
+
+  // 2) Cria novo cliente
+  const body = {
+    name: (user.nome || 'Associado').trim(),
+    cpfCnpj: cpf,
+    mobilePhone: (user.telefone || '').replace(/\D/g, '') || undefined,
+    externalReference: user.uid || undefined,
+  };
+
+  const createResp = await fetch(`${ASAAS_BASE_URL}/customers`, {
+    method: 'POST',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const createData = await createResp.json();
+
+  if (!createResp.ok) {
+    const msg = createData.errors?.[0]?.description || `HTTP ${createResp.status}`;
+    throw new Error(msg);
+  }
+
+  return { asaasId: createData.id, action: 'created' };
+}
+
+// Callable: sincroniza todos os associados sem asaasId com o Asaas.
+// Requer role admin ou master.
+exports.syncAllAssociadosToAsaas = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = String(callerSnap.data()?.role || '').toLowerCase();
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey = await getAsaasApiKey();
+    const usersSnap = await db.collection('users').get();
+    const results = { synced: 0, skipped: 0, errors: [] };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = { uid: userDoc.id, ...userDoc.data() };
+
+      if (userData.asaasId || userData.ativo === false) {
+        results.skipped++;
+        continue;
+      }
+
+      try {
+        const { asaasId } = await findOrCreateAsaasCustomer(apiKey, userData);
+        await userDoc.ref.update({
+          asaasId,
+          asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        results.synced++;
+      } catch (err) {
+        console.error('Asaas sync error:', userDoc.id, err.message);
+        results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
+      }
+
+      // Pausa para respeitar rate limits do Asaas
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    console.log('syncAllAssociadosToAsaas result:', results);
+    return results;
+  });
+
+// Trigger: ao criar um novo usuário, sincroniza automaticamente com o Asaas.
+exports.onNewAssociadoCriado = functions.firestore
+  .document('users/{uid}')
+  .onCreate(async (snap, context) => {
+    const userData = { uid: context.params.uid, ...snap.data() };
+    if (!userData.cpf) return null;
+
+    try {
+      const apiKey = await getAsaasApiKey();
+      const { asaasId, action } = await findOrCreateAsaasCustomer(apiKey, userData);
+      await snap.ref.update({
+        asaasId,
+        asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log(`onNewAssociadoCriado: uid=${context.params.uid} asaasId=${asaasId} action=${action}`);
+    } catch (err) {
+      console.error('onNewAssociadoCriado error:', context.params.uid, err.message);
+    }
+
+    return null;
+  });
