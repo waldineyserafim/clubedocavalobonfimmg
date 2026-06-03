@@ -984,3 +984,60 @@ exports.setDefaultPlanForUsers = functions
     console.log('setDefaultPlanForUsers result:', results);
     return results;
   });
+
+// Callable: cria fatura em aberto (mensal, jun/2026) para associados ativos sem nenhuma fatura
+exports.createDefaultInvoices = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const planStart  = new Date('2026-06-01T03:00:00Z'); // 00:00 BRT
+    const dueDate    = new Date('2026-06-10T03:00:00Z');
+    const planEnd    = new Date('2026-06-30T03:00:00Z');
+    const now        = admin.firestore.FieldValue.serverTimestamp();
+
+    const usersSnap = await db.collection('users').get();
+    const results = { created: 0, skipped: 0 };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = userDoc.data();
+
+      if (userData.ativo === false) { results.skipped++; continue; }
+
+      // Verifica se já tem alguma fatura
+      const invSnap = await userDoc.ref.collection('financeInvoices').limit(1).get();
+      if (!invSnap.empty) { results.skipped++; continue; }
+
+      const planType = String(userData.planType || 'mensal').toLowerCase().trim();
+      const amount   = PLAN_VALUE[planType] || 30;
+
+      await userDoc.ref.collection('financeInvoices').add({
+        planType,
+        amount,
+        planStart:  admin.firestore.Timestamp.fromDate(planStart),
+        planEnd:    admin.firestore.Timestamp.fromDate(planEnd),
+        dueDate:    admin.firestore.Timestamp.fromDate(dueDate),
+        status:     'em_aberto',
+        createdAt:  now,
+        updatedAt:  now,
+      });
+
+      // Garante planType no documento do usuário
+      if (!userData.planType) {
+        await userDoc.ref.update({ planType });
+      }
+
+      results.created++;
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    console.log('createDefaultInvoices result:', results);
+    return results;
+  });

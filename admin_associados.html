@@ -284,6 +284,9 @@
                 <button class="dropdown-item" id="actionSetDefaultPlans">
                   <i class="bi bi-patch-check me-1 text-success"></i>Definir plano mensal (sem plano)
                 </button>
+                <button class="dropdown-item" id="actionCreateDefaultInvoices">
+                  <i class="bi bi-file-earmark-plus me-1 text-primary"></i>Criar fatura jun/2026 (sem fatura)
+                </button>
                 <hr class="dropdown-divider my-1">
                 <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
                 <button class="dropdown-item" id="actionSendReminders">Enviar lembrete (WhatsApp)</button>
@@ -1076,8 +1079,11 @@
       const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
       const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
 
-      // Obter último plano pago para exibição
-      const planType = latestPaid?.planType || null;
+      // Plano: lê da última fatura paga; fallback para qualquer fatura; fallback para campo do usuário
+      const planType = latestPaid?.planType
+        || invDocs.find(i => i.planType)?.planType
+        || userData.planType
+        || null;
       const planName = latestPaid?.planName || null;
       const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
       const planClass = planType ? `plan-chip plan-chip-${planType}` : "plan-chip plan-chip-none";
@@ -2194,6 +2200,28 @@ Qualquer dúvida, estamos à disposição.`;
     subsModal.show();
   });
   document.getElementById('btnConfirmSubs').addEventListener('click', subsRunCreate);
+
+  /* ── Criar faturas padrão jun/2026 ── */
+  document.getElementById('actionCreateDefaultInvoices')?.addEventListener('click', async () => {
+    if (!confirm('Criar fatura mensal (venc. 10/06/2026) para todos os associados ativos sem nenhuma fatura?\n\nAssociados que já têm faturas não serão alterados.')) return;
+
+    const btn = document.getElementById('actionCreateDefaultInvoices');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processando...';
+
+    try {
+      const fns = getFunctions(auth.app);
+      const fn  = httpsCallable(fns, 'createDefaultInvoices', { timeout: 300000 });
+      const { data } = await fn();
+      alert(`Concluído!\n✅ ${data.created} fatura(s) criada(s).\n⏭ ${data.skipped} já tinham fatura ou estavam inativos.`);
+      listUsers(document.getElementById('searchQuery')?.value || '');
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-file-earmark-plus me-1 text-primary"></i>Criar fatura jun/2026 (sem fatura)';
+    }
+  });
 
   /* ── Definir plano padrão mensal ── */
   document.getElementById('actionSetDefaultPlans')?.addEventListener('click', async () => {
