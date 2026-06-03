@@ -821,10 +821,8 @@ const PLAN_VALUE = { mensal: 30, trimestral: 85, semestral: 170 };
 const PLAN_LABEL = { mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral' };
 const PENDING_RESTART_DATE = '2026-06-10';
 
-// Retorna o planType da fatura mais recente (paga ou em aberto)
-function detectPlanType(invoices) {
-  if (!invoices.length) return null;
-
+// Retorna o planType da fatura mais recente; fallback para userData.planType; default 'mensal'
+function detectPlanType(invoices, userPlanType) {
   const paid = invoices.filter(i =>
     ['pago', 'paga', 'paid'].includes(String(i.status || '').toLowerCase())
   );
@@ -839,7 +837,11 @@ function detectPlanType(invoices) {
     const pt = String(inv.planType || '').toLowerCase().trim();
     if (PLAN_CYCLE[pt]) return pt;
   }
-  return null;
+
+  const up = String(userPlanType || '').toLowerCase().trim();
+  if (PLAN_CYCLE[up]) return up;
+
+  return 'mensal';
 }
 
 // Retorna a data de fim do último plano pago (Date | null)
@@ -893,15 +895,7 @@ exports.createAsaasSubscriptions = functions
           .collection('financeInvoices').get();
         const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        const planType = detectPlanType(invoices);
-        if (!planType) {
-          results.errors.push({
-            uid: userDoc.id,
-            nome: userData.nome || '—',
-            error: 'Plano não identificado — sem faturas registradas',
-          });
-          continue;
-        }
+        const planType = detectPlanType(invoices, userData.planType);
 
         // Define data de vencimento da 1ª cobrança
         const membership = computeMembership({ invoices, summary: {} });
@@ -935,10 +929,12 @@ exports.createAsaasSubscriptions = functions
           throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
         }
 
-        await userDoc.ref.update({
+        const updatePayload = {
           asaasSubscriptionId: subData.id,
           asaasSubscriptionSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        };
+        if (!userData.planType) updatePayload.planType = planType;
+        await userDoc.ref.update(updatePayload);
         results.created++;
       } catch (err) {
         console.error('createAsaasSubscriptions error:', userDoc.id, err.message);
@@ -949,5 +945,42 @@ exports.createAsaasSubscriptions = functions
     }
 
     console.log('createAsaasSubscriptions result:', results);
+    return results;
+  });
+
+// Callable: define planType = 'mensal' para todos os associados ativos sem plano registrado
+exports.setDefaultPlanForUsers = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const usersSnap = await db.collection('users').get();
+    const results = { updated: 0, skipped: 0 };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = userDoc.data();
+
+      if (userData.ativo === false) { results.skipped++; continue; }
+      if (userData.planType)        { results.skipped++; continue; }
+
+      // Tenta detectar plano pelas faturas antes de usar o padrão
+      const invSnap  = await userDoc.ref.collection('financeInvoices').get();
+      const invoices = invSnap.docs.map(d => d.data());
+      const planType = detectPlanType(invoices, null);
+
+      await userDoc.ref.update({ planType });
+      results.updated++;
+
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    console.log('setDefaultPlanForUsers result:', results);
     return results;
   });

@@ -281,6 +281,10 @@
             <div class="dropdown">
               <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown">Ações em massa</button>
               <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:280px">
+                <button class="dropdown-item" id="actionSetDefaultPlans">
+                  <i class="bi bi-patch-check me-1 text-success"></i>Definir plano mensal (sem plano)
+                </button>
+                <hr class="dropdown-divider my-1">
                 <button class="dropdown-item" id="actionGenInvoices">Gerar fatura (selecionados)</button>
                 <button class="dropdown-item" id="actionSendReminders">Enviar lembrete (WhatsApp)</button>
                 <button class="dropdown-item" id="actionExportPdf">Baixar PDF</button>
@@ -2190,6 +2194,27 @@ Qualquer dúvida, estamos à disposição.`;
     subsModal.show();
   });
   document.getElementById('btnConfirmSubs').addEventListener('click', subsRunCreate);
+
+  /* ── Definir plano padrão mensal ── */
+  document.getElementById('actionSetDefaultPlans')?.addEventListener('click', async () => {
+    if (!confirm('Definir plano MENSAL para todos os associados ativos que ainda não têm plano registrado?\n\nAssociados com plano já definido não serão alterados.')) return;
+
+    const btn = document.getElementById('actionSetDefaultPlans');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processando...';
+
+    try {
+      const fns = getFunctions(auth.app);
+      const fn  = httpsCallable(fns, 'setDefaultPlanForUsers', { timeout: 300000 });
+      const { data } = await fn();
+      alert(`Concluído!\n✅ ${data.updated} associado(s) atualizados com plano mensal.\n⏭ ${data.skipped} já tinham plano ou estavam inativos.`);
+    } catch (err) {
+      alert('Erro: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-patch-check me-1 text-success"></i>Definir plano mensal (sem plano)';
+    }
+  });
 </script>
 </body>
 </html>
