@@ -714,6 +714,50 @@ async function getAsaasApiKey() {
   return getSecret(ASAAS_SECRET);
 }
 
+// Recalcula e persiste finance/summary a partir das financeInvoices (espelha refreshSummaryFromInvoices do frontend)
+async function updateFinanceSummary(uid) {
+  const invSnap = await db.collection('users').doc(uid)
+    .collection('financeInvoices').orderBy('dueDate', 'asc').get();
+  const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const isPaid = s => ['pago', 'paga', 'paid'].includes(String(s || '').toLowerCase());
+
+  const paid = invoices.filter(i => isPaid(i.status));
+  paid.sort((a, b) => {
+    const aMs = a.paidAt?.toMillis?.() ?? a.recordedAt?.toMillis?.() ?? 0;
+    const bMs = b.paidAt?.toMillis?.() ?? b.recordedAt?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+
+  const latestPaid = paid[0] || null;
+  let lastPayment = null, lastAmount = null, activeUntil = null;
+
+  if (latestPaid) {
+    lastPayment = latestPaid.paidAt || latestPaid.recordedAt || null;
+    lastAmount  = latestPaid.amount ?? null;
+
+    if (latestPaid.planEnd) {
+      const end = latestPaid.planEnd?.toDate?.() ?? new Date(latestPaid.planEnd);
+      const au  = new Date(end);
+      au.setDate(au.getDate() + 10);
+      activeUntil = admin.firestore.Timestamp.fromDate(au);
+    }
+  }
+
+  const open = invoices.filter(i =>
+    !['pago', 'paga', 'paid', 'cancelado'].includes(String(i.status || '').toLowerCase())
+  );
+  const nextDue = open.length ? (open[0].dueDate || null) : null;
+
+  await db.collection('users').doc(uid).collection('finance').doc('summary').set({
+    lastPayment:  lastPayment  || null,
+    lastAmount:   lastAmount   ?? null,
+    nextDue:      nextDue      || null,
+    activeUntil:  activeUntil  || null,
+    updatedAt:    admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 // Retorna próximo dia 10 como YYYY-MM-DD (se hoje já passou do dia 10, vai pro mês seguinte)
 function getNextDueDate() {
   const today = new Date();
@@ -1468,22 +1512,45 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
     const paidAt    = new Date(verifyData.paymentDate || verifyData.confirmedDate || new Date());
     const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
     const planEnd   = calculatePlanEnd(planStart, planType);
-    const now       = admin.firestore.FieldValue.serverTimestamp();
+    const dueDateStr = dueDate.toISOString().slice(0, 10);
+    const now        = admin.firestore.FieldValue.serverTimestamp();
 
-    await db.collection('users').doc(uid).collection('financeInvoices').add({
-      planType,
+    const invoicesRef = db.collection('users').doc(uid).collection('financeInvoices');
+
+    // Procura fatura em_aberto com a mesma dueDate para atualizar ao invés de criar nova
+    const existingSnap = await invoicesRef
+      .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
+      .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
+      .limit(1).get();
+
+    const paymentPayload = {
+      status:         'pago',
+      paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
       amount:         verifyData.value,
+      asaasPaymentId: payment.id,
+      planType,
       planStart:      admin.firestore.Timestamp.fromDate(planStart),
       planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
-      dueDate:        admin.firestore.Timestamp.fromDate(dueDate),
-      paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
-      status:         'pago',
-      asaasPaymentId: payment.id,
-      createdAt:      now,
       updatedAt:      now,
-    });
+    };
 
-    console.log(`asaasWebhook: fatura criada uid=${uid} payment=${payment.id} planType=${planType}`);
+    if (!existingSnap.empty) {
+      // Atualiza a fatura existente — evita duplicata e resolve o status corretamente
+      await existingSnap.docs[0].ref.update(paymentPayload);
+      console.log(`asaasWebhook: fatura atualizada uid=${uid} invoiceId=${existingSnap.docs[0].id} payment=${payment.id}`);
+    } else {
+      // Não havia fatura pré-criada — cria uma nova
+      await invoicesRef.add({
+        ...paymentPayload,
+        dueDate:   admin.firestore.Timestamp.fromDate(dueDate),
+        createdAt: now,
+      });
+      console.log(`asaasWebhook: fatura criada uid=${uid} payment=${payment.id} planType=${planType}`);
+    }
+
+    // Atualiza finance/summary com os dados mais recentes
+    await updateFinanceSummary(uid);
+
     return res.status(200).send('OK');
   } catch (err) {
     console.error('asaasWebhook error:', err.message);
