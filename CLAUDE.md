@@ -18,8 +18,8 @@ Firebase Project: `clubecavalobonfim`
 | Banco | Firestore |
 | Storage | Firebase Storage (imagens comprimidas ~200 KB) |
 | Backend | Cloud Functions (Node.js 22) |
-| Pagamentos | Mercado Pago (PIX, atual) → Asaas (planejado) |
-| Segredos | Google Secret Manager (credenciais de email na Cloud Function) |
+| Pagamentos | **Asaas** (assinaturas recorrentes, PIX/boleto/cartão, webhooks) ✅ |
+| Segredos | Google Secret Manager |
 
 ---
 
@@ -36,11 +36,11 @@ Firebase Project: `clubecavalobonfim`
 
 ### Área do Associado (requer login)
 - `login.html` — Login por CPF
-- `signup.html` — Cadastro público
-- `pg_associado.html` — Dashboard do associado (banners, status, produtos, serviços, classificados)
+- `signup.html` — Cadastro público (define própria senha; sem primeiroAcesso)
+- `pg_associado.html` — Dashboard do associado (banners, status, produtos, serviços, classificados, trocar senha)
 - `produtos_associado.html` — Produtos exclusivos
 - `servicos_associado.html` — Serviços exclusivos
-- `pay.html` — Pagamento (planos Mensal R$30 / Trimestral / Semestral / Anual)
+- `pay.html` — Pagamento (planos Mensal R$30 / Trimestral R$85 / Semestral R$170)
 - `pay-success.html` — Confirmação de pagamento
 - `reset_senha.html` — Redefinição de senha
 
@@ -53,7 +53,7 @@ Firebase Project: `clubecavalobonfim`
 
 ### Código Central
 - `firebase.js` — Módulo central: auth, Firestore, Storage, helpers de role, upload de imagem com compressão
-- `functions/index.js` — Cloud Function: relatório diário de vencimentos por email (08h BRT)
+- `functions/index.js` — Todas as Cloud Functions (relatório diário + integração Asaas completa)
 
 ---
 
@@ -63,13 +63,20 @@ Firebase Project: `clubecavalobonfim`
 users/{uid}
   cpf, nome, apelido, telefone, endereco,
   role (master|admin|associado),
-  status, ativo, createdAt, updatedAt
+  status, ativo, createdAt, updatedAt,
+  primeiroAcesso (bool) — true quando criado pelo admin; false após trocar senha,
+  planType (mensal|trimestral|semestral),
+  asaasId (string) — ID do cliente no Asaas,
+  asaasSyncedAt (Timestamp),
+  asaasSubscriptionId (string) — ID da assinatura no Asaas,
+  asaasSubscriptionSyncedAt (Timestamp)
 
 users/{uid}/finance/summary
   activeUntil, nextDue, lastPayment, lastAmount, exempt, exemptUntil, balance
 
 users/{uid}/financeInvoices/{invoiceId}
-  amount, dueDate, paidAt, status, planType, planStart, planEnd
+  amount, dueDate, paidAt, status, planType, planStart, planEnd,
+  asaasPaymentId (string) — ID do pagamento no Asaas (idempotência no webhook)
 
 memberProducts/{id}
   title, description, benefit, imageUrls[], whatsapp, price, active
@@ -93,25 +100,67 @@ events / partners  (coleções simples)
 - Role cacheada em `sessionStorage` para evitar reads redundantes ao Firestore
 - Proteção de rotas via `requireAuth({ requiredRole })` em `firebase.js`
 - Botão "Administração" aparece dinamicamente para admin/master via `setupAdminButton()`
+- `mapRoleServer(r)` normaliza roles com espaços/acentos via `.normalize('NFD').trim().toLowerCase().includes()`
+
+### Primeiro Acesso
+- Quando admin cria associado: `primeiroAcesso: true` gravado no Firestore
+- Em `pg_associado.html`: se `primeiroAcesso === true`, abre modal de troca de senha obrigatória (backdrop static, sem botão fechar)
+- Após trocar a senha: `primeiroAcesso: false` gravado no Firestore
+- Associados que se auto-cadastraram via `signup.html` não têm esse campo
 
 ---
 
-## Integração Asaas
+## Integração Asaas ✅ (Fase 2 — LIVE)
 
-Arquivo: `functions/index.js`
+**API:** `https://api.asaas.com/v3`
+**Segredos no Secret Manager:**
+- `projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest` — chave da API
+- `projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest` — token de autenticação do webhook
+
+### Planos e valores
+| planType | Ciclo Asaas | Valor |
+|----------|-------------|-------|
+| mensal | MONTHLY | R$ 30 |
+| trimestral | QUARTERLY | R$ 85 |
+| semestral | SEMIANNUALLY | R$ 170 |
+
+### Cloud Functions — Asaas
 
 | Função | Tipo | Descrição |
 |--------|------|-----------|
-| `syncAllAssociadosToAsaas` | HTTP Callable | Migração em massa — cria/verifica todos os usuários ativos sem `asaasId` no Asaas. Requer role admin/master. |
-| `onNewAssociadoCriado` | Firestore onCreate trigger | Sincroniza automaticamente cada novo usuário criado em `users/{uid}`. |
+| `onNewAssociadoCriado` | Firestore onCreate `users/{uid}` | Cria cliente + assinatura no Asaas automaticamente |
+| `onAssociadoAtualizado` | Firestore onUpdate `users/{uid}` | Sincroniza nome/telefone/CPF para o Asaas quando alterados |
+| `onInvoicePaid` | Firestore onUpdate `users/{uid}/financeInvoices/{id}` | Baixa cobrança no Asaas quando admin marca fatura como paga |
+| `onInvoiceCreatedPaid` | Firestore onCreate `users/{uid}/financeInvoices/{id}` | Idem para faturas criadas diretamente como pagas |
+| `asaasWebhook` | HTTP público | Recebe PAYMENT_RECEIVED/CONFIRMED do Asaas → atualiza fatura + finance/summary |
+| `configureAsaasNotifications` | HTTP Callable | Configura 3 avisos SMS por assinatura (−5d, 0, +5d) |
+| `syncAllAssociadosToAsaas` | HTTP Callable | Migração em massa (uso pontual) |
+| `createAsaasSubscriptions` | HTTP Callable | Criação em massa de assinaturas (uso pontual) |
 
-**Campos enviados ao Asaas:** `name` (nome), `cpfCnpj` (CPF), `mobilePhone` (telefone), `externalReference` (Firebase UID)
+**Webhook URL:**
+`https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook`
+Configurado no Asaas: Configurações → Integrações → Webhook
+Eventos: `PAYMENT_RECEIVED`, `PAYMENT_CONFIRMED`
+Validação: header `asaas-access-token` comparado ao secret no Secret Manager
 
-**Campos salvos no Firestore após sync:** `asaasId` (string), `asaasSyncedAt` (Timestamp)
+### Lógica do webhook
+1. Valida token de autenticação
+2. Verifica pagamento diretamente na API Asaas (anti-fraude)
+3. Busca assinatura pelo `payment.subscription` → obtém `externalReference` (Firebase UID)
+4. Checa idempotência por `asaasPaymentId` nas `financeInvoices`
+5. Busca fatura `em_aberto`/`atrasado`/`vencido` com a mesma `dueDate` e **atualiza** (não cria duplicata)
+6. Se não encontrar fatura existente, cria nova
+7. Chama `updateFinanceSummary(uid)` para atualizar `finance/summary`
 
-**Segredo no Secret Manager:** `projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest`
+### Sincronização bidirecional
+- **Firebase → Asaas:** triggers automáticos em create/update de usuários e faturas
+- **Asaas → Firebase:** webhook HTTP público com validação de token e idempotência
+- Evita loop: `onAssociadoAtualizado` só dispara se `nome`/`telefone`/`cpf` mudaram; webhook só cria/atualiza `financeInvoices` (subcoleção), não o documento do usuário
 
-**UI:** Botão "Sincronizar Asaas" em `admin_associados.html` → modal com progresso e resumo de erros.
+### Campos no Asaas
+- Criado com: `name`, `cpfCnpj`, `mobilePhone` (11 dígitos sem prefixo 55), `externalReference` (UID Firebase)
+- Assinatura: `billingType: UNDEFINED` (associado escolhe PIX/boleto/cartão), `interest: {value: 0.01}`, `notificationEnabled: true`
+- Notificações SMS: −5 dias, no vencimento, +5 dias
 
 ---
 
@@ -119,13 +168,9 @@ Arquivo: `functions/index.js`
 
 - Arquivo: `functions/index.js`
 - Disparo: todo dia às **08:00 BRT** (`0 8 * * *`)
-- Lógica: lê todos os usuários ativos, calcula status de vencimento a partir de `financeInvoices`, agrupa em 4 categorias:
-  - Vence hoje
-  - A vencer em 5 dias
-  - Vencido entre 5 e 10 dias
-  - Vencido há mais de 10 dias
+- Agrupa associados em: vence hoje / a vencer em 5 dias / vencido 5–10 dias / vencido +10 dias
 - Envia email HTML via **Nodemailer + Gmail** para `waldiney.serafim@gmail.com` e `mpmarquesnutri@gmail.com`
-- Credenciais armazenadas no **Secret Manager**: `email-user`, `email-password`
+- Credenciais no Secret Manager: `email-user`, `email-password`
 
 ---
 
@@ -146,8 +191,8 @@ Arquivo: `functions/index.js`
 
 | Fase | Descrição |
 |------|-----------|
-| 1 | Portal completo ✅ (em andamento) |
-| 2 | Integração Asaas (cadastro automático, cobrança recorrente, webhooks) |
+| 1 | Portal completo ✅ |
+| 2 | Integração Asaas ✅ (assinaturas, webhook, sync bidirecional) |
 | 3 | Marketplace |
 | 4 | Aplicativo |
 | 5 | SaaS Multi-Tenant |
@@ -159,6 +204,7 @@ Arquivo: `functions/index.js`
 
 - Dados pessoais armazenados: nome, CPF, telefone, endereço
 - Regras de acesso centralizadas no Firebase (não confiar no frontend)
+- Webhook Asaas validado por token no Secret Manager + verificação do pagamento na API
 - A implementar: exportação, exclusão e anonimização de dados (LGPD)
 
 ---
