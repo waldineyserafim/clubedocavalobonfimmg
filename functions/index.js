@@ -713,6 +713,75 @@ async function getAsaasApiKey() {
   return getSecret(ASAAS_SECRET);
 }
 
+// Retorna próximo dia 10 como YYYY-MM-DD (se hoje já passou do dia 10, vai pro mês seguinte)
+function getNextDueDate() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let due = new Date(today.getFullYear(), today.getMonth(), 10);
+  if (due <= today) due = new Date(today.getFullYear(), today.getMonth() + 1, 10);
+  return due.toISOString().slice(0, 10);
+}
+
+// Retorna data de fim do plano: último dia do período (mensal=+1m, trimestral=+3m, semestral=+6m)
+function calculatePlanEnd(startDate, planType) {
+  const d = new Date(startDate);
+  const months = planType === 'trimestral' ? 3 : planType === 'semestral' ? 6 : 1;
+  return new Date(d.getFullYear(), d.getMonth() + months, 0); // dia 0 = último dia do mês anterior
+}
+
+// Sincroniza pagamento manual do Firebase → Asaas
+// Só executa se a fatura NÃO tem asaasPaymentId (ou seja, não veio do webhook)
+async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
+  if (invoiceData.asaasPaymentId) return; // já sincronizado via webhook
+
+  const userSnap = await db.collection('users').doc(uid).get();
+  if (!userSnap.exists) return;
+  const userData = userSnap.data();
+  if (!userData.asaasId || !userData.asaasSubscriptionId) return;
+
+  const apiKey = await getAsaasApiKey();
+
+  const dueDateMs = invoiceData.dueDate?.toMillis?.()
+    ?? (invoiceData.dueDate ? new Date(invoiceData.dueDate).getTime() : null);
+  if (!dueDateMs) return;
+
+  const dueDateStr = new Date(dueDateMs).toISOString().slice(0, 10);
+
+  // Busca cobranças pendentes da assinatura com a mesma dueDate
+  const chargesResp = await fetch(
+    `${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=PENDING`,
+    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+  );
+  const chargesText = await chargesResp.text();
+  const chargesData = chargesText ? JSON.parse(chargesText) : {};
+
+  const charge = (chargesData.data || []).find(c => c.dueDate === dueDateStr);
+  if (!charge) {
+    console.warn(`syncManualPaymentToAsaas: cobrança não encontrada para uid=${uid} dueDate=${dueDateStr}`);
+    return;
+  }
+
+  const paidAt = invoiceData.paidAt?.toDate?.() ?? invoiceData.recordedAt?.toDate?.() ?? new Date();
+  const receiveResp = await fetch(`${ASAAS_BASE_URL}/payments/${charge.id}/receiveInCash`, {
+    method: 'POST',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      paymentDate: paidAt.toISOString().slice(0, 10),
+      value: invoiceData.amount || charge.value,
+    }),
+  });
+  const receiveText = await receiveResp.text();
+  const receiveData = receiveText ? JSON.parse(receiveText) : {};
+
+  if (!receiveResp.ok) {
+    throw new Error(receiveData.errors?.[0]?.description || `HTTP ${receiveResp.status}`);
+  }
+
+  // Salva asaasPaymentId na fatura para idempotência
+  await invoiceRef.update({ asaasPaymentId: charge.id });
+  console.log(`syncManualPaymentToAsaas: uid=${uid} charge=${charge.id} marcado como pago no Asaas`);
+}
+
 // Busca cliente no Asaas pelo CPF; cria se não existir.
 // Retorna { asaasId, action: 'found' | 'created' }
 async function findOrCreateAsaasCustomer(apiKey, user) {
@@ -799,23 +868,49 @@ exports.syncAllAssociadosToAsaas = functions
     return results;
   });
 
-// Trigger: ao criar um novo usuário, sincroniza automaticamente com o Asaas.
+// Trigger: ao criar um novo usuário → cria cliente e assinatura no Asaas automaticamente.
 exports.onNewAssociadoCriado = functions.firestore
   .document('users/{uid}')
   .onCreate(async (snap, context) => {
-    const userData = { uid: context.params.uid, ...snap.data() };
-    if (!userData.cpf) return null;
+    const uid      = context.params.uid;
+    const userData = { uid, ...snap.data() };
+    if (!userData.cpf || userData.ativo === false) return null;
 
     try {
-      const apiKey = await getAsaasApiKey();
+      const apiKey  = await getAsaasApiKey();
       const { asaasId, action } = await findOrCreateAsaasCustomer(apiKey, userData);
+
+      const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
+      const nextDueDate = getNextDueDate();
+
+      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
+        method: 'POST',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer:          asaasId,
+          billingType:       'UNDEFINED',
+          value:             PLAN_VALUE[planType] || 30,
+          nextDueDate,
+          cycle:             PLAN_CYCLE[planType] || 'MONTHLY',
+          description:       `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'}`,
+          externalReference: uid,
+          interest:          { value: 0.01 },
+          notificationEnabled: true,
+        }),
+      });
+      const subText = await subResp.text();
+      const subData = subText ? JSON.parse(subText) : {};
+
       await snap.ref.update({
         asaasId,
-        asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+        asaasSyncedAt:              admin.firestore.FieldValue.serverTimestamp(),
+        asaasSubscriptionId:        subData.id || null,
+        asaasSubscriptionSyncedAt:  admin.firestore.FieldValue.serverTimestamp(),
       });
-      console.log(`onNewAssociadoCriado: uid=${context.params.uid} asaasId=${asaasId} action=${action}`);
+
+      console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} action=${action} subscriptionId=${subData.id}`);
     } catch (err) {
-      console.error('onNewAssociadoCriado error:', context.params.uid, err.message);
+      console.error('onNewAssociadoCriado error:', uid, err.message);
     }
 
     return null;
@@ -1077,9 +1172,10 @@ exports.configureAsaasNotifications = functions
     const usersSnap = await db.collection('users').get();
     const results   = { configured: 0, skipped: 0, errors: [] };
 
+    // scheduleOffset: null = não enviar o campo (PAYMENT_DUEDATE_REACHED não aceita dias)
     const NOTIF_CONFIG = {
       PAYMENT_DUEDATE_WARNING: { scheduleOffset: 5 },
-      PAYMENT_DUEDATE_REACHED: { scheduleOffset: 0 },
+      PAYMENT_DUEDATE_REACHED: { scheduleOffset: null },
       PAYMENT_OVERDUE:         { scheduleOffset: 5 },
     };
 
@@ -1104,35 +1200,49 @@ exports.configureAsaasNotifications = functions
           throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
         }
 
+        let notifOk = 0;
         for (const notif of (listData.data || [])) {
           const cfg = NOTIF_CONFIG[notif.event];
           if (!cfg) continue;
+
+          const body = {
+            enabled:                    true,
+            smsEnabledForCustomer:      true,
+            emailEnabledForCustomer:    false,
+            whatsappEnabledForCustomer: false,
+          };
+          // Só envia scheduleOffset para eventos que têm dias configuráveis
+          if (cfg.scheduleOffset !== null) body.scheduleOffset = cfg.scheduleOffset;
 
           const updResp = await fetch(
             `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications/${notif.id}`,
             {
               method: 'PUT',
               headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                enabled:                    true,
-                scheduleOffset:             cfg.scheduleOffset,
-                smsEnabledForCustomer:      true,
-                emailEnabledForCustomer:    false,
-                whatsappEnabledForCustomer: false,
-              }),
+              body: JSON.stringify(body),
             }
           );
           const updText = await updResp.text();
           const updData = updText ? JSON.parse(updText) : {};
 
           if (!updResp.ok) {
-            throw new Error(updData.errors?.[0]?.description || `HTTP ${updResp.status}`);
+            // Loga o erro de notificação individual mas não para o loop
+            console.warn(
+              `configureAsaasNotifications: notif ${notif.event} falhou para ${userDoc.id}:`,
+              updData.errors?.[0]?.description || `HTTP ${updResp.status}`
+            );
+          } else {
+            notifOk++;
           }
 
           await new Promise(r => setTimeout(r, 100));
         }
 
-        results.configured++;
+        if (notifOk > 0) {
+          results.configured++;
+        } else {
+          results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: 'Nenhuma notificação configurada' });
+        }
       } catch (err) {
         console.error('configureAsaasNotifications error:', userDoc.id, err.message);
         results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
@@ -1194,3 +1304,175 @@ exports.fixAsaasPhoneNumbers = functions
     console.log('fixAsaasPhoneNumbers result:', results);
     return results;
   });
+
+/* =======================================================================
+   SINCRONIZAÇÃO AUTOMÁTICA — FLUXOS BIDIRECIONAL
+   ======================================================================= */
+
+// Trigger: quando dados cadastrais do associado mudam → atualiza cliente no Asaas
+exports.onAssociadoAtualizado = functions.firestore
+  .document('users/{uid}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    if (!after.asaasId) return null;
+
+    // Só sincroniza se nome, telefone ou CPF mudaram
+    const changed = ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
+    if (!changed) return null;
+
+    try {
+      const apiKey = await getAsaasApiKey();
+      const resp = await fetch(`${ASAAS_BASE_URL}/customers/${after.asaasId}`, {
+        method: 'POST',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:        (after.nome || '').trim(),
+          cpfCnpj:     (after.cpf || '').replace(/\D/g, ''),
+          mobilePhone: formatPhoneForAsaas(after.telefone),
+        }),
+      });
+      const text = await resp.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
+
+      console.log(`onAssociadoAtualizado: uid=${context.params.uid} asaasId=${after.asaasId} sincronizado`);
+    } catch (err) {
+      console.error('onAssociadoAtualizado error:', context.params.uid, err.message);
+    }
+
+    return null;
+  });
+
+// Trigger: quando fatura é ATUALIZADA para status pago → baixa cobrança no Asaas
+exports.onInvoicePaid = functions.firestore
+  .document('users/{uid}/financeInvoices/{invoiceId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after  = change.after.data();
+
+    const beforeStatus = String(before.status || '').toLowerCase();
+    const afterStatus  = String(after.status  || '').toLowerCase();
+
+    // Só age quando muda PARA pago
+    if (['pago', 'paga', 'paid'].includes(beforeStatus)) return null;
+    if (!['pago', 'paga', 'paid'].includes(afterStatus)) return null;
+
+    try {
+      await syncManualPaymentToAsaas(context.params.uid, change.after.ref, after);
+    } catch (err) {
+      console.error('onInvoicePaid error:', context.params.uid, context.params.invoiceId, err.message);
+    }
+
+    return null;
+  });
+
+// Trigger: quando fatura é CRIADA já como paga (pagamento imediato pelo admin) → baixa no Asaas
+exports.onInvoiceCreatedPaid = functions.firestore
+  .document('users/{uid}/financeInvoices/{invoiceId}')
+  .onCreate(async (snap, context) => {
+    const data   = snap.data();
+    const status = String(data.status || '').toLowerCase();
+
+    if (!['pago', 'paga', 'paid'].includes(status)) return null;
+
+    try {
+      await syncManualPaymentToAsaas(context.params.uid, snap.ref, data);
+    } catch (err) {
+      console.error('onInvoiceCreatedPaid error:', context.params.uid, context.params.invoiceId, err.message);
+    }
+
+    return null;
+  });
+
+/* =======================================================================
+   WEBHOOK ASAAS → FIREBASE
+   Configurar no Asaas: Configurações → Integrações → Webhook
+   URL: https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook
+   ======================================================================= */
+exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+  const { event, payment } = req.body || {};
+
+  // Só processa pagamentos confirmados
+  if (!['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'].includes(event)) {
+    return res.status(200).send('OK');
+  }
+  if (!payment?.id || !payment?.subscription) {
+    return res.status(200).send('OK');
+  }
+
+  try {
+    const apiKey = await getAsaasApiKey();
+
+    // Verifica o pagamento diretamente no Asaas (evita fraudes)
+    const verifyResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    });
+    const verifyText = await verifyResp.text();
+    const verifyData = verifyText ? JSON.parse(verifyText) : {};
+
+    if (!verifyResp.ok || !['RECEIVED', 'CONFIRMED'].includes(verifyData.status)) {
+      console.warn('asaasWebhook: pagamento não confirmado no Asaas', payment.id, verifyData.status);
+      return res.status(200).send('OK');
+    }
+
+    // Busca a assinatura para obter o externalReference (UID do Firebase)
+    const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${payment.subscription}`, {
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    });
+    const subText = await subResp.text();
+    const subData = subText ? JSON.parse(subText) : {};
+
+    const uid = subData.externalReference;
+    if (!uid) {
+      console.warn('asaasWebhook: assinatura sem externalReference', payment.subscription);
+      return res.status(200).send('OK');
+    }
+
+    // Idempotência: verifica se já existe fatura com esse asaasPaymentId
+    const existing = await db.collection('users').doc(uid)
+      .collection('financeInvoices')
+      .where('asaasPaymentId', '==', payment.id)
+      .limit(1).get();
+
+    if (!existing.empty) {
+      console.log('asaasWebhook: pagamento já registrado', payment.id);
+      return res.status(200).send('OK');
+    }
+
+    const userSnap = await db.collection('users').doc(uid).get();
+    if (!userSnap.exists) {
+      console.warn('asaasWebhook: usuário não encontrado', uid);
+      return res.status(200).send('OK');
+    }
+
+    const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
+    const dueDate   = new Date(verifyData.dueDate);
+    const paidAt    = new Date(verifyData.paymentDate || verifyData.confirmedDate || new Date());
+    const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
+    const planEnd   = calculatePlanEnd(planStart, planType);
+    const now       = admin.firestore.FieldValue.serverTimestamp();
+
+    await db.collection('users').doc(uid).collection('financeInvoices').add({
+      planType,
+      amount:         verifyData.value,
+      planStart:      admin.firestore.Timestamp.fromDate(planStart),
+      planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
+      dueDate:        admin.firestore.Timestamp.fromDate(dueDate),
+      paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
+      status:         'pago',
+      asaasPaymentId: payment.id,
+      createdAt:      now,
+      updatedAt:      now,
+    });
+
+    console.log(`asaasWebhook: fatura criada uid=${uid} payment=${payment.id} planType=${planType}`);
+    return res.status(200).send('OK');
+  } catch (err) {
+    console.error('asaasWebhook error:', err.message);
+    return res.status(500).send('Error');
+  }
+});
