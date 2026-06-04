@@ -6,8 +6,9 @@ const nodemailer = require('nodemailer');
 
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
-const ASAAS_BASE_URL = 'https://api.asaas.com/v3';
-const ASAAS_SECRET   = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
+const ASAAS_BASE_URL      = 'https://api.asaas.com/v3';
+const ASAAS_SECRET        = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
+const ASAAS_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
 
 // Mesma lógica do firebase.js: trim + normalize + includes
 function mapRoleServer(r) {
@@ -1393,6 +1394,19 @@ exports.onInvoiceCreatedPaid = functions.firestore
    ======================================================================= */
 exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+
+  // Valida token de autenticação do Asaas
+  try {
+    const expectedToken = await getSecret(ASAAS_WEBHOOK_TOKEN);
+    const receivedToken = req.headers['asaas-access-token'];
+    if (!receivedToken || receivedToken !== expectedToken) {
+      console.warn('asaasWebhook: token inválido ou ausente');
+      return res.status(401).send('Unauthorized');
+    }
+  } catch (err) {
+    console.error('asaasWebhook: erro ao validar token', err.message);
+    return res.status(500).send('Error');
+  }
 
   const { event, payment } = req.body || {};
 
