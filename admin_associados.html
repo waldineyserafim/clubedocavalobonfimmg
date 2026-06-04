@@ -723,6 +723,7 @@
           endereco: naEndereco.value.trim(),
           role: "Associado",
           ativo: true,
+          primeiroAcesso: true,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         }, { merge: true });

@@ -235,6 +235,9 @@
   const btnTogglePw = document.getElementById("btnTogglePw");
   const pwMsg = document.getElementById("pwMsg");
 
+  // Perfil do usuário logado — preenchido no onAuthStateChanged e usado no handler de senha
+  let userProfile = null;
+
   const PAYMENT_URL = "https://mpago.la/1mJpCsd";
 
   const fmtDate = (ts)=> {
@@ -319,9 +322,29 @@
     if(!user){ location.href="login.html"; return; }
 
     const p = await getUserProfile(user.uid) || {};
+    userProfile = p;
     memberNameEl.textContent = p.nome || (user.email?.split("@")[0]) || "associado";
     const role = String(p.role||"").toLowerCase();
     if (/(admin|master)/.test(role)) adminBtn.classList.remove("d-none");
+
+    // Primeiro acesso: abre modal de troca de senha obrigatória
+    if (p.primeiroAcesso) {
+      const pwModalEl = document.getElementById('pwModal');
+      pwModalEl.setAttribute('data-bs-backdrop', 'static');
+      pwModalEl.setAttribute('data-bs-keyboard', 'false');
+      pwModalEl.querySelector('.btn-close')?.classList.add('d-none');
+      const labelEl = document.getElementById('pwModalLabel');
+      if (labelEl) labelEl.textContent = 'Bem-vindo! Defina sua senha';
+      const body = pwModalEl.querySelector('.modal-body');
+      if (body && !body.querySelector('#msgPrimeiroAcesso')) {
+        const aviso = document.createElement('div');
+        aviso.id = 'msgPrimeiroAcesso';
+        aviso.className = 'alert alert-info mb-3';
+        aviso.innerHTML = '<strong>Primeiro acesso detectado.</strong> Por segurança, defina uma senha pessoal antes de continuar. Esta etapa é obrigatória.';
+        body.prepend(aviso);
+      }
+      new bootstrap.Modal(pwModalEl, { backdrop: 'static', keyboard: false }).show();
+    }
 
     const st = await getUserStatus(user.uid);
     let planName = p.planName || p.plano || (p.finance?.summary?.planName) || "—";
@@ -696,6 +719,18 @@
       const cred = EmailAuthProvider.credential(email, a);
       await reauthenticateWithCredential(auth.currentUser, cred);
       await updatePassword(auth.currentUser, b);
+
+      // Marca primeiro acesso como concluído e restaura comportamento normal do modal
+      if (userProfile?.primeiroAcesso) {
+        await updateDoc(doc(db, 'users', auth.currentUser.uid), { primeiroAcesso: false });
+        userProfile.primeiroAcesso = false;
+        const pwModalEl = document.getElementById('pwModal');
+        pwModalEl.removeAttribute('data-bs-backdrop');
+        pwModalEl.removeAttribute('data-bs-keyboard');
+        pwModalEl.querySelector('.btn-close')?.classList.remove('d-none');
+        document.getElementById('pwModalLabel').textContent = 'Trocar senha';
+        document.getElementById('msgPrimeiroAcesso')?.remove();
+      }
 
       setPwMsg("Senha alterada com sucesso.", true);
       pwOld.value = pwNew.value = pwNew2.value = "";
