@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastrar Lote — Clube do Cavalo - Bonfim MG</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root{ --brand:#111279; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; filter:brightness(0) invert(1); }
+    @media (min-width:992px){ .brand-logo{ height:42px; } }
+    .section-card{ border:1px solid #e9ecef; border-radius:12px; padding:1.25rem; margin-bottom:1rem; }
+    .section-title{ font-weight:600; font-size:.9rem; text-transform:uppercase;
+                    color:#6c757d; margin-bottom:.75rem; letter-spacing:.03em; }
+    .img-preview{ width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #dee2e6; }
+    .img-preview-wrap{ position:relative; display:inline-block; }
+    .img-preview-del{ position:absolute; top:-6px; right:-6px; width:20px; height:20px;
+                      border-radius:50%; background:#dc3545; color:#fff; border:none;
+                      font-size:.7rem; line-height:1; cursor:pointer; display:flex;
+                      align-items:center; justify-content:center; }
+    #termoVendedor{ max-height:200px; overflow-y:auto; font-size:.82rem; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="meus_lotes.html">Meus Lotes</a></li>
+        <li class="nav-item"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="bg-light border-bottom py-3">
+  <div class="container d-flex align-items-center justify-content-between gap-2">
+    <h1 class="h4 mb-0" id="pageTitle">Novo Lote</h1>
+    <a href="meus_lotes.html" class="btn btn-outline-secondary btn-sm">Cancelar</a>
+  </div>
+</header>
+
+<main class="container py-4" style="max-width:760px">
+
+  <div id="msgTop" class="alert d-none"></div>
+
+  <!-- Tipo / Categoria -->
+  <div class="section-card">
+    <div class="section-title">Categoria do Lote</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Categoria <span class="text-danger">*</span></label>
+        <select id="category" class="form-select" required>
+          <option value="">Selecione...</option>
+          <optgroup label="Animais">
+            <option value="animal" data-sub='["Cavalo","Égua","Potro","Potra","Garanhão"]'>Animal</option>
+          </optgroup>
+          <optgroup label="Genética">
+            <option value="genetica" data-sub='["Cobertura","Sêmen","Embrião"]'>Genética</option>
+          </optgroup>
+          <optgroup label="Equipamentos">
+            <option value="sela"     data-sub='[]'>Sela / Arreio</option>
+            <option value="carreta"  data-sub='[]'>Carreta / Reboque</option>
+            <option value="caminhao" data-sub='[]'>Caminhão</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="col-md-6" id="subcategoryWrap" style="display:none">
+        <label class="form-label">Subcategoria <span class="text-danger">*</span></label>
+        <select id="subcategory" class="form-select"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dados básicos -->
+  <div class="section-card">
+    <div class="section-title">Dados Principais</div>
+    <div class="row g-3">
+      <div class="col-12">
+        <label class="form-label">Título / Nome <span class="text-danger">*</span></label>
+        <input id="title" class="form-control" placeholder="Ex: Égua Quarto de Milha – 5 anos">
+      </div>
+      <div class="col-12">
+        <label class="form-label">Descrição <span class="text-danger">*</span></label>
+        <textarea id="description" class="form-control" rows="3"
+          placeholder="Descreva o lote com detalhes relevantes..."></textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Valor inicial (R$) <span class="text-danger">*</span></label>
+        <input id="initialBid" type="number" min="1" step="0.01" class="form-control" placeholder="0,00">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Início do leilão <span class="text-danger">*</span></label>
+        <input id="startTime" type="datetime-local" class="form-control">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Encerramento <span class="text-danger">*</span></label>
+        <input id="endTime" type="datetime-local" class="form-control">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Cidade <span class="text-danger">*</span></label>
+        <input id="cidade" class="form-control" placeholder="Cidade onde está o lote">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Estado <span class="text-danger">*</span></label>
+        <select id="estado" class="form-select">
+          <option value="">UF</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+          <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+          <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+          <option selected>MG</option><option>PA</option><option>PB</option><option>PR</option>
+          <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+          <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+          <option>SP</option><option>SE</option><option>TO</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campos extras por categoria (renderizados dinamicamente) -->
+  <div id="extraFieldsCard" class="section-card" style="display:none">
+    <div class="section-title">Informações Específicas</div>
+    <div id="extraFields" class="row g-3"></div>
+  </div>
+
+  <!-- Fotos -->
+  <div class="section-card">
+    <div class="section-title">Fotos</div>
+    <input type="file" id="fotosInput" accept="image/*" multiple class="form-control mb-2">
+    <div id="fotosPreview" class="d-flex flex-wrap gap-2 mt-2"></div>
+    <div class="small text-muted mt-1">Máx. 8 fotos. Formatos: JPG, PNG. Cada imagem é comprimida automaticamente.</div>
+  </div>
+
+  <!-- Vídeos (link externo) -->
+  <div class="section-card">
+    <div class="section-title">Vídeos (links do YouTube)</div>
+    <div id="videoLinks">
+      <div class="input-group mb-2">
+        <input type="url" class="form-control video-link" placeholder="https://youtube.com/watch?v=...">
+        <button class="btn btn-outline-danger btn-remove-video" type="button">Remover</button>
+      </div>
+    </div>
+    <button type="button" id="btnAddVideo" class="btn btn-outline-secondary btn-sm">+ Adicionar vídeo</button>
+    <div class="small text-muted mt-1">Cole o link do YouTube ou Vimeo. Máx. 3 links.</div>
+  </div>
+
+  <!-- Termo do Vendedor -->
+  <div class="section-card" id="termoCard">
+    <div class="section-title">Termo de Responsabilidade do Vendedor</div>
+    <div id="termoVendedor" class="bg-light rounded p-3 mb-3">
+      <p>O vendedor declara que:</p>
+      <ol>
+        <li>É legítimo proprietário do lote anunciado.</li>
+        <li>Todas as informações prestadas são verdadeiras e corretas.</li>
+        <li>Possui autorização legal para a venda.</li>
+        <li>É responsável por toda a documentação necessária.</li>
+        <li>É responsável pela sanidade do animal (quando aplicável).</li>
+        <li>É responsável pela entrega do lote ao comprador vencedor.</li>
+        <li>Isenta o Clube do Cavalo de responsabilidade sobre vícios ocultos.</li>
+        <li>Concorda com a comissão de 8% (5% clube + 3% sistema) descontada do valor arrematado.</li>
+        <li>Concorda com as regras do leilão, incluindo incremento mínimo de 2% por lance.</li>
+      </ol>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="aceitaTermo">
+      <label class="form-check-label" for="aceitaTermo">
+        Li e aceito os termos acima como vendedor.
+      </label>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 mt-2">
+    <button id="btnSalvar" class="btn btn-outline-secondary">Salvar rascunho</button>
+    <button id="btnEnviar" class="btn btn-primary">Salvar e enviar para aprovação</button>
+  </div>
+
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { requireAuth, uploadImageFile } from "./firebase.js";
+import { getFirestore, collection, doc, getDoc, addDoc, updateDoc, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import { getApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth }  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+const db   = getFirestore(getApp());
+const auth = getAuth(getApp());
+
+requireAuth({ requiredRole: ["associado", "admin", "master"] });
+
+/* ---- URL param: edição de lote existente ---- */
+const params = new URLSearchParams(location.search);
+const editId = params.get("id");
+let existingLot = null;
+let uploadedImageUrls = [];   // URLs já no Storage (edição)
+let newImageFiles     = [];   // Arquivos novos a enviar
+
+/* ---- Campos extras por categoria ---- */
+const EXTRA_FIELDS = {
+  animal: [
+    { id:"raca",        label:"Raça",                  req:true  },
+    { id:"sexo",        label:"Sexo",                  req:true,  type:"select", opts:["Macho","Fêmea","Castrado"] },
+    { id:"idade",       label:"Idade",                 req:true,  placeholder:"Ex: 5 anos" },
+    { id:"registro",    label:"Registro",              req:false },
+    { id:"pelagem",     label:"Pelagem",               req:false },
+    { id:"genealogia",  label:"Genealogia",            req:false, type:"textarea" },
+    { id:"premiacoes",  label:"Premiações",            req:false, type:"textarea" },
+    { id:"obsVet",      label:"Observações veterinárias", req:false, type:"textarea" },
+  ],
+  genetica: [
+    { id:"garanhao",    label:"Nome do garanhão",      req:true  },
+    { id:"raca",        label:"Raça",                  req:true  },
+    { id:"registro",    label:"Registro",              req:false },
+    { id:"genealogia",  label:"Genealogia",            req:false, type:"textarea" },
+    { id:"premiacoes",  label:"Premiações",            req:false, type:"textarea" },
+    { id:"condicoes",   label:"Condições da cobertura",req:false, type:"textarea" },
+    { id:"obsVet",      label:"Informações veterinárias",req:false,type:"textarea" },
+  ],
+  sela: [
+    { id:"marca",       label:"Marca",                 req:false },
+    { id:"modelo",      label:"Modelo",                req:false },
+    { id:"ano",         label:"Ano",                   req:false, type:"number" },
+    { id:"conservacao", label:"Estado de conservação", req:false,
+        type:"select", opts:["Novo","Excelente","Bom","Regular","Precisa de reparo"] },
+    { id:"obs",         label:"Observações",           req:false, type:"textarea" },
+  ],
+  carreta: [
+    { id:"marca",       label:"Marca",                 req:false },
+    { id:"modelo",      label:"Modelo",                req:false },
+    { id:"ano",         label:"Ano",                   req:false, type:"number" },
+    { id:"eixos",       label:"Qtd. de eixos",         req:false, type:"number" },
+    { id:"capacidade",  label:"Capacidade (ton)",      req:false, type:"number" },
+    { id:"renavam",     label:"RENAVAM",               req:false },
+  ],
+  caminhao: [
+    { id:"marca",       label:"Marca",                 req:false },
+    { id:"modelo",      label:"Modelo",                req:false },
+    { id:"ano",         label:"Ano",                   req:false, type:"number" },
+    { id:"km",          label:"KM",                    req:false, type:"number" },
+    { id:"placa",       label:"Placa",                 req:false },
+    { id:"renavam",     label:"RENAVAM",               req:false },
+  ],
+};
+
+function renderExtraFields(cat) {
+  const card = document.getElementById("extraFieldsCard");
+  const wrap = document.getElementById("extraFields");
+  const fields = EXTRA_FIELDS[cat] || [];
+  if (!fields.length) { card.style.display = "none"; return; }
+  card.style.display = "";
+  wrap.innerHTML = fields.map(f => {
+    const req = f.req ? '<span class="text-danger">*</span>' : "";
+    const colClass = (f.type === "textarea") ? "col-12" : "col-md-6";
+    if (f.type === "select") {
+      return `<div class="${colClass}"><label class="form-label">${f.label} ${req}</label>
+        <select id="extra_${f.id}" class="form-select">
+          <option value="">Selecione...</option>
+          ${f.opts.map(o => `<option>${o}</option>`).join("")}
+        </select></div>`;
+    }
+    if (f.type === "textarea") {
+      return `<div class="${colClass}"><label class="form-label">${f.label} ${req}</label>
+        <textarea id="extra_${f.id}" class="form-control" rows="2" placeholder="${f.placeholder||""}"></textarea></div>`;
+    }
+    return `<div class="${colClass}"><label class="form-label">${f.label} ${req}</label>
+      <input id="extra_${f.id}" type="${f.type||"text"}" class="form-control" placeholder="${f.placeholder||""}"></div>`;
+  }).join("");
+
+  // Preenche valores existentes (edição)
+  if (existingLot?.extraData) {
+    for (const [k, v] of Object.entries(existingLot.extraData)) {
+      const el = document.getElementById("extra_" + k);
+      if (el) el.value = v;
+    }
+  }
+}
+
+/* ---- Subcategoria dinâmica ---- */
+document.getElementById("category").addEventListener("change", function() {
+  const opt = this.selectedOptions[0];
+  const subs = JSON.parse(opt?.dataset?.sub || "[]");
+  const wrap = document.getElementById("subcategoryWrap");
+  const sel  = document.getElementById("subcategory");
+  if (subs.length) {
+    sel.innerHTML = subs.map(s => `<option>${s}</option>`).join("");
+    wrap.style.display = "";
+  } else {
+    wrap.style.display = "none";
+  }
+  renderExtraFields(this.value);
+});
+
+/* ---- Adicionar vídeo ---- */
+document.getElementById("btnAddVideo").addEventListener("click", () => {
+  const wrap = document.getElementById("videoLinks");
+  if (wrap.querySelectorAll(".video-link").length >= 3) return;
+  const div = document.createElement("div");
+  div.className = "input-group mb-2";
+  div.innerHTML = `<input type="url" class="form-control video-link" placeholder="https://youtube.com/watch?v=...">
+    <button class="btn btn-outline-danger btn-remove-video" type="button">Remover</button>`;
+  div.querySelector(".btn-remove-video").addEventListener("click", () => div.remove());
+  wrap.appendChild(div);
+});
+document.querySelector(".btn-remove-video").addEventListener("click", function() {
+  if (document.querySelectorAll(".video-link").length > 1) this.closest(".input-group").remove();
+});
+
+/* ---- Preview de fotos ---- */
+document.getElementById("fotosInput").addEventListener("change", function() {
+  for (const file of this.files) {
+    if (newImageFiles.length + uploadedImageUrls.length >= 8) break;
+    newImageFiles.push(file);
+  }
+  this.value = "";
+  renderPhotoPreview();
+});
+
+function renderPhotoPreview() {
+  const wrap = document.getElementById("fotosPreview");
+  wrap.innerHTML = [
+    ...uploadedImageUrls.map((url, i) => `
+      <div class="img-preview-wrap">
+        <img src="${url}" class="img-preview">
+        <button class="img-preview-del" data-type="existing" data-idx="${i}" title="Remover">&times;</button>
+      </div>`),
+    ...newImageFiles.map((f, i) => {
+      const objUrl = URL.createObjectURL(f);
+      return `<div class="img-preview-wrap">
+        <img src="${objUrl}" class="img-preview">
+        <button class="img-preview-del" data-type="new" data-idx="${i}" title="Remover">&times;</button>
+      </div>`;
+    })
+  ].join("");
+  wrap.querySelectorAll(".img-preview-del").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.type === "existing") uploadedImageUrls.splice(+btn.dataset.idx, 1);
+      else newImageFiles.splice(+btn.dataset.idx, 1);
+      renderPhotoPreview();
+    });
+  });
+}
+
+/* ---- Preenchimento em modo edição ---- */
+async function loadExisting(id) {
+  const snap = await getDoc(doc(db, "auctionLots", id));
+  if (!snap.exists()) { showMsg("Lote não encontrado.", "danger"); return; }
+  existingLot = { id: snap.id, ...snap.data() };
+  document.getElementById("pageTitle").textContent = "Editar Lote";
+
+  const lot = existingLot;
+  document.getElementById("title").value       = lot.title || "";
+  document.getElementById("description").value = lot.description || "";
+  document.getElementById("initialBid").value  = lot.initialBid || "";
+  document.getElementById("cidade").value      = lot.cidade || "";
+  document.getElementById("estado").value      = lot.estado || "";
+  if (lot.startTime?.toDate) document.getElementById("startTime").value = toLocalInput(lot.startTime.toDate());
+  if (lot.endTime?.toDate)   document.getElementById("endTime").value   = toLocalInput(lot.endTime.toDate());
+
+  document.getElementById("category").value = lot.category || "";
+  document.getElementById("category").dispatchEvent(new Event("change"));
+  if (lot.subcategory) document.getElementById("subcategory").value = lot.subcategory;
+
+  uploadedImageUrls = [...(lot.imageUrls || [])];
+  renderPhotoPreview();
+
+  // links de vídeo
+  const vlinks = lot.videoLinks || [];
+  const vwrap = document.getElementById("videoLinks");
+  const existing = vwrap.querySelectorAll(".video-link");
+  vlinks.forEach((url, i) => {
+    if (existing[i]) { existing[i].value = url; }
+    else {
+      const div = document.createElement("div");
+      div.className = "input-group mb-2";
+      div.innerHTML = `<input type="url" class="form-control video-link" value="${url}">
+        <button class="btn btn-outline-danger btn-remove-video" type="button">Remover</button>`;
+      div.querySelector(".btn-remove-video").addEventListener("click", () => div.remove());
+      vwrap.appendChild(div);
+    }
+  });
+
+  if (lot.termsAcceptedAt) {
+    document.getElementById("aceitaTermo").checked = true;
+    document.getElementById("termoCard").style.opacity = ".7";
+  }
+}
+
+function toLocalInput(d) {
+  const pad = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/* ---- Coleta dados do formulário ---- */
+function collectExtraData(cat) {
+  const fields = EXTRA_FIELDS[cat] || [];
+  const data = {};
+  for (const f of fields) {
+    const el = document.getElementById("extra_" + f.id);
+    if (el && el.value.trim()) data[f.id] = el.value.trim();
+  }
+  return data;
+}
+
+function collectVideoLinks() {
+  return [...document.querySelectorAll(".video-link")]
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+function validate(submitForApproval) {
+  const cat = document.getElementById("category").value;
+  if (!cat) throw new Error("Selecione a categoria do lote.");
+  if (!document.getElementById("title").value.trim()) throw new Error("Informe o título do lote.");
+  if (!document.getElementById("description").value.trim()) throw new Error("Informe a descrição.");
+  const bid = parseFloat(document.getElementById("initialBid").value);
+  if (!bid || bid <= 0) throw new Error("Informe um valor inicial válido.");
+  if (!document.getElementById("startTime").value) throw new Error("Informe a data/hora de início.");
+  if (!document.getElementById("endTime").value)   throw new Error("Informe a data/hora de encerramento.");
+  const st = new Date(document.getElementById("startTime").value);
+  const et = new Date(document.getElementById("endTime").value);
+  if (et <= st) throw new Error("O encerramento deve ser posterior ao início.");
+  if (!document.getElementById("cidade").value.trim()) throw new Error("Informe a cidade.");
+  if (!document.getElementById("estado").value) throw new Error("Selecione o estado.");
+  if (submitForApproval && !document.getElementById("aceitaTermo").checked) {
+    throw new Error("Aceite o Termo de Responsabilidade do Vendedor para enviar.");
+  }
+}
+
+async function buildLotData(status) {
+  const user = auth.currentUser;
+  const cat  = document.getElementById("category").value;
+
+  // Upload de novas fotos
+  const uploadedNew = [];
+  for (const file of newImageFiles) {
+    const { url } = await uploadImageFile(file, `auctionLots/${user.uid}/`);
+    uploadedNew.push(url);
+  }
+  const allImages = [...uploadedImageUrls, ...uploadedNew];
+
+  return {
+    sellerUid:   user.uid,
+    sellerEmail: user.email,
+    category:    cat,
+    subcategory: document.getElementById("subcategory")?.value || "",
+    title:       document.getElementById("title").value.trim(),
+    description: document.getElementById("description").value.trim(),
+    initialBid:  parseFloat(document.getElementById("initialBid").value),
+    lastBid:     existingLot?.lastBid ?? 0,
+    bidCount:    existingLot?.bidCount ?? 0,
+    startTime:   new Date(document.getElementById("startTime").value),
+    endTime:     new Date(document.getElementById("endTime").value),
+    cidade:      document.getElementById("cidade").value.trim(),
+    estado:      document.getElementById("estado").value,
+    extraData:   collectExtraData(cat),
+    imageUrls:   allImages,
+    videoLinks:  collectVideoLinks(),
+    status,
+    termsAcceptedAt: (status === "em_analise" || existingLot?.termsAcceptedAt)
+      ? (existingLot?.termsAcceptedAt || serverTimestamp()) : null,
+    updatedAt:   serverTimestamp(),
+    ...(editId ? {} : { createdAt: serverTimestamp() }),
+  };
+}
+
+async function saveLot(status) {
+  const btnS = document.getElementById("btnSalvar");
+  const btnE = document.getElementById("btnEnviar");
+  [btnS, btnE].forEach(b => b.disabled = true);
+  showMsg("Salvando...", "info");
+  try {
+    validate(status === "em_analise");
+    const data = await buildLotData(status);
+    if (editId) {
+      await updateDoc(doc(db, "auctionLots", editId), data);
+      showMsg(status === "em_analise" ? "Lote enviado para aprovação!" : "Rascunho salvo.", "success");
+    } else {
+      const ref = await addDoc(collection(db, "auctionLots"), data);
+      showMsg(status === "em_analise" ? "Lote enviado para aprovação!" : "Rascunho salvo.", "success");
+      if (status === "em_analise") {
+        setTimeout(() => location.href = "meus_lotes.html", 1500);
+      } else {
+        history.replaceState(null, "", `lote_form.html?id=${ref.id}`);
+      }
+    }
+    if (status === "em_analise") setTimeout(() => location.href = "meus_lotes.html", 1500);
+  } catch (e) {
+    showMsg(e.message || "Erro ao salvar.", "danger");
+    console.error(e);
+  } finally {
+    [btnS, btnE].forEach(b => b.disabled = false);
+  }
+}
+
+function showMsg(text, type = "info") {
+  const el = document.getElementById("msgTop");
+  el.className = `alert alert-${type}`;
+  el.textContent = text;
+  el.classList.remove("d-none");
+  el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+document.getElementById("btnSalvar").addEventListener("click", () => saveLot("rascunho"));
+document.getElementById("btnEnviar").addEventListener("click", () => saveLot("em_analise"));
+
+/* ---- Init ---- */
+if (editId) loadExisting(editId);
+</script>
+</body>
+</html>

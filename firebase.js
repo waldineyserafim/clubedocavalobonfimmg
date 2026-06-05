@@ -85,6 +85,7 @@ const mapRole = (r) => {
   const n = norm(r || "");
   if (n.includes("master")) return "master";
   if (n.includes("admin")) return "admin";
+  if (n.includes("participante")) return "participanteLeilao";
   return "associado";
 };
 
@@ -188,6 +189,30 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
 
   cacheRole("associado");
   __emitRoleChange("associado");
+  return { uid };
+}
+
+/* 6b) CADASTRO de Participante de Leilão (usa e-mail real, não CPF→email) */
+export async function doSignupParticipanteLeilao({ cpf, email, password, nome, telefone, cidade, estado }) {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  const uid = cred.user.uid;
+
+  await setDoc(doc(db, "users", uid), {
+    cpf: onlyDigits(cpf),
+    email: (email || "").trim().toLowerCase(),
+    nome: (nome || "").trim(),
+    telefone: (telefone || "").trim(),
+    cidade: (cidade || "").trim(),
+    estado: (estado || "").trim(),
+    role: "participanteLeilao",
+    status: "Ativo",
+    ativo: true,
+    inadimplenteLeilao: false,
+    createdAt: serverTimestamp()
+  }, { merge: true });
+
+  cacheRole("participanteLeilao");
+  __emitRoleChange("participanteLeilao");
   return { uid };
 }
 

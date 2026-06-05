@@ -13,8 +13,9 @@ const ASAAS_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-webhook-to
 // Mesma lógica do firebase.js: trim + normalize + includes
 function mapRoleServer(r) {
   const n = (r || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
-  if (n.includes('master')) return 'master';
-  if (n.includes('admin'))  return 'admin';
+  if (n.includes('master'))      return 'master';
+  if (n.includes('admin'))       return 'admin';
+  if (n.includes('participante')) return 'participanteLeilao';
   return 'associado';
 }
 
@@ -1638,4 +1639,464 @@ exports.migrateEmailDomains = functions
 
     console.log(`migrateEmailDomains: migrados=${migrated.length} pulados=${skipped.length} erros=${errors.length}`);
     return { migrated, skipped, errors };
+  });
+
+/* ================================================================
+   MÓDULO DE LEILÕES
+   ================================================================ */
+
+// ---- placeBid (onCall) ----
+// Lance atômico com Firestore Transaction: valida +2%, anti-sniper, inadimplente, dono
+exports.placeBid = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Faça login para dar lances.');
+
+  const { lotId, amount } = data;
+  if (!lotId || typeof amount !== 'number' || amount <= 0) {
+    throw new functions.https.HttpsError('invalid-argument', 'Dados inválidos.');
+  }
+
+  const bidderUid  = context.auth.uid;
+  const lotRef     = db.collection('auctionLots').doc(lotId);
+  const bidsRef    = lotRef.collection('bids');
+  const bidderRef  = db.collection('users').doc(bidderUid);
+
+  // Verificar inadimplência antes da transação (leitura rápida)
+  const bidderSnap = await bidderRef.get();
+  if (bidderSnap.exists && bidderSnap.data().inadimplenteLeilao === true) {
+    throw new functions.https.HttpsError('permission-denied', 'Sua conta está bloqueada por inadimplência.');
+  }
+
+  const result = await db.runTransaction(async (tx) => {
+    const lotSnap = await tx.get(lotRef);
+    if (!lotSnap.exists) throw new functions.https.HttpsError('not-found', 'Lote não encontrado.');
+
+    const lot = lotSnap.data();
+
+    if (lot.status !== 'publicado') {
+      throw new functions.https.HttpsError('failed-precondition', 'Este lote não está ativo.');
+    }
+
+    const now     = Date.now();
+    const endMs   = lot.endTime?.toMillis?.() ?? 0;
+    if (endMs && now > endMs) {
+      throw new functions.https.HttpsError('failed-precondition', 'O leilão deste lote já encerrou.');
+    }
+
+    if (lot.sellerUid === bidderUid) {
+      throw new functions.https.HttpsError('permission-denied', 'Você não pode dar lances em seu próprio lote.');
+    }
+
+    // Calcular lance mínimo: primeiro lance usa initialBid*1.02; demais usam lastBid*1.02
+    const base    = (lot.lastBid && lot.lastBid > 0) ? lot.lastBid : lot.initialBid;
+    const minBid  = Math.ceil(base * 1.02 * 100) / 100;
+    if (amount < minBid) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        `Lance mínimo: R$ ${minBid.toFixed(2).replace('.',',')}. Valor informado: R$ ${amount.toFixed(2).replace('.',',')}.`
+      );
+    }
+
+    // Anti-sniper: se lance nos últimos 2 minutos, prolonga 2 minutos
+    let newEndTime = lot.endTime;
+    if (endMs && (endMs - now) < 120000) {
+      newEndTime = new admin.firestore.Timestamp.fromMillis(now + 120000);
+    }
+
+    const bidId  = bidsRef.doc().id;
+    const bidDoc = { bidderUid, amount, placedAt: admin.firestore.FieldValue.serverTimestamp() };
+
+    tx.set(bidsRef.doc(bidId), bidDoc);
+    tx.update(lotRef, {
+      lastBid:      amount,
+      lastBidderUid: bidderUid,
+      bidCount:     admin.firestore.FieldValue.increment(1),
+      endTime:      newEndTime,
+      updatedAt:    admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { bidId, newEndTime: newEndTime?.toMillis?.() ?? endMs };
+  });
+
+  return result;
+});
+
+// ---- encerrarLotesExpirados (scheduled, a cada minuto) ----
+exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const snap = await db.collection('auctionLots')
+      .where('status', '==', 'publicado')
+      .where('endTime', '<=', now)
+      .get();
+
+    if (snap.empty) return null;
+
+    const batch = db.batch();
+    for (const doc of snap.docs) {
+      batch.update(doc.ref, { status: 'encerrado', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    }
+    await batch.commit();
+
+    // Criar auctionSales para cada lote encerrado com lances
+    for (const doc of snap.docs) {
+      const lot = doc.data();
+      if (!lot.lastBid || !lot.lastBidderUid) continue; // sem lances: só encerra
+
+      const existingSale = await db.collection('auctionSales')
+        .where('lotId', '==', doc.id).limit(1).get();
+      if (!existingSale.empty) continue; // já criou
+
+      const finalAmount       = lot.lastBid;
+      const commissionClube   = Math.round(finalAmount * 0.05 * 100) / 100;
+      const commissionSistema = Math.round(finalAmount * 0.03 * 100) / 100;
+      const commissionTotal   = Math.round((commissionClube + commissionSistema) * 100) / 100;
+      const netSeller         = Math.round((finalAmount - commissionTotal) * 100) / 100;
+
+      // Buscar dados do comprador e vendedor para desnormalizar
+      const buyerSnap  = await db.collection('users').doc(lot.lastBidderUid).get();
+      const sellerSnap = await db.collection('users').doc(lot.sellerUid).get();
+
+      await db.collection('auctionSales').add({
+        lotId:              doc.id,
+        lotTitle:           lot.title || '',
+        sellerUid:          lot.sellerUid,
+        sellerEmail:        sellerSnap.exists ? (sellerSnap.data().email || '') : '',
+        sellerName:         sellerSnap.exists ? (sellerSnap.data().nome  || '') : '',
+        buyerUid:           lot.lastBidderUid,
+        buyerEmail:         buyerSnap.exists  ? (buyerSnap.data().email  || '') : '',
+        buyerName:          buyerSnap.exists  ? (buyerSnap.data().nome   || '') : '',
+        finalAmount,
+        commissionClube,
+        commissionSistema,
+        commissionTotal,
+        netSeller,
+        status:             'aguardando_pagamento',
+        createdAt:          admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Notificar vencedor e vendedor
+      const batch2 = db.batch();
+      const notifRef = db.collection('auctionNotifications');
+      batch2.set(notifRef.doc(), {
+        recipientUid: lot.lastBidderUid,
+        type: 'lote_arrematado',
+        lotId: doc.id,
+        lotTitle: lot.title || '',
+        message: `Parabéns! Você arrematou o lote "${lot.title}" por R$ ${finalAmount.toFixed(2).replace('.',',')}. Efetue o pagamento em até 5 dias.`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      batch2.set(notifRef.doc(), {
+        recipientUid: lot.sellerUid,
+        type: 'lote_vendido',
+        lotId: doc.id,
+        lotTitle: lot.title || '',
+        message: `Seu lote "${lot.title}" foi arrematado por R$ ${finalAmount.toFixed(2).replace('.',',')}. Aguardando pagamento do comprador.`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      await batch2.commit();
+    }
+
+    console.log(`encerrarLotesExpirados: ${snap.size} lotes encerrados`);
+    return null;
+  });
+
+// ---- gerarCobrancaLeilao (onCall) ----
+// Gera cobrança avulsa no Asaas para o vencedor do lote
+exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const { saleId } = data;
+  if (!saleId) throw new functions.https.HttpsError('invalid-argument', 'saleId obrigatório.');
+
+  const saleSnap = await db.collection('auctionSales').doc(saleId).get();
+  if (!saleSnap.exists) throw new functions.https.HttpsError('not-found', 'Venda não encontrada.');
+
+  const sale = saleSnap.data();
+  if (sale.status !== 'aguardando_pagamento') {
+    throw new functions.https.HttpsError('failed-precondition', 'Esta venda não está aguardando pagamento.');
+  }
+
+  // Verificar cobrança já gerada
+  const existPay = await db.collection('auctionPayments')
+    .where('saleId', '==', saleId).limit(1).get();
+  if (!existPay.empty) return { paymentId: existPay.docs[0].id, alreadyExists: true };
+
+  const apiKey = await getSecret(ASAAS_SECRET);
+  const buyerSnap = await db.collection('users').doc(sale.buyerUid).get();
+  const buyer = buyerSnap.exists ? buyerSnap.data() : {};
+
+  // Garantir que o comprador tem cliente no Asaas
+  let asaasCustomerId = buyer.asaasId;
+  if (!asaasCustomerId) {
+    const cResp = await fetch(`${ASAAS_BASE_URL}/customers`, {
+      method: 'POST',
+      headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:              buyer.nome || buyer.email || 'Comprador',
+        cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
+        email:             buyer.email || undefined,
+        mobilePhone:       formatPhoneForAsaas(buyer.telefone),
+        externalReference: sale.buyerUid,
+      }),
+    });
+    const cData = await cResp.json();
+    if (!cData.id) {
+      console.error('gerarCobrancaLeilao: falha ao criar cliente Asaas', cData);
+      throw new functions.https.HttpsError('internal', 'Falha ao criar cliente no Asaas.');
+    }
+    asaasCustomerId = cData.id;
+    await db.collection('users').doc(sale.buyerUid).update({
+      asaasId: asaasCustomerId,
+      asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Data de vencimento: 5 dias corridos a partir de hoje
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 5);
+  const dueDateStr = dueDate.toISOString().split('T')[0];
+
+  const payResp = await fetch(`${ASAAS_BASE_URL}/payments`, {
+    method: 'POST',
+    headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer:         asaasCustomerId,
+      billingType:      'UNDEFINED',
+      value:            sale.finalAmount,
+      dueDate:          dueDateStr,
+      description:      `Arrematação lote: ${sale.lotTitle}`,
+      externalReference: saleId,
+    }),
+  });
+  const payData = await payResp.json();
+  if (!payData.id) {
+    console.error('gerarCobrancaLeilao: falha ao criar cobrança Asaas', payData);
+    throw new functions.https.HttpsError('internal', 'Falha ao gerar cobrança no Asaas.');
+  }
+
+  const paymentRef = await db.collection('auctionPayments').add({
+    saleId,
+    buyerUid:       sale.buyerUid,
+    lotId:          sale.lotId,
+    lotTitle:       sale.lotTitle,
+    amount:         sale.finalAmount,
+    asaasPaymentId: payData.id,
+    asaasInvoiceUrl: payData.invoiceUrl || null,
+    status:         'pendente',
+    dueDate:        admin.firestore.Timestamp.fromDate(dueDate),
+    createdAt:      admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { paymentId: paymentRef.id, invoiceUrl: payData.invoiceUrl };
+});
+
+// ---- auctionAsaasWebhook (HTTP público) ----
+// Recebe PAYMENT_RECEIVED/CONFIRMED do Asaas para cobranças de leilão
+exports.auctionAsaasWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  // Validar token
+  const webhookToken = await getSecret(ASAAS_WEBHOOK_TOKEN);
+  const incomingToken = req.headers['asaas-access-token'];
+  if (!incomingToken || incomingToken !== webhookToken) {
+    console.warn('auctionAsaasWebhook: token inválido');
+    res.status(401).send('Unauthorized');
+    return;
+  }
+
+  const event   = req.body;
+  const payment = event?.payment;
+  if (!payment || !['PAYMENT_RECEIVED','PAYMENT_CONFIRMED'].includes(event.event)) {
+    res.status(200).send('ok');
+    return;
+  }
+
+  // Verificar anti-fraude na API
+  const apiKey = await getSecret(ASAAS_SECRET);
+  const verResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
+    headers: { 'access_token': apiKey },
+  });
+  const verData = await verResp.json();
+  if (!verData.id || !['RECEIVED','CONFIRMED'].includes(verData.status)) {
+    console.warn('auctionAsaasWebhook: pagamento não confirmado na API', verData.status);
+    res.status(200).send('ok');
+    return;
+  }
+
+  const saleId = verData.externalReference;
+  if (!saleId) { res.status(200).send('ok'); return; }
+
+  // Idempotência: verificar se já processou este asaasPaymentId
+  const existSnap = await db.collection('auctionPayments')
+    .where('asaasPaymentId', '==', payment.id).limit(1).get();
+
+  if (!existSnap.empty) {
+    const payDoc = existSnap.docs[0];
+    if (payDoc.data().status === 'pago') { res.status(200).send('ok'); return; }
+    await payDoc.ref.update({
+      status: 'pago',
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } else {
+    // Registro não existia ainda
+    await db.collection('auctionPayments').add({
+      saleId,
+      asaasPaymentId: payment.id,
+      amount:         verData.value,
+      status:         'pago',
+      paidAt:         admin.firestore.FieldValue.serverTimestamp(),
+      createdAt:      admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Atualizar auctionSales para pago
+  const saleRef = db.collection('auctionSales').doc(saleId);
+  await saleRef.update({
+    status:    'pago',
+    paidAt:    admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  console.log(`auctionAsaasWebhook: saleId=${saleId} marcado como pago`);
+  res.status(200).send('ok');
+});
+
+// ---- liberarRepasse (onCall, admin only) ----
+exports.liberarRepasse = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
+  if (!['admin','master'].includes(callerRole)) {
+    throw new functions.https.HttpsError('permission-denied', 'Acesso negado.');
+  }
+
+  const { saleId } = data;
+  if (!saleId) throw new functions.https.HttpsError('invalid-argument', 'saleId obrigatório.');
+
+  const saleSnap = await db.collection('auctionSales').doc(saleId).get();
+  if (!saleSnap.exists) throw new functions.https.HttpsError('not-found', 'Venda não encontrada.');
+
+  const sale = saleSnap.data();
+  if (sale.status !== 'pago') {
+    throw new functions.https.HttpsError('failed-precondition', 'Repasse só pode ser liberado após o pagamento.');
+  }
+
+  await db.collection('auctionSales').doc(saleId).update({
+    status:      'repasse_liberado',
+    releasedBy:  context.auth.uid,
+    releasedAt:  admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Notificar vendedor
+  await db.collection('auctionNotifications').add({
+    recipientUid: sale.sellerUid,
+    type:         'repasse_liberado',
+    lotId:        sale.lotId,
+    lotTitle:     sale.lotTitle,
+    message:      `O repasse de R$ ${(sale.netSeller||0).toFixed(2).replace('.',',')} referente ao lote "${sale.lotTitle}" foi liberado. Entre em contato com o clube para receber.`,
+    read:         false,
+    createdAt:    admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { ok: true };
+});
+
+// ---- onSaleCreated (Firestore trigger) ----
+// Cria cliente Asaas para ParticipanteLeilao vencedor, se ainda não tiver asaasId
+exports.onSaleCreated = functions.firestore
+  .document('auctionSales/{saleId}')
+  .onCreate(async (snap) => {
+    const sale = snap.data();
+    if (!sale.buyerUid) return null;
+
+    const buyerRef  = db.collection('users').doc(sale.buyerUid);
+    const buyerSnap = await buyerRef.get();
+    if (!buyerSnap.exists) return null;
+
+    const buyer = buyerSnap.data();
+    if (buyer.asaasId) return null; // já tem cliente no Asaas
+
+    const apiKey = await getSecret(ASAAS_SECRET);
+    const resp = await fetch(`${ASAAS_BASE_URL}/customers`, {
+      method: 'POST',
+      headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:              buyer.nome || buyer.email || 'Comprador',
+        cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
+        email:             buyer.email || undefined,
+        mobilePhone:       formatPhoneForAsaas(buyer.telefone),
+        externalReference: sale.buyerUid,
+      }),
+    });
+    const data = await resp.json();
+    if (!data.id) {
+      console.error('onSaleCreated: falha ao criar cliente Asaas', data);
+      return null;
+    }
+
+    await buyerRef.update({
+      asaasId:       data.id,
+      asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    console.log(`onSaleCreated: cliente Asaas criado para ${sale.buyerUid} → ${data.id}`);
+    return null;
+  });
+
+// ---- verificarInadimplentesDiarios (scheduled, diário às 09:00 BRT) ----
+// Bloqueia compradores que não pagaram a cobrança de leilão no prazo
+exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
+  .timeZone('America/Sao_Paulo')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    // Cobranças pendentes com dueDate vencida
+    const snap = await db.collection('auctionPayments')
+      .where('status', '==', 'pendente')
+      .where('dueDate', '<', now)
+      .get();
+
+    if (snap.empty) return null;
+
+    const batch = db.batch();
+    const uidsToBlock = new Set();
+
+    for (const doc of snap.docs) {
+      const pay = doc.data();
+      batch.update(doc.ref, { status: 'vencido', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      if (pay.buyerUid) uidsToBlock.add(pay.buyerUid);
+
+      // Atualizar sale para cancelado se ainda em aguardando_pagamento
+      if (pay.saleId) {
+        const saleSnap = await db.collection('auctionSales').doc(pay.saleId).get();
+        if (saleSnap.exists && saleSnap.data().status === 'aguardando_pagamento') {
+          batch.update(saleSnap.ref, {
+            status:    'cancelado',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    }
+
+    await batch.commit();
+
+    for (const uid of uidsToBlock) {
+      await db.collection('users').doc(uid).update({
+        inadimplenteLeilao: true,
+        updatedAt:          admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Notificar usuário
+      await db.collection('auctionNotifications').add({
+        recipientUid: uid,
+        type:         'bloqueio_inadimplencia',
+        message:      'Sua conta foi bloqueada para participação em leilões por inadimplência. Entre em contato com o clube para regularizar.',
+        read:         false,
+        createdAt:    admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    console.log(`verificarInadimplentesDiarios: ${uidsToBlock.size} usuário(s) bloqueado(s)`);
+    return null;
   });

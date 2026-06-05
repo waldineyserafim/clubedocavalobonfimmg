@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestão de Leilões — Admin CCBMG</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root{ --brand:#111279; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; filter:brightness(0) invert(1); }
+    @media (min-width:992px){ .brand-logo{ height:42px; } }
+
+    .tab-pane{ padding-top:1rem; }
+
+    /* Lista de lotes */
+    .lot-row{
+      display:grid;
+      grid-template-columns: 1fr 110px 130px 130px 90px;
+      gap:10px; align-items:center;
+      padding:.55rem .75rem; border-bottom:1px solid #f0f0f0;
+    }
+    .lot-header{ font-size:.72rem; font-weight:600; text-transform:uppercase;
+                 color:#6c757d; background:#f8f9fa; border-radius:8px 8px 0 0; }
+    .lot-title-btn{ background:none; border:none; padding:0; text-align:left;
+                    font-weight:500; color:var(--brand); cursor:pointer; }
+    .lot-title-btn:hover{ text-decoration:underline; }
+    .details-panel{ background:#f8f9fa; border:1px solid #e9ecef; border-top:none;
+                    border-radius:0 0 8px 8px; padding:.85rem 1rem; }
+    @media (max-width:767.98px){
+      .lot-row{ grid-template-columns: 1fr auto; }
+      .lot-col-seller,.lot-col-bid,.lot-col-end{ display:none; }
+    }
+
+    /* Lista de vendas / repasses */
+    .sale-row{
+      display:grid;
+      grid-template-columns: 1fr 140px 120px 120px 90px;
+      gap:10px; align-items:center;
+      padding:.55rem .75rem; border-bottom:1px solid #f0f0f0;
+    }
+    .sale-header{ font-size:.72rem; font-weight:600; text-transform:uppercase;
+                  color:#6c757d; background:#f8f9fa; border-radius:8px 8px 0 0; }
+    @media (max-width:767.98px){
+      .sale-row{ grid-template-columns: 1fr auto; }
+      .sale-col-buyer,.sale-col-value,.sale-col-status{ display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item"><a class="nav-link" href="leiloes.html">Ver leilões públicos</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="bg-light border-bottom py-3">
+  <div class="container d-flex align-items-center justify-content-between gap-2">
+    <h1 class="h4 mb-0">Gestão de Leilões</h1>
+    <a href="admin.html" class="btn btn-outline-secondary btn-sm">Voltar ao Admin</a>
+  </div>
+</header>
+
+<main class="container py-3">
+
+  <!-- Abas principais -->
+  <ul class="nav nav-tabs mb-0" id="adminTabs">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabAprovacao">
+      Aprovação <span class="badge bg-warning text-dark ms-1" id="badgeAnalise">0</span>
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabLotes">
+      Todos os lotes
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabVendas">
+      Vendas / Repasses
+    </button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabParticipantes">
+      Participantes
+    </button></li>
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom p-3">
+
+    <!-- === ABA: APROVAÇÃO === -->
+    <div class="tab-pane fade show active" id="tabAprovacao">
+      <p class="text-muted small mb-3">Lotes aguardando revisão e aprovação para publicação.</p>
+      <div id="listaAnalise">
+        <div class="lot-row lot-header">
+          <div>Lote</div>
+          <div>Vendedor</div>
+          <div class="lot-col-bid">Valor inicial</div>
+          <div class="lot-col-end">Encerramento</div>
+          <div>Ações</div>
+        </div>
+        <div id="analiseList"></div>
+        <div id="analiseEmpty" class="text-center text-muted py-4" style="display:none">
+          Nenhum lote aguardando aprovação.
+        </div>
+        <div id="analiseLoading" class="text-center py-3">
+          <div class="spinner-border spinner-border-sm text-primary"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- === ABA: TODOS OS LOTES === -->
+    <div class="tab-pane fade" id="tabLotes">
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <input id="searchLote" class="form-control form-control-sm" style="max-width:220px"
+               placeholder="Buscar por título...">
+        <select id="filterLoteStatus" class="form-select form-select-sm" style="max-width:160px">
+          <option value="">Todos os status</option>
+          <option value="rascunho">Rascunho</option>
+          <option value="em_analise">Em análise</option>
+          <option value="aprovado">Aprovado</option>
+          <option value="rejeitado">Rejeitado</option>
+          <option value="publicado">Publicado</option>
+          <option value="encerrado">Encerrado</option>
+          <option value="pago">Pago</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="lot-row lot-header">
+        <div>Lote</div>
+        <div class="lot-col-seller">Vendedor</div>
+        <div class="lot-col-bid">Maior lance</div>
+        <div class="lot-col-end">Encerramento</div>
+        <div>Status</div>
+      </div>
+      <div id="allLotsList"></div>
+      <div id="allLotsLoading" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+      </div>
+    </div>
+
+    <!-- === ABA: VENDAS / REPASSES === -->
+    <div class="tab-pane fade" id="tabVendas">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <select id="filterVendaStatus" class="form-select form-select-sm" style="max-width:200px">
+          <option value="">Todos</option>
+          <option value="aguardando_pagamento">Aguardando pagamento</option>
+          <option value="pago">Pago</option>
+          <option value="repasse_liberado">Repasse liberado</option>
+          <option value="concluido">Concluído</option>
+        </select>
+      </div>
+      <div class="sale-row sale-header">
+        <div>Lote</div>
+        <div class="sale-col-buyer">Comprador</div>
+        <div class="sale-col-value">Valor líquido</div>
+        <div class="sale-col-status">Status</div>
+        <div>Ações</div>
+      </div>
+      <div id="vendasList"></div>
+      <div id="vendasLoading" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+      </div>
+      <div id="vendasEmpty" class="text-center text-muted py-4" style="display:none">
+        Nenhuma venda encontrada.
+      </div>
+    </div>
+
+    <!-- === ABA: PARTICIPANTES === -->
+    <div class="tab-pane fade" id="tabParticipantes">
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        <input id="searchPart" class="form-control form-control-sm" style="max-width:220px"
+               placeholder="Buscar por nome ou e-mail...">
+        <div class="form-check ms-2 mt-1">
+          <input class="form-check-input" type="checkbox" id="filterInadimplente">
+          <label class="form-check-label small" for="filterInadimplente">Somente inadimplentes</label>
+        </div>
+      </div>
+      <div id="participantesList"></div>
+      <div id="participantesLoading" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+      </div>
+    </div>
+
+  </div><!-- /tab-content -->
+</main>
+
+<!-- Modal: Aprovar lote (define datas) -->
+<div class="modal fade" id="modalAprovar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Aprovar lote para publicação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">Confirme ou ajuste as datas de início e encerramento do leilão.</p>
+        <input type="hidden" id="aprovLotId">
+        <div class="mb-3">
+          <label class="form-label">Início do leilão</label>
+          <input type="datetime-local" id="aprovStart" class="form-control">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Encerramento</label>
+          <input type="datetime-local" id="aprovEnd" class="form-control">
+        </div>
+        <div id="aprovMsg" class="text-danger small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success btn-sm" id="btnConfirmAprovar">Publicar lote</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Rejeitar lote -->
+<div class="modal fade" id="modalRejeitar" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Rejeitar lote</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="rejLotId">
+        <div class="mb-3">
+          <label class="form-label">Motivo da rejeição <span class="text-danger">*</span></label>
+          <textarea id="rejMotivo" class="form-control" rows="3"
+            placeholder="Explique o motivo para o vendedor..."></textarea>
+        </div>
+        <div id="rejMsg" class="text-danger small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" id="btnConfirmRejeitar">Rejeitar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Liberar repasse -->
+<div class="modal fade" id="modalRepasse" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Liberar repasse ao vendedor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="repasseSaleId">
+        <div id="repasseInfo" class="mb-3"></div>
+        <div class="alert alert-warning small">
+          Ao liberar, o sistema registra o repasse. O pagamento ao vendedor deve ser feito manualmente
+          (transferência bancária, PIX etc.).
+        </div>
+        <div id="repasseMsg" class="text-danger small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnConfirmRepasse">Confirmar liberação</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { requireAuth } from "./firebase.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot,
+         doc, updateDoc, getDocs, serverTimestamp, getDoc }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import { getApp }  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getFunctions, httpsCallable }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
+
+const db        = getFirestore(getApp());
+const auth      = getAuth(getApp());
+const functions = getFunctions(getApp(), "us-central1");
+
+requireAuth({ requiredRole: ["admin", "master"] });
+
+/* ---- helpers ---- */
+function fmtBRL(v) {
+  return (v ?? 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+}
+function fmtDate(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour:"2-digit", minute:"2-digit" });
+}
+function toLocalInput(d) {
+  const p = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function escHtml(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+const STATUS_CFG = {
+  rascunho:   { label:"Rascunho",   cls:"bg-secondary" },
+  em_analise: { label:"Em análise", cls:"bg-warning text-dark" },
+  aprovado:   { label:"Aprovado",   cls:"bg-info text-dark" },
+  rejeitado:  { label:"Rejeitado",  cls:"bg-danger" },
+  publicado:  { label:"Publicado",  cls:"bg-success" },
+  encerrado:  { label:"Encerrado",  cls:"bg-primary" },
+  pago:       { label:"Pago",       cls:"bg-success" },
+  concluido:  { label:"Concluído",  cls:"bg-success" },
+  cancelado:  { label:"Cancelado",  cls:"bg-danger" },
+};
+
+/* ===============================================================
+   ABA 1: APROVAÇÃO
+   =============================================================== */
+let analiseRows = [];
+
+onSnapshot(
+  query(collection(db,"auctionLots"), where("status","==","em_analise"), orderBy("updatedAt","asc")),
+  snap => {
+    analiseRows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("badgeAnalise").textContent = analiseRows.length || "0";
+    renderAnalise();
+  }
+);
+
+function renderAnalise() {
+  const list  = document.getElementById("analiseList");
+  const empty = document.getElementById("analiseEmpty");
+  document.getElementById("analiseLoading").style.display = "none";
+  if (!analiseRows.length) { list.innerHTML = ""; empty.style.display = ""; return; }
+  empty.style.display = "none";
+  list.innerHTML = analiseRows.map(lot => `
+    <div>
+      <div class="lot-row">
+        <div>
+          <button class="lot-title-btn" onclick="toggleDet('an','${lot.id}')">${escHtml(lot.title)}</button>
+          <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
+        </div>
+        <div class="small">${escHtml(lot.sellerEmail||"")}</div>
+        <div class="lot-col-bid small">${fmtBRL(lot.initialBid)}</div>
+        <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn btn-sm btn-success" onclick="openAprovar('${lot.id}','${toLocalInput(lot.startTime?.toDate?.() || new Date())}','${toLocalInput(lot.endTime?.toDate?.() || new Date())}')">Aprovar</button>
+          <button class="btn btn-sm btn-danger"  onclick="openRejeitar('${lot.id}')">Rejeitar</button>
+        </div>
+      </div>
+      <div id="an-${lot.id}" style="display:none" class="details-panel">
+        <div class="row g-3 small">
+          <div class="col-md-8">
+            <strong>Descrição:</strong>
+            <p class="text-muted mb-1">${escHtml(lot.description||"")}</p>
+          </div>
+          <div class="col-md-4">
+            <div><strong>Valor inicial:</strong> ${fmtBRL(lot.initialBid)}</div>
+            <div><strong>Lance mínimo 1º:</strong> ${fmtBRL(lot.initialBid * 1.02)}</div>
+            <div><strong>Local:</strong> ${escHtml(lot.cidade||"")}/${escHtml(lot.estado||"")}</div>
+          </div>
+          ${lot.imageUrls?.length ? `
+          <div class="col-12">
+            <strong>Fotos:</strong>
+            <div class="d-flex flex-wrap gap-2 mt-1">
+              ${lot.imageUrls.map(u=>`<img src="${escHtml(u)}" style="height:70px;object-fit:cover;border-radius:6px">`).join("")}
+            </div>
+          </div>` : ""}
+        </div>
+        <div class="mt-2 d-flex gap-2">
+          <a href="leilao_lote.html?id=${lot.id}" class="btn btn-sm btn-outline-secondary" target="_blank">Ver lote</a>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+/* ===============================================================
+   ABA 2: TODOS OS LOTES
+   =============================================================== */
+let allLots = [];
+let lotsFilter = { search:"", status:"" };
+
+onSnapshot(
+  query(collection(db,"auctionLots"), orderBy("createdAt","desc")),
+  snap => {
+    allLots = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("allLotsLoading").style.display = "none";
+    renderAllLots();
+  }
+);
+
+function renderAllLots() {
+  const list = document.getElementById("allLotsList");
+  let rows = allLots;
+  if (lotsFilter.status) rows = rows.filter(l => l.status === lotsFilter.status);
+  if (lotsFilter.search) {
+    const s = lotsFilter.search.toLowerCase();
+    rows = rows.filter(l => (l.title||"").toLowerCase().includes(s));
+  }
+  if (!rows.length) { list.innerHTML = `<div class="text-center text-muted py-4">Nenhum lote encontrado.</div>`; return; }
+  list.innerHTML = rows.map(lot => {
+    const st = STATUS_CFG[lot.status] || { label: lot.status, cls:"bg-secondary" };
+    return `
+    <div>
+      <div class="lot-row">
+        <div>
+          <button class="lot-title-btn" onclick="toggleDet('al','${lot.id}')">${escHtml(lot.title||"")}</button>
+          <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
+        </div>
+        <div class="lot-col-seller small">${escHtml(lot.sellerEmail||"")}</div>
+        <div class="lot-col-bid small">${lot.lastBid > 0 ? fmtBRL(lot.lastBid) : "—"}</div>
+        <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
+        <div><span class="badge ${st.cls}" style="font-size:.7rem">${st.label}</span></div>
+      </div>
+      <div id="al-${lot.id}" style="display:none" class="details-panel">
+        <div class="d-flex gap-2 flex-wrap small">
+          <span><strong>Início:</strong> ${fmtDate(lot.startTime)}</span>
+          <span><strong>Encerramento:</strong> ${fmtDate(lot.endTime)}</span>
+          <span><strong>Lances:</strong> ${lot.bidCount||0}</span>
+          <span><strong>Valor inicial:</strong> ${fmtBRL(lot.initialBid)}</span>
+        </div>
+        <div class="d-flex gap-2 mt-2">
+          <a href="leilao_lote.html?id=${lot.id}" class="btn btn-sm btn-outline-secondary" target="_blank">Ver lote público</a>
+          ${lot.status === "publicado" ? `<button class="btn btn-sm btn-outline-danger btn-admin-cancel" data-id="${lot.id}">Cancelar lote</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".btn-admin-cancel").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const motivo = prompt("Motivo do cancelamento (obrigatório):");
+      if (!motivo) return;
+      await updateDoc(doc(db,"auctionLots",btn.dataset.id), {
+        status:"cancelado", rejectionReason: motivo, updatedAt: serverTimestamp()
+      });
+    });
+  });
+}
+
+document.getElementById("searchLote").addEventListener("input", e => {
+  lotsFilter.search = e.target.value.trim(); renderAllLots();
+});
+document.getElementById("filterLoteStatus").addEventListener("change", e => {
+  lotsFilter.status = e.target.value; renderAllLots();
+});
+
+/* ===============================================================
+   ABA 3: VENDAS / REPASSES
+   =============================================================== */
+let allVendas = [];
+
+onSnapshot(
+  query(collection(db,"auctionSales"), orderBy("createdAt","desc")),
+  snap => {
+    allVendas = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("vendasLoading").style.display = "none";
+    renderVendas();
+  }
+);
+
+function renderVendas() {
+  const list  = document.getElementById("vendasList");
+  const empty = document.getElementById("vendasEmpty");
+  let rows = allVendas;
+  const f = document.getElementById("filterVendaStatus").value;
+  if (f) rows = rows.filter(v => v.status === f);
+  if (!rows.length) { list.innerHTML = ""; empty.style.display = ""; return; }
+  empty.style.display = "none";
+
+  const ST = {
+    aguardando_pagamento:{ label:"Aguardando pgto", cls:"bg-warning text-dark" },
+    pago:                { label:"Pago",             cls:"bg-success" },
+    repasse_liberado:    { label:"Repasse liberado", cls:"bg-primary" },
+    concluido:           { label:"Concluído",        cls:"bg-success" },
+    cancelado:           { label:"Cancelado",        cls:"bg-danger" },
+  };
+
+  list.innerHTML = rows.map(v => {
+    const st = ST[v.status] || { label: v.status, cls:"bg-secondary" };
+    const canRelease = v.status === "pago";
+    return `
+    <div>
+      <div class="sale-row">
+        <div>
+          <div class="fw-medium small">${escHtml(v.lotTitle||v.lotId)}</div>
+          <div class="small text-muted">Vendedor: ${escHtml(v.sellerEmail||v.sellerUid)}</div>
+        </div>
+        <div class="sale-col-buyer small">${escHtml(v.buyerEmail||v.buyerUid)}</div>
+        <div class="sale-col-value small">
+          <div>${fmtBRL(v.netSeller)}</div>
+          <div class="text-muted" style="font-size:.7rem">Total: ${fmtBRL(v.finalAmount)} · Comissão: ${fmtBRL(v.commissionTotal)}</div>
+        </div>
+        <div class="sale-col-status"><span class="badge ${st.cls}" style="font-size:.7rem">${st.label}</span></div>
+        <div>
+          ${canRelease
+            ? `<button class="btn btn-sm btn-primary btn-liberar" data-id="${v.id}"
+                 data-liquido="${v.netSeller}" data-lote="${escHtml(v.lotTitle||v.lotId)}"
+                 data-vendedor="${escHtml(v.sellerEmail||"")}">Liberar repasse</button>`
+            : `<span class="text-muted small">${v.releasedAt ? "Liberado em " + fmtDate(v.releasedAt) : ""}</span>`
+          }
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  list.querySelectorAll(".btn-liberar").forEach(btn => {
+    btn.addEventListener("click", () => openRepasse(btn.dataset.id, btn.dataset.liquido, btn.dataset.lote, btn.dataset.vendedor));
+  });
+}
+
+document.getElementById("filterVendaStatus").addEventListener("change", renderVendas);
+
+/* ===============================================================
+   ABA 4: PARTICIPANTES
+   =============================================================== */
+let participantes = [];
+
+onSnapshot(
+  query(collection(db,"users"), where("role","==","participanteLeilao"), orderBy("createdAt","desc")),
+  snap => {
+    participantes = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("participantesLoading").style.display = "none";
+    renderParticipantes();
+  }
+);
+
+function renderParticipantes() {
+  const list = document.getElementById("participantesList");
+  let rows = participantes;
+  const s = document.getElementById("searchPart").value.trim().toLowerCase();
+  if (s) rows = rows.filter(p => (p.nome||"").toLowerCase().includes(s) || (p.email||"").toLowerCase().includes(s));
+  if (document.getElementById("filterInadimplente").checked) rows = rows.filter(p => p.inadimplenteLeilao);
+
+  if (!rows.length) { list.innerHTML = `<div class="text-center text-muted py-4">Nenhum participante encontrado.</div>`; return; }
+
+  list.innerHTML = `
+    <table class="table table-sm table-hover mt-2">
+      <thead class="table-light"><tr>
+        <th>Nome</th><th>E-mail</th><th>CPF</th><th>Cidade/UF</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(p => `
+        <tr>
+          <td>${escHtml(p.nome||"")}</td>
+          <td class="small">${escHtml(p.email||"")}</td>
+          <td class="small">${fmtCPF(p.cpf||"")}</td>
+          <td class="small">${escHtml(p.cidade||"")}/${escHtml(p.estado||"")}</td>
+          <td>${p.inadimplenteLeilao
+              ? '<span class="badge bg-danger">Inadimplente</span>'
+              : '<span class="badge bg-success">Ativo</span>'}</td>
+          <td>
+            ${p.inadimplenteLeilao
+              ? `<button class="btn btn-xs btn-sm btn-outline-success btn-desbloquear" data-id="${p.id}" style="font-size:.7rem;padding:.1rem .4rem">Desbloquear</button>`
+              : `<button class="btn btn-xs btn-sm btn-outline-danger btn-bloquear" data-id="${p.id}" style="font-size:.7rem;padding:.1rem .4rem">Bloquear</button>`
+            }
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+
+  list.querySelectorAll(".btn-bloquear").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Bloquear este participante por inadimplência?")) return;
+      await updateDoc(doc(db,"users",btn.dataset.id), { inadimplenteLeilao: true, updatedAt: serverTimestamp() });
+    });
+  });
+  list.querySelectorAll(".btn-desbloquear").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Desbloquear este participante?")) return;
+      await updateDoc(doc(db,"users",btn.dataset.id), { inadimplenteLeilao: false, updatedAt: serverTimestamp() });
+    });
+  });
+}
+
+document.getElementById("searchPart").addEventListener("input", renderParticipantes);
+document.getElementById("filterInadimplente").addEventListener("change", renderParticipantes);
+
+function fmtCPF(c) {
+  const d = c.replace(/\D/g,"").slice(0,11);
+  return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4");
+}
+
+/* ===============================================================
+   MODAIS
+   =============================================================== */
+window.toggleDet = function(prefix, id) {
+  const el = document.getElementById(prefix+"-"+id);
+  if (el) el.style.display = el.style.display === "none" ? "" : "none";
+};
+
+window.openAprovar = function(lotId, startVal, endVal) {
+  document.getElementById("aprovLotId").value  = lotId;
+  document.getElementById("aprovStart").value  = startVal;
+  document.getElementById("aprovEnd").value    = endVal;
+  document.getElementById("aprovMsg").textContent = "";
+  new bootstrap.Modal(document.getElementById("modalAprovar")).show();
+};
+
+document.getElementById("btnConfirmAprovar").addEventListener("click", async () => {
+  const lotId = document.getElementById("aprovLotId").value;
+  const start = document.getElementById("aprovStart").value;
+  const end   = document.getElementById("aprovEnd").value;
+  const msgEl = document.getElementById("aprovMsg");
+  if (!start || !end) { msgEl.textContent = "Preencha as datas."; return; }
+  if (new Date(end) <= new Date(start)) { msgEl.textContent = "Encerramento deve ser após o início."; return; }
+  document.getElementById("btnConfirmAprovar").disabled = true;
+  try {
+    await updateDoc(doc(db,"auctionLots",lotId), {
+      status:      "publicado",
+      startTime:   new Date(start),
+      endTime:     new Date(end),
+      approvedBy:  auth.currentUser?.uid,
+      approvedAt:  serverTimestamp(),
+      updatedAt:   serverTimestamp()
+    });
+    bootstrap.Modal.getInstance(document.getElementById("modalAprovar")).hide();
+  } catch (e) {
+    msgEl.textContent = "Erro: " + e.message;
+  } finally {
+    document.getElementById("btnConfirmAprovar").disabled = false;
+  }
+});
+
+window.openRejeitar = function(lotId) {
+  document.getElementById("rejLotId").value = lotId;
+  document.getElementById("rejMotivo").value = "";
+  document.getElementById("rejMsg").textContent = "";
+  new bootstrap.Modal(document.getElementById("modalRejeitar")).show();
+};
+
+document.getElementById("btnConfirmRejeitar").addEventListener("click", async () => {
+  const lotId  = document.getElementById("rejLotId").value;
+  const motivo = document.getElementById("rejMotivo").value.trim();
+  const msgEl  = document.getElementById("rejMsg");
+  if (!motivo) { msgEl.textContent = "Informe o motivo."; return; }
+  document.getElementById("btnConfirmRejeitar").disabled = true;
+  try {
+    await updateDoc(doc(db,"auctionLots",lotId), {
+      status: "rejeitado", rejectionReason: motivo,
+      reviewedBy: auth.currentUser?.uid, updatedAt: serverTimestamp()
+    });
+    bootstrap.Modal.getInstance(document.getElementById("modalRejeitar")).hide();
+  } catch (e) {
+    msgEl.textContent = "Erro: " + e.message;
+  } finally {
+    document.getElementById("btnConfirmRejeitar").disabled = false;
+  }
+});
+
+function openRepasse(saleId, liquido, lote, vendedor) {
+  document.getElementById("repasseSaleId").value = saleId;
+  document.getElementById("repasseInfo").innerHTML = `
+    <div class="small"><strong>Lote:</strong> ${escHtml(lote)}</div>
+    <div class="small"><strong>Vendedor:</strong> ${escHtml(vendedor)}</div>
+    <div class="h5 mt-2 text-success"><strong>Valor líquido:</strong> ${fmtBRL(+liquido)}</div>`;
+  document.getElementById("repasseMsg").textContent = "";
+  new bootstrap.Modal(document.getElementById("modalRepasse")).show();
+}
+
+document.getElementById("btnConfirmRepasse").addEventListener("click", async () => {
+  const saleId = document.getElementById("repasseSaleId").value;
+  const msgEl  = document.getElementById("repasseMsg");
+  document.getElementById("btnConfirmRepasse").disabled = true;
+  try {
+    const liberarRepasse = httpsCallable(functions, "liberarRepasse");
+    await liberarRepasse({ saleId });
+    bootstrap.Modal.getInstance(document.getElementById("modalRepasse")).hide();
+  } catch (e) {
+    msgEl.textContent = "Erro: " + (e.message || "Tente novamente.");
+  } finally {
+    document.getElementById("btnConfirmRepasse").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

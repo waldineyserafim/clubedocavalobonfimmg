@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leilões — Clube do Cavalo - Bonfim MG</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root{ --brand:#111279; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .text-primary{ color:var(--brand)!important; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; filter:brightness(0) invert(1); }
+    @media (min-width:992px){ .brand-logo{ height:42px; } }
+
+    .page-hero{
+      background: linear-gradient(135deg, var(--brand) 0%, #1a1a8c 100%);
+      color:#fff; padding:2.5rem 0 2rem;
+    }
+    @media (max-width:575.98px){ .page-hero{ padding:1.5rem 0 1.25rem; } }
+
+    .lot-card{
+      border:1px solid #e9ecef; border-radius:12px; overflow:hidden;
+      transition:box-shadow .18s; cursor:pointer;
+    }
+    .lot-card:hover{ box-shadow:0 4px 20px rgba(17,18,121,.12); }
+    .lot-card img{
+      height:clamp(150px,35vw,210px); width:100%; object-fit:cover;
+    }
+    .lot-card .img-placeholder{
+      height:clamp(150px,35vw,210px); background:#f0f0f0;
+      display:flex; align-items:center; justify-content:center;
+      color:#aaa; font-size:2rem;
+    }
+
+    /* Countdown */
+    .countdown{ font-size:.85rem; font-weight:600; letter-spacing:.03em; }
+    .countdown.urgent{ color:#dc3545; }
+    .countdown.ended { color:#6c757d; }
+
+    /* Filter pills */
+    .filter-btn.active{ background-color:var(--brand)!important; color:#fff!important; border-color:var(--brand)!important; }
+
+    @media (max-width:575.98px){
+      .display-5{ font-size:1.5rem!important; line-height:1.2; }
+      .lead{ font-size:1rem!important; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="index.html">Início</a></li>
+        <li class="nav-item"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item d-none" id="authBtnArea"></li>
+        <li class="nav-item d-none" id="adminBtnArea"></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<section class="page-hero">
+  <div class="container text-center">
+    <h1 class="display-5 fw-bold mb-2">Leilões Online</h1>
+    <p class="lead mb-3 opacity-90">Arrematações de cavalos, genética e equipamentos equestres</p>
+    <div id="heroActions" class="d-flex justify-content-center gap-2 flex-wrap">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</section>
+
+<main class="container py-4">
+
+  <!-- Filtros -->
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <button class="btn btn-sm btn-outline-secondary filter-btn active" data-cat="">Todos</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Animais">Animais</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Genética">Genética</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Equipamentos">Equipamentos</button>
+    <div class="ms-auto">
+      <input id="searchInput" class="form-control form-control-sm" style="min-width:180px"
+             placeholder="Buscar lote...">
+    </div>
+  </div>
+
+  <!-- Estado de carregamento -->
+  <div id="gridLoading" class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+    <div class="text-muted mt-2">Carregando lotes...</div>
+  </div>
+
+  <!-- Grid -->
+  <div id="lotsGrid" class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 g-3" style="display:none"></div>
+
+  <!-- Vazio -->
+  <div id="lotsEmpty" class="text-center py-5" style="display:none">
+    <div class="text-muted fs-5">Nenhum lote ativo no momento.</div>
+    <p class="text-muted small mt-2">Novos leilões são publicados periodicamente. Volte em breve!</p>
+  </div>
+
+  <!-- Encerrados (seção separada) -->
+  <section id="encerradosSection" style="display:none" class="mt-5">
+    <h2 class="h5 fw-bold mb-3 border-bottom pb-2">Lotes encerrados recentemente</h2>
+    <div id="encerradosGrid" class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-4 g-3"></div>
+  </section>
+
+</main>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { getApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getAuth, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getFirestore, collection, query, where, orderBy, onSnapshot }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import "./firebase.js";
+import { setupAdminButton } from "./firebase.js";
+
+const db   = getFirestore(getApp());
+const auth = getAuth(getApp());
+
+/* ---- Hero actions dinâmico ---- */
+onAuthStateChanged(auth, user => {
+  const heroArea = document.getElementById("heroActions");
+  if (!user) {
+    heroArea.innerHTML = `
+      <a href="login.html" class="btn btn-warning fw-semibold">Entrar para dar lances</a>
+      <a href="signup.html" class="btn btn-outline-light">Cadastrar-se</a>`;
+  } else {
+    heroArea.innerHTML = `
+      <a href="meus_lotes.html" class="btn btn-warning fw-semibold" id="meusLotesBtn" style="display:none">Meus Lotes</a>
+      <a href="pg_associado.html" class="btn btn-outline-light">Minha conta</a>`;
+    user.getIdTokenResult().then(r => {
+      const role = r.claims.role || "";
+      if (["associado","admin","master"].some(x => role.includes(x))) {
+        const btn = document.getElementById("meusLotesBtn");
+        if (btn) btn.style.display = "";
+      }
+    });
+  }
+  setupAdminButton("#adminBtnArea", { href:"admin_leiloes.html", label:"Gestão de Leilões" });
+});
+
+/* ---- Dados ---- */
+let ativos   = [];
+let encerrados = [];
+let catFilter = "";
+let searchQ   = "";
+
+/* Lotes publicados */
+onSnapshot(
+  query(collection(db,"auctionLots"), where("status","==","publicado"), orderBy("endTime","asc")),
+  snap => {
+    ativos = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("gridLoading").style.display = "none";
+    renderAtivos();
+    startCountdowns();
+  },
+  () => { document.getElementById("gridLoading").style.display = "none"; }
+);
+
+/* Lotes encerrados (últimos 30) */
+onSnapshot(
+  query(collection(db,"auctionLots"), where("status","in",["encerrado","pago","concluido"]),
+        orderBy("endTime","desc")),
+  snap => {
+    encerrados = snap.docs.map(d => ({ id:d.id, ...d.data() })).slice(0,12);
+    renderEncerrados();
+  }
+);
+
+/* ---- Filtros ---- */
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    catFilter = btn.dataset.cat;
+    renderAtivos();
+  });
+});
+document.getElementById("searchInput").addEventListener("input", e => {
+  searchQ = e.target.value.trim().toLowerCase();
+  renderAtivos();
+});
+
+/* ---- Render ---- */
+function filterLots(lots) {
+  let r = lots;
+  if (catFilter) r = r.filter(l => l.category === catFilter);
+  if (searchQ)   r = r.filter(l => (l.title||"").toLowerCase().includes(searchQ));
+  return r;
+}
+
+function fmtBRL(v) {
+  return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+}
+
+function cardHtml(lot, ended = false) {
+  const img = lot.imageUrls?.[0]
+    ? `<img src="${escHtml(lot.imageUrls[0])}" alt="${escHtml(lot.title)}" loading="lazy">`
+    : `<div class="img-placeholder">🐴</div>`;
+
+  const badge = ended
+    ? `<span class="badge bg-secondary">Encerrado</span>`
+    : `<span class="badge bg-success">Ao vivo</span>`;
+
+  return `
+    <div class="col">
+      <div class="lot-card h-100" onclick="location.href='leilao_lote.html?id=${lot.id}'">
+        <div class="position-relative">
+          ${img}
+          <div class="position-absolute top-0 end-0 m-2">${badge}</div>
+          ${lot.bidCount > 0 ? `<div class="position-absolute bottom-0 start-0 m-2 badge bg-dark bg-opacity-75">${lot.bidCount} lance${lot.bidCount!==1?"s":""}</div>` : ""}
+        </div>
+        <div class="p-3">
+          <div class="small text-muted mb-1">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
+          <h3 class="h6 fw-bold mb-1 text-truncate">${escHtml(lot.title||"")}</h3>
+          <p class="small text-muted mb-2 text-truncate">${escHtml(lot.description||"")}</p>
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="small text-muted">${lot.lastBid > 0 ? "Maior lance" : "Lance inicial"}</div>
+              <div class="fw-bold text-primary">${fmtBRL(lot.lastBid || lot.initialBid)}</div>
+            </div>
+            ${ended
+              ? `<div class="small text-muted">Encerrado</div>`
+              : `<div class="countdown" data-end="${lot.endTime?.toMillis?.() || 0}" id="cd-${lot.id}">...</div>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAtivos() {
+  const grid  = document.getElementById("lotsGrid");
+  const empty = document.getElementById("lotsEmpty");
+  const filtered = filterLots(ativos);
+  if (!filtered.length) {
+    grid.style.display = "none"; empty.style.display = "";
+  } else {
+    empty.style.display = "none";
+    grid.innerHTML = filtered.map(l => cardHtml(l)).join("");
+    grid.style.display = "";
+  }
+}
+
+function renderEncerrados() {
+  const sec  = document.getElementById("encerradosSection");
+  const grid = document.getElementById("encerradosGrid");
+  if (!encerrados.length) { sec.style.display = "none"; return; }
+  grid.innerHTML = encerrados.map(l => cardHtml(l, true)).join("");
+  sec.style.display = "";
+}
+
+/* ---- Countdowns ---- */
+function startCountdowns() {
+  if (window._cdInterval) clearInterval(window._cdInterval);
+  window._cdInterval = setInterval(tickCountdowns, 1000);
+  tickCountdowns();
+}
+
+function tickCountdowns() {
+  const now = Date.now();
+  document.querySelectorAll(".countdown[data-end]").forEach(el => {
+    const diff = parseInt(el.dataset.end) - now;
+    if (diff <= 0) {
+      el.textContent = "Encerrado";
+      el.classList.add("ended");
+      return;
+    }
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    el.classList.toggle("urgent", diff < 7200000); // < 2h
+    if (d > 0) el.textContent = `${d}d ${h}h ${m}m`;
+    else if (h > 0) el.textContent = `${h}h ${m}m ${s}s`;
+    else el.textContent = `${m}m ${s}s`;
+  });
+}
+
+function escHtml(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+</script>
+</body>
+</html>

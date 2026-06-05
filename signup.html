@@ -3,157 +3,336 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Clube do Cavalo - Bonfim MG</title>
-  <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
+  <title>Cadastro — Clube do Cavalo - Bonfim MG</title>
+  <meta name="description" content="Crie sua conta no Clube do Cavalo de Bonfim MG.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/custom.css">
-
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
-
   <style>
-    .bg-primary { background-color: #111279 !important; }
-    .btn-primary { background-color: #111279 !important; border-color: #111279 !important; }
-    .btn-outline-primary { color: #111279 !important; border-color: #111279 !important; }
-    .text-primary { color: #111279 !important; }
-    .brand-logo{
-      height: 36px; width:auto; margin-right:.5rem; object-fit:contain;
-      filter:brightness(0) invert(1);
+    :root{ --brand:#111279; }
+    .bg-primary { background-color: var(--brand) !important; }
+    .btn-primary { background-color: var(--brand) !important; border-color: var(--brand) !important; }
+    .btn-outline-primary { color: var(--brand) !important; border-color: var(--brand) !important; }
+    .text-primary { color: var(--brand) !important; }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    @media (min-width:992px){ .brand-logo{ height:42px; } }
+
+    .type-card{
+      border: 2px solid #dee2e6; border-radius: 12px;
+      padding: 1rem 1.25rem; cursor: pointer; transition: border-color .15s, background .15s;
     }
-    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+    .type-card:has(input:checked){
+      border-color: var(--brand); background: #f0f1fb;
+    }
+    .type-card input{ accent-color: var(--brand); }
   </style>
 </head>
 <body>
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container">
     <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
-    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+            aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
         <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
-        <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html">Entrar</a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
 
-  <main class="container" style="max-width: 560px; padding-top: 2rem;">
-    <h1 class="h4 mb-3">Cadastro de Associado</h1>
-    <p class="text-muted">Preencha seus dados. O CPF será usado posteriormente para acessar sua conta, serviços, produtos e classificados.</p>
+<main class="container" style="max-width:560px; padding-top:2rem; padding-bottom:2rem;">
 
-    <div class="card">
+  <h1 class="h4 mb-1">Criar conta</h1>
+  <p class="text-muted mb-4">Escolha como deseja participar:</p>
+
+  <!-- Seleção de tipo -->
+  <div class="d-flex flex-column flex-sm-row gap-3 mb-4" id="typeSelector">
+    <label class="type-card flex-fill d-flex align-items-start gap-2">
+      <input type="radio" name="tipoUsuario" value="associado" id="tipoAssociado" checked>
+      <div>
+        <div class="fw-semibold">Quero me tornar Associado</div>
+        <div class="small text-muted">Acesso completo: área do associado, produtos, serviços, classificados e leilões.</div>
+      </div>
+    </label>
+    <label class="type-card flex-fill d-flex align-items-start gap-2">
+      <input type="radio" name="tipoUsuario" value="participante" id="tipoParticipante">
+      <div>
+        <div class="fw-semibold">Quero participar dos Leilões</div>
+        <div class="small text-muted">Conta gratuita para dar lances. Cadastro rápido com e-mail.</div>
+      </div>
+    </label>
+  </div>
+
+  <!-- === FORMULÁRIO ASSOCIADO === -->
+  <div id="formAssociado">
+    <div class="card shadow-sm">
       <div class="card-body">
         <div class="mb-3">
-          <label class="form-label" for="nome">Nome completo</label>
-          <input id="nome" class="form-control" placeholder="Seu nome completo">
+          <label class="form-label" for="a_nome">Nome completo</label>
+          <input id="a_nome" class="form-control" placeholder="Seu nome completo">
         </div>
         <div class="mb-3">
-          <label class="form-label" for="cpf">CPF</label>
-          <input id="cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
+          <label class="form-label" for="a_cpf">CPF</label>
+          <input id="a_cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
         </div>
         <div class="mb-3">
-          <label class="form-label" for="tel">Telefone</label>
-          <input id="tel" class="form-control" placeholder="(00) 00000-0000" inputmode="tel">
+          <label class="form-label" for="a_tel">Telefone</label>
+          <input id="a_tel" class="form-control" placeholder="(00) 00000-0000" inputmode="tel">
         </div>
         <div class="mb-3">
-          <label class="form-label" for="end">Endereço</label>
-          <textarea id="end" class="form-control" rows="2" placeholder="Rua, número, bairro, cidade/UF"></textarea>
+          <label class="form-label" for="a_end">Endereço</label>
+          <textarea id="a_end" class="form-control" rows="2" placeholder="Rua, número, bairro, cidade/UF"></textarea>
         </div>
         <div class="mb-3">
-          <label class="form-label" for="senha">Senha</label>
-          <input id="senha" type="password" class="form-control" placeholder="Crie sua senha">
+          <label class="form-label" for="a_senha">Senha</label>
+          <input id="a_senha" type="password" class="form-control" placeholder="Crie sua senha (mín. 6 caracteres)">
         </div>
-
-        <button id="btnCriar" class="btn btn-primary w-100">Cadastrar</button>
+        <button id="btnAssociado" class="btn btn-primary w-100">Cadastrar como Associado</button>
         <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
-        <p id="msg" class="text-center text-muted mt-3"></p>
+        <p id="msgAssociado" class="text-center text-muted mt-3 small"></p>
       </div>
     </div>
-  </main>
-  <footer class="mt-5 py-4 bg-body-tertiary border-top">
-  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div>
-      <strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.
+    <p class="text-center small text-muted mt-3">
+      Já tem conta? <a href="login.html">Entrar</a>
+    </p>
+  </div>
+
+  <!-- === FORMULÁRIO PARTICIPANTE DE LEILÃO === -->
+  <div id="formParticipante" style="display:none">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="p_nome">Nome completo</label>
+          <input id="p_nome" class="form-control" placeholder="Seu nome completo">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="p_cpf">CPF</label>
+          <input id="p_cpf" class="form-control" placeholder="000.000.000-00" maxlength="14" inputmode="numeric">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="p_email">E-mail</label>
+          <input id="p_email" type="email" class="form-control" placeholder="seu@email.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="p_tel">Telefone</label>
+          <input id="p_tel" class="form-control" placeholder="(00) 00000-0000" inputmode="tel">
+        </div>
+        <div class="row g-3 mb-3">
+          <div class="col-8">
+            <label class="form-label" for="p_cidade">Cidade</label>
+            <input id="p_cidade" class="form-control" placeholder="Sua cidade">
+          </div>
+          <div class="col-4">
+            <label class="form-label" for="p_estado">Estado</label>
+            <select id="p_estado" class="form-select">
+              <option value="">UF</option>
+              <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+              <option selected>MG</option><option>PA</option><option>PB</option><option>PR</option>
+              <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+              <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+              <option>SP</option><option>SE</option><option>TO</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="p_senha">Senha</label>
+          <input id="p_senha" type="password" class="form-control" placeholder="Crie sua senha (mín. 6 caracteres)">
+        </div>
+
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="p_termos">
+          <label class="form-check-label small" for="p_termos">
+            Li e aceito os <a href="#" data-bs-toggle="modal" data-bs-target="#modalTermosComprador">Termos do Comprador</a>
+            e as regras de participação nos leilões do Clube do Cavalo de Bonfim MG.
+          </label>
+        </div>
+
+        <button id="btnParticipante" class="btn btn-primary w-100">Criar conta gratuita</button>
+        <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
+        <p id="msgParticipante" class="text-center text-muted mt-3 small"></p>
+      </div>
     </div>
-        <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+    <p class="text-center small text-muted mt-3">
+      Já tem conta? <a href="login.html">Entrar</a>
+    </p>
+  </div>
+
+</main>
+
+<!-- Modal Termos do Comprador -->
+<div class="modal fade" id="modalTermosComprador" tabindex="-1" aria-labelledby="modalTermosCompradorLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalTermosCompradorLabel">Termo de Responsabilidade do Comprador</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+        <p>Ao participar dos leilões do Clube do Cavalo de Bonfim MG, o comprador declara que:</p>
+        <ol>
+          <li>O lance possui valor contratual e gera obrigação de compra.</li>
+          <li>O lance vencedor obriga a aquisição do lote pelo valor final.</li>
+          <li>Possui capacidade financeira para a aquisição.</li>
+          <li>Aceita as regras do leilão, incluindo incremento mínimo de 2% por lance.</li>
+          <li>Aceita multa de 10% sobre o valor do lance em caso de desistência após vencer.</li>
+          <li>Aceita o bloqueio da conta em caso de inadimplência.</li>
+          <li>Concorda que o Clube do Cavalo atua exclusivamente como intermediador tecnológico e financeiro, não garantindo qualidade, estado, entrega ou documentação dos lotes.</li>
+          <li>Compromete-se a acompanhar notificações e resultados dentro do sistema.</li>
+        </ol>
+        <hr>
+        <p class="text-muted">
+          O Clube do Cavalo de Bonfim MG atua exclusivamente como intermediador tecnológico e financeiro.
+          Toda responsabilidade sobre o lote recai sobre vendedor e comprador.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Entendi e aceito</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
       <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
     </div>
   </div>
 </footer>
 
-  <script type="module">
-    import { doSignupWithProfile, onlyDigits } from "./firebase.js";
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { doSignupWithProfile, doSignupParticipanteLeilao, onlyDigits } from "./firebase.js";
 
-    // Validação e formatação simples de CPF
-    const cpfEl = document.getElementById("cpf");
-    const senhaEl = document.getElementById("senha");
-    const nomeEl = document.getElementById("nome");
-    const telEl = document.getElementById("tel");
-    const endEl = document.getElementById("end");
-    const btn = document.getElementById("btnCriar");
-    const msg = document.getElementById("msg");
+  /* ---------- helpers ---------- */
+  function formatCPF(v) {
+    const d = onlyDigits(v).slice(0, 11);
+    const p1 = d.slice(0,3), p2 = d.slice(3,6), p3 = d.slice(6,9), p4 = d.slice(9,11);
+    return [p1, p2 && '.'+p2, p3 && '.'+p3, p4 && '-'+p4].filter(Boolean).join('');
+  }
+  function isValidCPF(val) {
+    const cpf = onlyDigits(val);
+    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+    let s = 0; for (let i = 0; i < 9; i++) s += +cpf[i] * (10 - i);
+    let d1 = (s * 10) % 11; if (d1 === 10) d1 = 0; if (d1 !== +cpf[9]) return false;
+    s = 0; for (let i = 0; i < 10; i++) s += +cpf[i] * (11 - i);
+    let d2 = (s * 10) % 11; if (d2 === 10) d2 = 0; return d2 === +cpf[10];
+  }
+  function mapErr(e) {
+    const c = e?.code || "";
+    if (c.includes("auth/email-already-in-use")) return "E-mail ou CPF já cadastrado.";
+    if (c.includes("auth/weak-password"))        return "Senha fraca (use 6+ caracteres).";
+    if (c.includes("auth/invalid-email"))        return "E-mail inválido.";
+    return e?.message || "Erro ao criar conta.";
+  }
+  function setMsg(el, text, isError = false) {
+    el.textContent = text;
+    el.className = "text-center mt-3 small " + (isError ? "text-danger" : "text-muted");
+  }
 
-    function formatCPF(v) {
-      const d = onlyDigits(v).slice(0, 11);
-      const p1 = d.slice(0,3), p2=d.slice(3,6), p3=d.slice(6,9), p4=d.slice(9,11);
-      return [p1, p2 && '.'+p2, p3 && '.'+p3, p4 && '-'+p4].filter(Boolean).join('');
+  /* ---------- alternância de formulários ---------- */
+  document.querySelectorAll('input[name="tipoUsuario"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      const isParticipante = radio.value === "participante";
+      document.getElementById("formAssociado").style.display   = isParticipante ? "none" : "";
+      document.getElementById("formParticipante").style.display = isParticipante ? ""     : "none";
+    });
+  });
+
+  /* ---------- formatação de CPF nos dois formulários ---------- */
+  document.getElementById("a_cpf").addEventListener("input", e => e.target.value = formatCPF(e.target.value));
+  document.getElementById("p_cpf").addEventListener("input", e => e.target.value = formatCPF(e.target.value));
+
+  /* ---------- SUBMIT: Associado ---------- */
+  const btnAssociado = document.getElementById("btnAssociado");
+  const msgAssociado = document.getElementById("msgAssociado");
+
+  async function handleSignupAssociado() {
+    btnAssociado.disabled = true;
+    setMsg(msgAssociado, "Criando conta...");
+    try {
+      const cpf      = document.getElementById("a_cpf").value;
+      const senha    = document.getElementById("a_senha").value;
+      const nome     = document.getElementById("a_nome").value.trim();
+      const telefone = document.getElementById("a_tel").value.trim();
+      const endereco = document.getElementById("a_end").value.trim();
+
+      if (!isValidCPF(cpf))        throw new Error("CPF inválido. Verifique e tente novamente.");
+      if (!nome)                   throw new Error("Informe seu nome completo.");
+      if (!telefone)               throw new Error("Informe seu telefone.");
+      if (!endereco)               throw new Error("Informe seu endereço.");
+      if (!senha || senha.length < 6) throw new Error("Crie uma senha com 6+ caracteres.");
+
+      await doSignupWithProfile({ cpf, password: senha, nome, telefone, endereco });
+      window.location.href = "./pay.html";
+    } catch (e) {
+      setMsg(msgAssociado, mapErr(e), true);
+      console.error(e);
+    } finally {
+      btnAssociado.disabled = false;
     }
-    function isValidCPF(val) {
-      const cpf = onlyDigits(val);
-      if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-      let s=0; for(let i=0;i<9;i++) s+= +cpf[i]*(10-i);
-      let d1=(s*10)%11; if(d1===10) d1=0; if (d1!== +cpf[9]) return false;
-      s=0; for(let i=0;i<10;i++) s+= +cpf[i]*(11-i);
-      let d2=(s*10)%11; if(d2===10) d2=0; return d2=== +cpf[10];
+  }
+
+  btnAssociado.addEventListener("click", handleSignupAssociado);
+  ["a_cpf","a_senha","a_nome","a_tel","a_end"].forEach(id => {
+    document.getElementById(id).addEventListener("keydown", ev => { if (ev.key === "Enter") handleSignupAssociado(); });
+  });
+
+  /* ---------- SUBMIT: Participante de Leilão ---------- */
+  const btnParticipante = document.getElementById("btnParticipante");
+  const msgParticipante = document.getElementById("msgParticipante");
+
+  async function handleSignupParticipante() {
+    btnParticipante.disabled = true;
+    setMsg(msgParticipante, "Criando conta...");
+    try {
+      const cpf    = document.getElementById("p_cpf").value;
+      const email  = document.getElementById("p_email").value.trim();
+      const senha  = document.getElementById("p_senha").value;
+      const nome   = document.getElementById("p_nome").value.trim();
+      const tel    = document.getElementById("p_tel").value.trim();
+      const cidade = document.getElementById("p_cidade").value.trim();
+      const estado = document.getElementById("p_estado").value;
+      const termos = document.getElementById("p_termos").checked;
+
+      if (!isValidCPF(cpf))        throw new Error("CPF inválido. Verifique e tente novamente.");
+      if (!nome)                   throw new Error("Informe seu nome completo.");
+      if (!email || !email.includes("@")) throw new Error("Informe um e-mail válido.");
+      if (!tel)                    throw new Error("Informe seu telefone.");
+      if (!cidade)                 throw new Error("Informe sua cidade.");
+      if (!estado)                 throw new Error("Selecione seu estado.");
+      if (!senha || senha.length < 6) throw new Error("Crie uma senha com 6+ caracteres.");
+      if (!termos)                 throw new Error("Você precisa aceitar os Termos do Comprador para participar dos leilões.");
+
+      await doSignupParticipanteLeilao({ cpf, email, password: senha, nome, telefone: tel, cidade, estado });
+      window.location.href = "./leiloes.html";
+    } catch (e) {
+      setMsg(msgParticipante, mapErr(e), true);
+      console.error(e);
+    } finally {
+      btnParticipante.disabled = false;
     }
-    cpfEl.addEventListener("input", () => cpfEl.value = formatCPF(cpfEl.value));
+  }
 
-    function mapErr(e) {
-      const c = e?.code || "";
-      if (c.includes("auth/email-already-in-use")) return "CPF já cadastrado.";
-      if (c.includes("auth/weak-password")) return "Senha fraca (use 6+ caracteres).";
-      if (c.includes("auth/invalid-email")) return "CPF inválido.";
-      return e?.message || "Erro ao criar conta.";
-    }
-
-    async function handleSignup() {
-      btn.disabled = true; msg.textContent = "Criando conta...";
-      try {
-        const cpf = cpfEl.value, senha = senhaEl.value;
-        const nome = nomeEl.value.trim(), telefone = telEl.value.trim(), endereco = endEl.value.trim();
-
-        if (!isValidCPF(cpf)) throw new Error("CPF inválido. Verifique e tente novamente.");
-        if (!senha || senha.length < 6) throw new Error("Crie uma senha com 6+ caracteres.");
-        if (!nome) throw new Error("Informe seu nome completo.");
-        if (!telefone) throw new Error("Informe seu telefone.");
-        if (!endereco) throw new Error("Informe seu endereço.");
-
-        await doSignupWithProfile({ cpf, password: senha, nome, telefone, endereco });
-
-        // Redireciona para a página de pagamento
-        window.location.href = "./pay.html";
-      } catch (e) {
-        alert(mapErr(e));
-        console.error(e);
-      } finally {
-        btn.disabled = false; msg.textContent = "";
-      }
-    }
-
-    btn.addEventListener("click", handleSignup);
-    [cpfEl, senhaEl, nomeEl, telEl, endEl].forEach(el => el.addEventListener("keydown", ev => {
-      if (ev.key === "Enter") handleSignup();
-    }));
-  </script>
+  btnParticipante.addEventListener("click", handleSignupParticipante);
+  ["p_cpf","p_email","p_nome","p_tel","p_cidade","p_senha"].forEach(id => {
+    document.getElementById(id).addEventListener("keydown", ev => { if (ev.key === "Enter") handleSignupParticipante(); });
+  });
+</script>
 </body>
 </html>
