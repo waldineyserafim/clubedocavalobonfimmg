@@ -56,6 +56,8 @@
     @media (max-width:575.98px){
       .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
       .items5-header, .item5-row{ min-width:580px; }
+      #clsSearch, #clsStatusFilter, #clsReviewFilter{ max-width:100% !important; width:100%; }
+      .toolbar-wrap .d-flex.gap-2.flex-wrap{ flex-direction:column; }
     }
 
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
@@ -87,7 +89,7 @@
       <h1 class="h4 h3-md mb-1">Painel de Administração - Classificados</h1>
       <p class="text-secondary mb-0">Gerencie os <strong>Classificados</strong> dos associados.</p>
     </div>
-    <div class="text-end">
+    <div class="text-md-end">
       <div class="small">Logado como: <strong id="opName">—</strong></div>
       <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
     </div>

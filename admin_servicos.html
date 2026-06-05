@@ -21,6 +21,8 @@
     @media (max-width:575.98px){
       .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
       .items4-header, .item4-row{ min-width:480px; }
+      #svcSearch, #svcStatusFilter{ max-width:100% !important; width:100%; }
+      .card-body .d-flex.gap-2.flex-wrap{ flex-direction:column; }
     }
     .row-title{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
     .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
@@ -59,7 +61,7 @@
       <h1 class="h4 h3-md mb-1">Administração — Serviços</h1>
       <p class="text-secondary mb-0">Gerencie os serviços e benefícios para associados.</p>
     </div>
-    <div class="text-end">
+    <div class="text-md-end">
       <div class="small">Logado como: <strong id="opName">—</strong></div>
       <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
     </div>

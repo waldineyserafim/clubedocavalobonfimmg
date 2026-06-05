@@ -26,13 +26,15 @@
     @media (min-width:992px){ .brand-logo{ height:42px; } }
 
     header{ padding-top:1.25rem; padding-bottom:1rem; }
+    @media (max-width:767.98px){ header{ padding-top:1rem; padding-bottom:.75rem; } }
     .chip{ border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:999px; padding:.35rem .75rem; font-size:.85rem; display:inline-flex; gap:.5rem; align-items:center; }
     .chip .dot{ width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
     .dot-ok{ background:#28a745; } .dot-warn{ background:#ffc107; } .dot-bad{ background:#dc3545; }
+    @media (max-width:575.98px){ .chip{ font-size:.78rem; padding:.25rem .6rem; } }
 
     .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
     @media (min-width:992px){ .subnav{ top:64px; } }
-    .subnav .btn{ border-radius:999px; }
+    .subnav .btn{ border-radius:999px; flex-shrink:0; }
 
     .carousel-banner{ position:relative; border-radius:16px; overflow:hidden; }
     .banner-mosaic{
@@ -99,30 +101,18 @@
       </div>
     </div>
 
-    <!-- ===== BOTOEIRA (2 linhas como no print) ===== -->
-    <div class="d-flex flex-column align-items-md-end gap-1">
-
-      <!-- linha 2: Trocar senha | Sair -->
-      <div class="d-flex gap-1 flex-nowrap justify-content-end">
-        <button id="btnOpenPwModal" class="btn btn-outline-primary btn-sm text-nowrap" data-bs-toggle="modal" data-bs-target="#pwModal">
-          Trocar senha
-        </button>
-        <button id="logoutBtn" class="btn btn-primary">Sair</button>
-      </div>
-      <!-- linha 1: Cadastrar classificado -->
-      <button id="btnNewClassified" class="btn btn-outline-primary btn-sm text-nowrap d-none" data-bs-toggle="modal" data-bs-target="#classifiedModal">
-        Cadastrar classificado
-      </button>
+    <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0 justify-content-md-end">
+      <button id="btnNewClassified" class="btn btn-outline-primary btn-sm d-none" data-bs-toggle="modal" data-bs-target="#classifiedModal">Cadastrar classificado</button>
+      <button id="btnOpenPwModal" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pwModal">Trocar senha</button>
+      <button id="logoutBtn" class="btn btn-primary btn-sm">Sair</button>
     </div>
   </div>
 </header>
 
 <!-- ===== SUB NAV (atalhos) ===== -->
 <div class="subnav">
-  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>🟢Exclusivos para Associados:</strong></div>
-  </div>
-  <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
+  <div class="container py-2 d-flex align-items-center gap-2" style="overflow-x:auto">
+    <span class="small text-secondary text-nowrap">Exclusivos:</span>
     <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html">Produtos</a>
     <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html">Serviços</a>
     <a class="btn btn-sm btn-outline-primary" href="classificados.html">Classificados</a>
