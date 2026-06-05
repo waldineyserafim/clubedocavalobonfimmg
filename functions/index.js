@@ -1557,3 +1557,35 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
     return res.status(500).send('Error');
   }
 });
+
+// Redefine a senha de um associado. Requer role master.
+exports.resetUserPassword = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
+  }
+
+  const callerSnap = await admin.firestore().collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
+  if (callerRole !== 'master') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas o perfil master pode redefinir senhas.');
+  }
+
+  const { targetUid, newPassword } = data;
+  if (!targetUid || !newPassword || newPassword.length < 6) {
+    throw new functions.https.HttpsError('invalid-argument', 'UID e senha (mínimo 6 caracteres) são obrigatórios.');
+  }
+
+  // Impede que o master redefina a própria senha por esta rota
+  if (targetUid === context.auth.uid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Use o formulário de troca de senha para alterar sua própria senha.');
+  }
+
+  await admin.auth().updateUser(targetUid, { password: newPassword });
+  await admin.firestore().collection('users').doc(targetUid).update({
+    primeiroAcesso: true,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${context.auth.uid}`);
+  return { success: true };
+});

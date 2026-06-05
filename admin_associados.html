@@ -1144,6 +1144,7 @@
           </div>
           <div class="modal-footer">
             <span class="me-auto small text-secondary">Situação: <strong>${m.listBadge}</strong> • Próxima cobrança: <strong>${nextDueStr}</strong></span>
+            ${currentRole === 'master' ? `<button class="btn btn-outline-danger btn-reset-pw" data-uid="${uid}">Redefinir senha</button>` : ''}
             <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
           </div>
         </div>
@@ -1151,6 +1152,8 @@
     `;
     document.body.appendChild(userModalDiv);
     const modal = new bootstrap.Modal(userModalDiv); modal.show();
+
+    userModalDiv.querySelector(".btn-reset-pw")?.addEventListener("click", ()=> openResetPasswordModal(uid, u.nome));
 
     userModalDiv.querySelector(".btn-save-profile")?.addEventListener("click", async (e)=>{
       const saveBtn = e.currentTarget;
@@ -1732,6 +1735,73 @@ Qualquer dúvida, estamos à disposição.`;
       activeUntil: activeUntil || null,
       updatedAt: serverTimestamp()
     }, { merge:true });
+  }
+
+  /* ===== Redefinir senha (master only) ===== */
+  let resetPwDiv = null;
+  function openResetPasswordModal(uid, nomeAssociado) {
+    if (resetPwDiv) resetPwDiv.remove();
+    resetPwDiv = document.createElement("div");
+    resetPwDiv.className = "modal fade"; resetPwDiv.tabIndex = -1;
+    resetPwDiv.innerHTML = `
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Redefinir senha</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-secondary mb-3">Associado: <strong>${nomeAssociado || uid}</strong></p>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Nova senha</label>
+              <input type="password" id="rpNewPw" class="form-control" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Confirmar nova senha</label>
+              <input type="password" id="rpConfirmPw" class="form-control" placeholder="Repita a senha" autocomplete="new-password">
+            </div>
+            <div id="rpAlert" class="d-none"></div>
+            <p class="small text-muted mt-2 mb-0">O associado será obrigado a trocar a senha no próximo acesso.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-danger" id="rpConfirmBtn">Redefinir senha</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(resetPwDiv);
+    const modal = new bootstrap.Modal(resetPwDiv); modal.show();
+
+    resetPwDiv.querySelector("#rpConfirmBtn").addEventListener("click", async () => {
+      const pw   = resetPwDiv.querySelector("#rpNewPw").value;
+      const conf = resetPwDiv.querySelector("#rpConfirmPw").value;
+      const alertEl = resetPwDiv.querySelector("#rpAlert");
+      const showAlert = (msg, type="danger") => {
+        alertEl.className = `alert alert-${type}`;
+        alertEl.textContent = msg;
+        alertEl.classList.remove("d-none");
+      };
+
+      if (pw.length < 6)        { showAlert("A senha deve ter no mínimo 6 caracteres."); return; }
+      if (pw !== conf)          { showAlert("As senhas não coincidem."); return; }
+
+      const confirmBtn = resetPwDiv.querySelector("#rpConfirmBtn");
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Aguarde…";
+
+      try {
+        const fns = getFunctions(auth.app, "us-central1");
+        const resetFn = httpsCallable(fns, "resetUserPassword");
+        await resetFn({ targetUid: uid, newPassword: pw });
+        showAlert("Senha redefinida com sucesso. O associado deverá trocar a senha no próximo acesso.", "success");
+        confirmBtn.classList.add("d-none");
+      } catch (err) {
+        showAlert("Erro: " + (err.message || "falha ao redefinir senha."));
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Redefinir senha";
+      }
+    });
   }
 
   /* ===== Ações em massa ===== */
