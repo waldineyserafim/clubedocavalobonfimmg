@@ -1153,7 +1153,7 @@
     document.body.appendChild(userModalDiv);
     const modal = new bootstrap.Modal(userModalDiv); modal.show();
 
-    userModalDiv.querySelector(".btn-reset-pw")?.addEventListener("click", ()=> openResetPasswordModal(uid, u.nome));
+    userModalDiv.querySelector(".btn-reset-pw")?.addEventListener("click", ()=> openResetPasswordModal(uid, u.nome, u.cpf, u.telefone));
 
     userModalDiv.querySelector(".btn-save-profile")?.addEventListener("click", async (e)=>{
       const saveBtn = e.currentTarget;
@@ -1739,12 +1739,12 @@ Qualquer dúvida, estamos à disposição.`;
 
   /* ===== Redefinir senha (master only) ===== */
   let resetPwDiv = null;
-  function openResetPasswordModal(uid, nomeAssociado) {
+  function openResetPasswordModal(uid, nomeAssociado, cpfRaw, telefoneRaw) {
     if (resetPwDiv) resetPwDiv.remove();
     resetPwDiv = document.createElement("div");
     resetPwDiv.className = "modal fade"; resetPwDiv.tabIndex = -1;
     resetPwDiv.innerHTML = `
-      <div class="modal-dialog modal-sm">
+      <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Redefinir senha</h5>
@@ -1752,19 +1752,31 @@ Qualquer dúvida, estamos à disposição.`;
           </div>
           <div class="modal-body">
             <p class="small text-secondary mb-3">Associado: <strong>${nomeAssociado || uid}</strong></p>
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Nova senha</label>
-              <input type="password" id="rpNewPw" class="form-control" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+            <div id="rpFormArea">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Nova senha</label>
+                <input type="password" id="rpNewPw" class="form-control" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Confirmar nova senha</label>
+                <input type="password" id="rpConfirmPw" class="form-control" placeholder="Repita a senha" autocomplete="new-password">
+              </div>
+              <p class="small text-muted mb-0">O associado será obrigado a trocar a senha no próximo acesso.</p>
             </div>
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Confirmar nova senha</label>
-              <input type="password" id="rpConfirmPw" class="form-control" placeholder="Repita a senha" autocomplete="new-password">
+            <div id="rpAlert" class="d-none mt-3"></div>
+            <div id="rpWppArea" class="d-none mt-3">
+              <p class="small mb-2">Deseja enviar as credenciais de acesso por WhatsApp?</p>
+              <div class="mb-2">
+                <label class="form-label small fw-semibold">Mensagem</label>
+                <textarea id="rpWppMsg" class="form-control form-control-sm" rows="8"></textarea>
+              </div>
+              <a id="rpWppLink" href="#" target="_blank" rel="noopener" class="btn btn-success w-100">
+                Abrir WhatsApp
+              </a>
             </div>
-            <div id="rpAlert" class="d-none"></div>
-            <p class="small text-muted mt-2 mb-0">O associado será obrigado a trocar a senha no próximo acesso.</p>
           </div>
           <div class="modal-footer">
-            <button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
             <button class="btn btn-danger" id="rpConfirmBtn">Redefinir senha</button>
           </div>
         </div>
@@ -1778,13 +1790,13 @@ Qualquer dúvida, estamos à disposição.`;
       const conf = resetPwDiv.querySelector("#rpConfirmPw").value;
       const alertEl = resetPwDiv.querySelector("#rpAlert");
       const showAlert = (msg, type="danger") => {
-        alertEl.className = `alert alert-${type}`;
+        alertEl.className = `alert alert-${type} mb-0`;
         alertEl.textContent = msg;
         alertEl.classList.remove("d-none");
       };
 
-      if (pw.length < 6)        { showAlert("A senha deve ter no mínimo 6 caracteres."); return; }
-      if (pw !== conf)          { showAlert("As senhas não coincidem."); return; }
+      if (pw.length < 6) { showAlert("A senha deve ter no mínimo 6 caracteres."); return; }
+      if (pw !== conf)   { showAlert("As senhas não coincidem."); return; }
 
       const confirmBtn = resetPwDiv.querySelector("#rpConfirmBtn");
       confirmBtn.disabled = true;
@@ -1794,8 +1806,55 @@ Qualquer dúvida, estamos à disposição.`;
         const fns = getFunctions(auth.app, "us-central1");
         const resetFn = httpsCallable(fns, "resetUserPassword");
         await resetFn({ targetUid: uid, newPassword: pw });
-        showAlert("Senha redefinida com sucesso. O associado deverá trocar a senha no próximo acesso.", "success");
+
+        // Esconde formulário e mostra bloco WhatsApp
+        resetPwDiv.querySelector("#rpFormArea").classList.add("d-none");
         confirmBtn.classList.add("d-none");
+        showAlert("Senha redefinida com sucesso!", "success");
+
+        const cpf = String(cpfRaw || "").replace(/\D/g, "");
+        const cpfFormatado = cpf.length === 11
+          ? `${cpf.slice(0,3)}.${cpf.slice(3,6)}.${cpf.slice(6,9)}-${cpf.slice(9)}`
+          : cpf || "—";
+        const siteUrl = "https://clubedocavalobonfim.com.br/login.html";
+        const mensagem =
+`Olá, ${nomeAssociado || "associado(a)"}! 👋
+
+Sua senha de acesso ao portal do *Clube do Cavalo de Bonfim MG* foi redefinida.
+
+Segue seus dados de acesso:
+🔑 *Login (CPF):* ${cpfFormatado}
+🔒 *Senha temporária:* ${pw}
+
+Acesse aqui: ${siteUrl}
+
+⚠️ *No primeiro acesso você será solicitado a criar uma nova senha pessoal.*
+
+Qualquer dúvida, entre em contato conosco. 🤝`;
+
+        const msgTextarea = resetPwDiv.querySelector("#rpWppMsg");
+        msgTextarea.value = mensagem;
+
+        const fone = String(telefoneRaw || "").replace(/\D/g,"");
+        const foneWpp = fone.length === 11 ? "55" + fone : fone.length === 13 ? fone : "";
+        const wppLink = resetPwDiv.querySelector("#rpWppLink");
+        if (foneWpp) {
+          wppLink.href = `https://wa.me/${foneWpp}?text=${encodeURIComponent(mensagem)}`;
+          wppLink.textContent = "Abrir WhatsApp";
+        } else {
+          wppLink.classList.replace("btn-success","btn-secondary");
+          wppLink.removeAttribute("href");
+          wppLink.textContent = "Telefone não cadastrado";
+        }
+
+        // Atualiza link se a mensagem for editada manualmente
+        msgTextarea.addEventListener("input", () => {
+          if (foneWpp) {
+            wppLink.href = `https://wa.me/${foneWpp}?text=${encodeURIComponent(msgTextarea.value)}`;
+          }
+        });
+
+        resetPwDiv.querySelector("#rpWppArea").classList.remove("d-none");
       } catch (err) {
         showAlert("Erro: " + (err.message || "falha ao redefinir senha."));
         confirmBtn.disabled = false;
