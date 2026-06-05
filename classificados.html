@@ -39,7 +39,7 @@
 
     /* Carrossel dos cards (lista) — mantém cover */
     .cls-carousel .carousel-item img{
-      width:100%; height:220px; object-fit:cover; display:block;
+      width:100%; height:clamp(160px, 45vw, 260px); object-fit:cover; display:block;
       border-radius:.5rem;
     }
     .cls-carousel .carousel-indicators [data-bs-target]{
@@ -47,7 +47,8 @@
     }
     @media (max-width:575.98px){
       .hero-cta .btn{ width:100%; }
-      .cls-carousel .carousel-item img{ height:200px; }
+      .banner-mosaic{ grid-template-columns:1fr; grid-template-rows:1fr; height:clamp(180px,55vw,260px); }
+      .banner-mosaic .small{ display:none; }
     }
 
     /* ===== Banner Destaques (mosaico) ===== */
