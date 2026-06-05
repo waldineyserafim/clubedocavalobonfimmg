@@ -1818,19 +1818,19 @@ Qualquer dúvida, estamos à disposição.`;
           : cpf || "—";
         const siteUrl = "https://clubedocavalobonfim.com.br/login.html";
         const mensagem =
-`Olá, ${nomeAssociado || "associado(a)"}! 👋
+`Olá, ${nomeAssociado || "associado(a)"}!
 
 Sua senha de acesso ao portal do *Clube do Cavalo de Bonfim MG* foi redefinida.
 
 Segue seus dados de acesso:
-🔑 *Login (CPF):* ${cpfFormatado}
-🔒 *Senha temporária:* ${pw}
+*Login (CPF):* ${cpfFormatado}
+*Senha temporária:* ${pw}
 
 Acesse aqui: ${siteUrl}
 
-⚠️ *No primeiro acesso você será solicitado a criar uma nova senha pessoal.*
+*No primeiro acesso você será solicitado a criar uma nova senha pessoal.*
 
-Qualquer dúvida, entre em contato conosco. 🤝`;
+Qualquer dúvida, entre em contato conosco.`;
 
         const msgTextarea = resetPwDiv.querySelector("#rpWppMsg");
         msgTextarea.value = mensagem;
