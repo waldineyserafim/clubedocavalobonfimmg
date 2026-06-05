@@ -277,6 +277,10 @@
               <div class="dropdown-menu dropdown-menu-end p-2" style="min-width:280px">
                 <button class="dropdown-item" id="actionExportPdf">Baixar PDF</button>
                 <button class="dropdown-item" id="actionExportCsv">Baixar CSV</button>
+                <div id="btnMigrateWrap" class="d-none">
+                  <hr class="my-1">
+                  <button class="dropdown-item text-danger" id="actionMigrateEmails">Migrar emails @ccbmg.com → @cpf.local</button>
+                </div>
               </div>
             </div>
           </div>
@@ -409,6 +413,7 @@
     opRoleEl.textContent = role.toUpperCase();
     opRoleEl.classList.remove("d-none");
     operatorProfile = { uid:user.uid, nome: d.nome || "", cpf: (d.cpf||"").replace(/\D/g,"") };
+    if (role === 'master') document.getElementById('btnMigrateWrap')?.classList.remove('d-none');
     try { if (document.getElementById("usersWrap")) listUsers(""); } catch(e){ console.error(e); }
   });
 
@@ -1866,6 +1871,38 @@ Qualquer dúvida, entre em contato conosco.`;
   /* ===== Ações em massa ===== */
   document.getElementById("actionExportPdf")?.addEventListener("click", exportPdfSelected);
   document.getElementById("actionExportCsv")?.addEventListener("click", exportCsvSelected);
+
+  document.getElementById("actionMigrateEmails")?.addEventListener("click", async () => {
+    if (!confirm("Migrar todos os usuários de @ccbmg.com para @cpf.local?\n\nEsta operação não pode ser desfeita. Confirma?")) return;
+
+    const btn = document.getElementById("actionMigrateEmails");
+    btn.disabled = true;
+    btn.textContent = "Migrando… aguarde";
+
+    try {
+      const fns = getFunctions(auth.app, "us-central1");
+      const migrateFn = httpsCallable(fns, "migrateEmailDomains", { timeout: 300000 });
+      const result = await migrateFn();
+      const { migrated, skipped, errors } = result.data;
+
+      let msg = `Migração concluída!\n\n`;
+      msg += `Migrados: ${migrated.length}\n`;
+      msg += `Pulados (já tinham @cpf.local): ${skipped.length}\n`;
+      msg += `Erros: ${errors.length}`;
+      if (errors.length > 0) {
+        msg += `\n\nErros:\n` + errors.map(e => `${e.oldEmail}: ${e.error}`).join('\n');
+      }
+      alert(msg);
+
+      btn.textContent = `Concluído (${migrated.length} migrados)`;
+      // Recarrega a lista para refletir os novos dados
+      listUsers("");
+    } catch (err) {
+      alert("Erro na migração: " + (err.message || err));
+      btn.disabled = false;
+      btn.textContent = "Migrar emails @ccbmg.com → @cpf.local";
+    }
+  });
 
   function getSelectedUids(){
     return Array.from(document.querySelectorAll(".row-check:checked")).map(c=> c.getAttribute("data-uid"));

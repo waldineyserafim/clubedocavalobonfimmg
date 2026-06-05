@@ -1589,3 +1589,53 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
   console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${context.auth.uid}`);
   return { success: true };
 });
+
+// Migra todos os usuários de @ccbmg.com para @cpf.local. Requer role master. Uso único.
+exports.migrateEmailDomains = functions
+  .runWith({ timeoutSeconds: 300, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+
+    const callerSnap = await admin.firestore().collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
+    if (callerRole !== 'master') {
+      throw new functions.https.HttpsError('permission-denied', 'Apenas o perfil master pode executar esta migração.');
+    }
+
+    const migrated = [], skipped = [], errors = [];
+    let pageToken;
+
+    do {
+      const listResult = await admin.auth().listUsers(1000, pageToken);
+      for (const user of listResult.users) {
+        if (!user.email || !user.email.endsWith('@ccbmg.com')) continue;
+
+        const cpfPart = user.email.replace('@ccbmg.com', '');
+        const newEmail = `${cpfPart}@cpf.local`;
+
+        try {
+          // Verifica se @cpf.local já existe para este CPF
+          try {
+            await admin.auth().getUserByEmail(newEmail);
+            skipped.push({ uid: user.uid, oldEmail: user.email, reason: 'já existe conta @cpf.local para este CPF' });
+            continue;
+          } catch (e) {
+            if (e.code !== 'auth/user-not-found') throw e;
+          }
+
+          await admin.auth().updateUser(user.uid, { email: newEmail });
+          migrated.push({ uid: user.uid, oldEmail: user.email, newEmail });
+          console.log(`migrateEmailDomains: ${user.email} → ${newEmail}`);
+        } catch (err) {
+          errors.push({ uid: user.uid, oldEmail: user.email, error: err.message });
+          console.error(`migrateEmailDomains erro uid=${user.uid}:`, err.message);
+        }
+      }
+      pageToken = listResult.pageToken;
+    } while (pageToken);
+
+    console.log(`migrateEmailDomains: migrados=${migrated.length} pulados=${skipped.length} erros=${errors.length}`);
+    return { migrated, skipped, errors };
+  });
