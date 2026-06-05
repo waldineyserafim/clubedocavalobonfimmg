@@ -343,6 +343,7 @@
         aviso.innerHTML = '<strong>Primeiro acesso detectado.</strong> Por segurança, defina uma senha pessoal antes de continuar. Esta etapa é obrigatória.';
         body.prepend(aviso);
       }
+      document.getElementById('pwModalFooter').style.removeProperty('display');
       new bootstrap.Modal(pwModalEl, { backdrop: 'static', keyboard: false }).show();
     }
 
@@ -382,6 +383,11 @@
   });
 
   logoutBtn?.addEventListener("click", async ()=>{
+    try{ await signOut(auth); location.href="login.html"; }
+    catch(e){ alert("Não foi possível sair: " + e.message); }
+  });
+
+  document.getElementById("btnPwModalLogout")?.addEventListener("click", async ()=>{
     try{ await signOut(auth); location.href="login.html"; }
     catch(e){ alert("Não foi possível sair: " + e.message); }
   });
@@ -786,6 +792,10 @@
         <div class="form-text mt-2">
           Requisitos: mínimo de 6 caracteres. Caso tenha esquecido a senha e não consiga entrar, contate a Secretaria.
         </div>
+      </div>
+      <div class="modal-footer" id="pwModalFooter" style="display:none!important">
+        <span class="me-auto small text-muted">Para continuar, defina sua senha pessoal.</span>
+        <button type="button" id="btnPwModalLogout" class="btn btn-outline-secondary btn-sm">Sair</button>
       </div>
     </div>
   </div>
