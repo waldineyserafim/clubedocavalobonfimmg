@@ -586,7 +586,7 @@
       return `
         <div class="col-4">
           <div class="position-relative">
-            <img src="${url}" alt="preview ${idx+1}" class="w-100 rounded" style="height:140px;object-fit:cover">
+            <img src="${url}" alt="preview ${idx+1}" class="w-100 rounded" style="height:clamp(90px,28vw,140px);object-fit:cover">
             <button type="button" class="btn btn-sm btn-dark position-absolute top-0 end-0 m-1" data-idx="${idx}" title="Remover">×</button>
           </div>
           <div class="small text-truncate mt-1" title="${f.name}">${f.name}</div>

@@ -270,7 +270,7 @@
     if (!urls || !urls.length) {
       return `
         <div class="mb-2">
-          <img src="assets/img/placeholder_classified.jpg" loading="lazy" class="w-100" style="height:220px;object-fit:contain;border-radius:.5rem" alt="Sem imagem">
+          <img src="assets/img/placeholder_classified.jpg" loading="lazy" class="w-100" style="height:clamp(150px,40vw,220px);object-fit:contain;border-radius:.5rem" alt="Sem imagem">
         </div>
       `;
     }
