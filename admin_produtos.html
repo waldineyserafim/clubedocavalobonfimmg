@@ -18,6 +18,10 @@
     .list-header, .list-row{ display:grid; gap:12px; align-items:center; }
     .items4-header, .item4-row{ grid-template-columns: 1fr 160px 140px 180px; }
     @media (max-width:991.98px){ .items4-header, .item4-row{ grid-template-columns: 1fr 120px 110px 170px; } }
+    @media (max-width:575.98px){
+      .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      .items4-header, .item4-row{ min-width:480px; }
+    }
     .row-title{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
     .details{ border-left:3px solid #e9ecef; margin-left:.25rem; padding-left:.75rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
@@ -146,12 +150,14 @@
         <button id="prdReload" class="btn btn-outline-primary">Atualizar</button>
       </div>
 
+      <div class="list-scroll-wrap">
       <div class="list-header items4-header mt-3">
         <div>Título</div><div>Valor</div><div>Status</div><div>Ações</div>
       </div>
       <div id="productsWrap" class="mt-2">
         <div class="text-center text-secondary py-3">Carregando…</div>
       </div>
+      </div><!-- /.list-scroll-wrap -->
       <div class="small text-secondary mt-2" id="prdListMsg"></div>
     </div>
   </div>

@@ -53,6 +53,10 @@
       .items5-header, .item5-row{ grid-template-columns: 1fr 130px 200px 110px 140px; }
       .details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
     }
+    @media (max-width:575.98px){
+      .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+      .items5-header, .item5-row{ min-width:580px; }
+    }
 
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
@@ -179,6 +183,7 @@
         </div>
       </div>
 
+      <div class="list-scroll-wrap">
       <div class="list-header items5-header mt-3">
         <div>Título</div>
         <div>Criado em</div>
@@ -189,6 +194,7 @@
       <div id="classifWrap" class="mt-2">
         <div class="text-center text-secondary py-3">Carregando…</div>
       </div>
+      </div><!-- /.list-scroll-wrap -->
       <div class="small text-secondary mt-2" id="clsListMsg"></div>
     </div>
   </div>

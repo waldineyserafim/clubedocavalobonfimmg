@@ -196,12 +196,14 @@
     }
     @media (max-width:767.98px){
       .users-header{ display:none; }
-      .user-row{ grid-template-columns: 34px 1fr 120px; }
-      .user-row .col-status, .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan, .user-row .col-apelido{ display:none; }
+      .user-row{ grid-template-columns: 34px 1fr auto; }
+      .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan, .user-row .col-apelido{ display:none; }
+      .user-status .badge{ min-width:0; font-size:.7rem; }
       .toolbar-search{ flex-direction:column; align-items:stretch; }
       .toolbar-search .btn{ width:100%; }
       .assoc-pie{ width:180px; }
       .assoc-metrics-grid{ grid-template-columns:1fr; }
+      .dropdown-menu{ max-width:calc(100vw - 2rem); }
     }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
