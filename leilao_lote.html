@@ -45,16 +45,27 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
-    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+  <div class="container d-flex align-items-center justify-content-between flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+            aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item d-none" id="adminBtnArea"></li>
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
+        </li>
       </ul>
     </div>
   </div>
@@ -188,7 +199,7 @@
         <ol>
           <li>O <strong>lance é uma obrigação de compra</strong>. Ao arrematar, você se compromete a efetuar o pagamento dentro do prazo.</li>
           <li>O pagamento deverá ser realizado em até <strong>5 dias corridos</strong> após o encerramento do lote.</li>
-          <li>Será cobrada <strong>comissão de 8%</strong> sobre o valor arrematado (5% para o Clube + 3% para manutenção do sistema).</li>
+          <li>Será cobrada <strong>comissão de 10%</strong> sobre o valor arrematado (5% para o Clube + 5% para manutenção do sistema).</li>
           <li>O não pagamento dentro do prazo resultará em <strong>bloqueio do seu perfil</strong> para participar de leilões futuros.</li>
           <li>O Clube do Cavalo de Bonfim MG não se responsabiliza pelas informações prestadas pelos vendedores sobre os lotes.</li>
           <li>Toda documentação referente ao animal/item é de responsabilidade do vendedor.</li>
@@ -206,8 +217,10 @@
 
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
-    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
   </div>
 </footer>
 

@@ -52,20 +52,27 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
-    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+  <div class="container d-flex align-items-center justify-content-between flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+            aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="index.html">Início</a></li>
         <li class="nav-item"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
         <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item d-none" id="authBtnArea"></li>
-        <li class="nav-item d-none" id="adminBtnArea"></li>
+        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
+        </li>
       </ul>
     </div>
   </div>
@@ -76,7 +83,7 @@
     <h1 class="display-5 fw-bold mb-2">Leilões Online</h1>
     <p class="lead mb-3 opacity-90">Arrematações de cavalos, genética e equipamentos equestres</p>
     <div id="heroActions" class="d-flex justify-content-center gap-2 flex-wrap">
-      <!-- populated by JS -->
+      <!-- Botão "Novo Lote" aparece via JS para associados logados -->
     </div>
   </div>
 </section>
@@ -120,8 +127,10 @@
 
 <footer class="mt-5 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
-    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
   </div>
 </footer>
 
@@ -133,30 +142,38 @@ import { getAuth, onAuthStateChanged }
 import { getFirestore, collection, query, where, orderBy, onSnapshot }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import "./firebase.js";
-import { setupAdminButton } from "./firebase.js";
+import { setupAdminButton, getCurrentRole } from "./firebase.js";
 
 const db   = getFirestore(getApp());
 const auth = getAuth(getApp());
 
-/* ---- Hero actions dinâmico ---- */
-onAuthStateChanged(auth, user => {
-  const heroArea = document.getElementById("heroActions");
+/* ---- Hero actions + btnAssociado dinâmico ---- */
+onAuthStateChanged(auth, async user => {
+  const heroArea   = document.getElementById("heroActions");
+  const btnAssoc   = document.getElementById("btnAssociado");
+
   if (!user) {
     heroArea.innerHTML = `
       <a href="login.html" class="btn btn-warning fw-semibold">Entrar para dar lances</a>
       <a href="signup.html" class="btn btn-outline-light">Cadastrar-se</a>`;
-  } else {
-    heroArea.innerHTML = `
-      <a href="meus_lotes.html" class="btn btn-warning fw-semibold" id="meusLotesBtn" style="display:none">Meus Lotes</a>
-      <a href="pg_associado.html" class="btn btn-outline-light">Minha conta</a>`;
-    user.getIdTokenResult().then(r => {
-      const role = r.claims.role || "";
-      if (["associado","admin","master"].some(x => role.includes(x))) {
-        const btn = document.getElementById("meusLotesBtn");
-        if (btn) btn.style.display = "";
-      }
-    });
+    if (btnAssoc) { btnAssoc.href = "login.html"; btnAssoc.textContent = "Área do Associado"; }
+    return;
   }
+
+  const role = await getCurrentRole();
+  const isAssociado = ["associado","admin","master"].includes(role);
+
+  if (isAssociado) {
+    heroArea.innerHTML = `
+      <a href="lote_form.html" class="btn btn-warning fw-semibold">+ Cadastrar novo lote</a>
+      <a href="meus_lotes.html" class="btn btn-outline-light">Meus lotes</a>`;
+    if (btnAssoc) { btnAssoc.href = "pg_associado.html"; btnAssoc.textContent = "Área do Associado"; }
+  } else {
+    // participanteLeilao ou outro: não mostra "Minha conta" → pg_associado.html (causaria redirect)
+    heroArea.innerHTML = "";
+    if (btnAssoc) { btnAssoc.href = "pg_associado.html"; btnAssoc.textContent = "Área do Associado"; }
+  }
+
   setupAdminButton("#adminBtnArea", { href:"admin_leiloes.html", label:"Gestão de Leilões" });
 });
 

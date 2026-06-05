@@ -1748,7 +1748,7 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
 
       const finalAmount       = lot.lastBid;
       const commissionClube   = Math.round(finalAmount * 0.05 * 100) / 100;
-      const commissionSistema = Math.round(finalAmount * 0.03 * 100) / 100;
+      const commissionSistema = Math.round(finalAmount * 0.05 * 100) / 100;
       const commissionTotal   = Math.round((commissionClube + commissionSistema) * 100) / 100;
       const netSeller         = Math.round((finalAmount - commissionTotal) * 100) / 100;
 

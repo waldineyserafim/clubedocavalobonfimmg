@@ -55,15 +55,17 @@
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-25" alt="Logo Clube do Cavalo">
     <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="admin.html">Painel Admin</a></li>
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Ver leilões públicos</a></li>
+        <li class="nav-item me-2"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item me-2"><a class="nav-link" href="leiloes.html">Leilões públicos</a></li>
+        <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
+        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
       </ul>
     </div>
   </div>
@@ -273,16 +275,19 @@
   </div>
 </div>
 
-<footer class="mt-5 py-4 bg-body-tertiary border-top">
+<footer class="mt-4 py-4 bg-body-tertiary border-top">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong></div>
-    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.</div>
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.</div>
+    <div class="text-secondary small text-center">
+      © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
+      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
-import { requireAuth } from "./firebase.js";
+import { requireAuth, doLogout } from "./firebase.js";
 import { getFirestore, collection, query, where, orderBy, onSnapshot,
          doc, updateDoc, getDocs, serverTimestamp, getDoc }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -296,6 +301,8 @@ const auth      = getAuth(getApp());
 const functions = getFunctions(getApp(), "us-central1");
 
 requireAuth({ requiredRole: ["admin", "master"] });
+
+document.getElementById("btnLogout")?.addEventListener("click", () => doLogout());
 
 /* ---- helpers ---- */
 function fmtBRL(v) {
