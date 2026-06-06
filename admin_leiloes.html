@@ -49,7 +49,11 @@
       .sale-row{ grid-template-columns: 1fr auto; }
       .sale-col-buyer,.sale-col-value,.sale-col-status{ display:none; }
     }
-  </style>
+    html,body{height:100%}
+  body{min-height:100dvh;display:flex;flex-direction:column}
+  main{flex:1 0 auto}
+  footer{flex-shrink:0}
+</style>
 </head>
 <body>
 
@@ -320,6 +324,19 @@ document.getElementById("btnLogout")?.addEventListener("click", () => doLogout()
 function fmtBRL(v) {
   return (v ?? 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
 }
+function fmtCPFFromEmail(email) {
+  if (!email) return "";
+  const cpf = email.includes("@cpf.local") ? email.replace("@cpf.local","") : "";
+  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+function fmtVendedor(lot) {
+  const name = lot.sellerName || "";
+  const cpf  = fmtCPFFromEmail(lot.sellerEmail || "");
+  if (name && cpf)  return `${escHtml(name)}<br><span class="text-muted" style="font-size:.72rem">${cpf}</span>`;
+  if (name)         return escHtml(name);
+  if (cpf)          return cpf;
+  return escHtml(lot.sellerEmail || lot.sellerUid || "—");
+}
 function fmtDate(ts) {
   if (!ts) return "—";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -378,7 +395,7 @@ function renderAnalise() {
           <button class="lot-title-btn" onclick="toggleDet('an','${lot.id}')">${escHtml(lot.title)}</button>
           <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
         </div>
-        <div class="small">${escHtml(lot.sellerEmail||"")}</div>
+        <div class="small">${fmtVendedor(lot)}</div>
         <div class="lot-col-bid small">${fmtBRL(lot.initialBid)}</div>
         <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
         <div class="d-flex gap-1 flex-wrap">
@@ -445,7 +462,7 @@ function renderAllLots() {
           <button class="lot-title-btn" onclick="toggleDet('al','${lot.id}')">${escHtml(lot.title||"")}</button>
           <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
         </div>
-        <div class="lot-col-seller small">${escHtml(lot.sellerEmail||"")}</div>
+        <div class="lot-col-seller small">${fmtVendedor(lot)}</div>
         <div class="lot-col-bid small">${lot.lastBid > 0 ? fmtBRL(lot.lastBid) : "—"}</div>
         <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
         <div><span class="badge ${st.cls}" style="font-size:.7rem">${st.label}</span></div>
@@ -456,7 +473,7 @@ function renderAllLots() {
           <span><strong>Encerramento:</strong> ${fmtDate(lot.endTime)}</span>
           <span><strong>Lances:</strong> ${lot.bidCount||0}</span>
           <span><strong>Valor inicial:</strong> ${fmtBRL(lot.initialBid)}</span>
-          <span><strong>Seller:</strong> ${escHtml(lot.sellerEmail||lot.sellerUid||"")}</span>
+          <span><strong>Vendedor:</strong> ${fmtVendedor(lot)}</span>
         </div>
         <div class="d-flex gap-2 mt-1 mb-2">
           <a href="leilao_lote.html?id=${lot.id}" class="btn btn-sm btn-outline-secondary" target="_blank">Ver lote público</a>
