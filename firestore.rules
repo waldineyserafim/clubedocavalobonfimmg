@@ -1,0 +1,338 @@
+// Firestore Security Rules (final, revisado)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------- Helpers --------
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    function isSelf(userId) {
+      return isLoggedIn() && request.auth.uid == userId;
+    }
+
+    // Super-UID(s) com passe-livre (ajuste conforme necessário)
+    function isSuperUID() {
+      return isLoggedIn() && (
+        request.auth.uid == "MXOSb23C4eX7G57LMlLg24sxKSD3"
+      );
+    }
+
+    // Lê o papel do usuário logado; se não existir doc, devolve string vazia
+    function userRoleRaw() {
+      return isLoggedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role)
+        : "";
+    }
+
+    // Testes de papel (case-insensitive)
+    function isRole(roleName) {
+      return (userRoleRaw() is string) && userRoleRaw().matches('(?i)^' + roleName + '$');
+    }
+    function isMaster()    { return isLoggedIn() && isRole("master"); }
+    function isAdminRole() { return isLoggedIn() && isRole("admin"); }
+
+    // Quem pode operar (admin OU master OU super-UID opcional)
+    function canOperate() { return isMaster() || isAdminRole() || isSuperUID(); }
+
+    // Associado ativo (pode criar lotes)
+    function isAssociadoOrAdmin() {
+      return isLoggedIn() && (
+        isRole("associado") || isRole("admin") || isRole("master") || isSuperUID()
+      );
+    }
+
+    // Impede que cliente comum troque 'role' e 'status' (aplicado em update de users)
+    function noRoleStatusChange() {
+      return !(
+        "role" in request.resource.data.diff(resource.data).changedKeys() ||
+        "status" in request.resource.data.diff(resource.data).changedKeys()
+      );
+    }
+
+    // >>> ADIÇÃO: helpers para validação de criação de faturas pelo cliente
+    function _hasOnlyKeys(allowedKeys) {
+      // todos os campos novos precisam estar na lista de permitidos
+      return request.resource.data.keys().hasOnly(allowedKeys);
+    }
+
+    function _isInvoiceCreateValid() {
+      // Permite criar SOMENTE estes campos
+      let okKeys = _hasOnlyKeys([
+        "planType",
+        "planName",
+        "planStart",
+        "planEnd",
+        "dueDate",
+        "amount",
+        "status",
+        "months",
+        "createdAt",
+        "recordedAt"
+      ]);
+
+      // Tipos básicos
+      let okTypes =
+        (request.resource.data.amount is number) &&
+        (request.resource.data.planType is string) &&
+        (request.resource.data.planName is string);
+
+      // Status inicial aceito
+      let st = request.resource.data.status;
+      let okStatus = (st is string) && (st.matches('(?i)^pendente$') || st.matches('(?i)^em_aberto$'));
+
+      // Bloquear campos sensíveis na criação
+      let noSensitive =
+        !("paidAt" in request.resource.data) &&
+        !("gatewayId" in request.resource.data) &&
+        !("method" in request.resource.data) &&
+        !("mp" in request.resource.data) &&
+        !("updatedAt" in request.resource.data);
+
+      return okKeys && okTypes && okStatus && noSensitive;
+    }
+    // <<< FIM ADIÇÃO
+
+    // ===========================
+    //   Catálogo: Serviços/Produtos
+    // ===========================
+    match /memberServices/{docId} {
+      allow read:  if isLoggedIn();
+      allow write: if canOperate();     // admin/master
+    }
+
+    match /memberProducts/{docId} {
+      allow read:  if isLoggedIn();
+      allow write: if canOperate();     // admin/master
+    }
+
+    // ===========================
+    //   Legacy/Área do Associado: classificados internos
+    // ===========================
+    match /memberClassifieds/{docId} {
+      // leitura pública (ajuste se quiser privatizar)
+      allow read: if true;
+
+      // CREATE: logado e dono informado por qualquer um dos campos aceitos
+      allow create: if isLoggedIn() &&
+                    (
+                      ("createdBy" in request.resource.data && request.resource.data.createdBy == request.auth.uid)
+                      ||
+                      ("ownerUid"  in request.resource.data && request.resource.data.ownerUid  == request.auth.uid)
+                    );
+
+      // UPDATE:
+      // - admin/master/superUID: tudo
+      // - dono: pode atualizar, mas NÃO pode mudar campos de propriedade/approvação
+      allow update: if
+        canOperate()
+        ||
+        (
+          isLoggedIn() &&
+          (
+            resource.data.createdBy == request.auth.uid ||
+            ("ownerUid" in resource.data && resource.data.ownerUid == request.auth.uid)
+          ) &&
+          !(
+            "approved"  in request.resource.data.diff(resource.data).changedKeys() ||
+            "createdBy" in request.resource.data.diff(resource.data).changedKeys() ||
+            "ownerUid"  in request.resource.data.diff(resource.data).changedKeys()
+          )
+        );
+
+      // DELETE: admin/master/superUID ou dono
+      allow delete: if
+        canOperate()
+        ||
+        (
+          isLoggedIn() &&
+          (
+            resource.data.createdBy == request.auth.uid ||
+            ("ownerUid" in resource.data && resource.data.ownerUid == request.auth.uid)
+          )
+        );
+    }
+
+    // ===========================
+    //   Coleção pública 'classificados'
+    // ===========================
+    match /classificados/{docId} {
+      // leitura pública (qualquer visitante)
+      allow get, list: if true;
+
+      // CREATE: logado + createdBy==uid OU ownerUid==uid
+      allow create: if isLoggedIn() &&
+                    (
+                      ("ownerUid"  in request.resource.data && request.resource.data.ownerUid  == request.auth.uid)
+                      ||
+                      ("createdBy" in request.resource.data && request.resource.data.createdBy == request.auth.uid)
+                    );
+
+      // UPDATE:
+      // - admin/master/superUID: tudo
+      // - dono: não pode mudar ownerUid/ownerEmail/createdBy
+      allow update: if
+        canOperate()
+        ||
+        (
+          isLoggedIn() &&
+          (
+            ("ownerUid"  in resource.data && resource.data.ownerUid  == request.auth.uid) ||
+            ("createdBy" in resource.data && resource.data.createdBy == request.auth.uid)
+          ) &&
+          !(
+            "ownerUid"   in request.resource.data.diff(resource.data).changedKeys() ||
+            "ownerEmail" in request.resource.data.diff(resource.data).changedKeys() ||
+            "createdBy"  in request.resource.data.diff(resource.data).changedKeys()
+          )
+        );
+
+      // DELETE: admin/master/superUID ou dono
+      allow delete: if
+        canOperate()
+        ||
+        (
+          isLoggedIn() &&
+          (
+            ("ownerUid"  in resource.data && resource.data.ownerUid  == request.auth.uid) ||
+            ("createdBy" in resource.data && resource.data.createdBy == request.auth.uid)
+          )
+        );
+    }
+
+    // ===========================
+    //   Usuários + Financeiro
+    // ===========================
+    match /users/{userId} {
+
+      // Leitura de 1 doc:
+      // - dono lê o próprio
+      // - admin/master podem ler qualquer um
+      allow get: if isSelf(userId) || canOperate();
+
+      // Listagem (para grids/admin) — apenas admin/master
+      allow list: if canOperate();
+
+      // Criação:
+      // - dono cria o próprio (signup)
+      // - admin/master podem criar perfis para associados
+      allow create: if isSelf(userId) || canOperate();
+
+      // Atualização:
+      // - dono: tudo exceto 'role' e 'status'
+      // - admin/master: podem atualizar qualquer campo
+      allow update: if
+        (isSelf(userId) && noRoleStatusChange())
+        || canOperate();
+
+      // -------- FINANCE (doc 'summary' e outros docs soltos) --------
+      match /finance/{docId} {
+        // dono, admin e master podem LER (summary, etc.)
+        allow read:  if isSelf(userId) || canOperate();
+        // admin/master podem ESCREVER (summary, etc.)
+        allow write: if canOperate();
+
+        // (Mantido por compatibilidade com estrutura antiga)
+        match /invoices/{invId} {
+          allow read:  if isSelf(userId) || canOperate();
+          allow write: if canOperate();
+        }
+      }
+
+      // -------- NOVA COLEÇÃO DE FATURAS --------
+      // Subcoleção direta para faturas: users/{uid}/financeInvoices/{invoiceId}
+      match /financeInvoices/{invId} {
+        // dono, admin e master podem LER
+        allow read:  if isSelf(userId) || canOperate();
+
+        // >>> ADIÇÃO: permitir o PRÓPRIO USUÁRIO criar a PRÓPRIA fatura
+        allow create: if isSelf(userId) && _isInvoiceCreateValid();
+
+        // admin/master/superUID continuam podendo escrever (editar/cancelar/pagar)
+        allow write: if canOperate();
+      }
+    }
+
+    // ===========================
+    //   Módulo de Leilões
+    // ===========================
+
+    match /auctionLots/{lotId} {
+      // Leitura pública para lotes publicados/encerrados/concluídos
+      allow get:  if resource.data.status in ["publicado","encerrado","pago","concluido","cancelado"]
+                  || (isLoggedIn() && (
+                       request.auth.uid == resource.data.sellerUid
+                       || canOperate()
+                     ));
+      allow list: if
+        canOperate()
+        || (isLoggedIn() && request.query != null); // listas filtradas para logados
+
+      // Criação: apenas associados (não participanteLeilao)
+      allow create: if isAssociadoOrAdmin()
+                    && request.resource.data.sellerUid == request.auth.uid
+                    && request.resource.data.status in ["rascunho","em_analise"];
+
+      // Atualização pelo dono (apenas em rascunho ou rejeitado; não pode alterar campos de aprovação)
+      allow update: if
+        canOperate()
+        || (
+          isLoggedIn()
+          && request.auth.uid == resource.data.sellerUid
+          && resource.data.status in ["rascunho","rejeitado"]
+          && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
+               ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
+        )
+        || (
+          // Envio para análise: dono pode mudar status rascunho → em_analise
+          isLoggedIn()
+          && request.auth.uid == resource.data.sellerUid
+          && resource.data.status == "rascunho"
+          && request.resource.data.status == "em_analise"
+          && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
+               ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
+        )
+        || (
+          // Cancelamento: dono pode cancelar lote em rascunho
+          isLoggedIn()
+          && request.auth.uid == resource.data.sellerUid
+          && resource.data.status == "rascunho"
+          && request.resource.data.status == "cancelado"
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status","updatedAt"])
+        );
+    }
+
+    match /auctionLots/{lotId}/bids/{bidId} {
+      // Lances: leitura para qualquer usuário autenticado
+      allow read: if isLoggedIn();
+      // Escrita: SOMENTE via Cloud Function (Admin SDK ignora essas regras)
+      allow write: if false;
+    }
+
+    match /auctionSales/{saleId} {
+      allow read: if isLoggedIn() && (
+        request.auth.uid == resource.data.sellerUid
+        || request.auth.uid == resource.data.buyerUid
+        || canOperate()
+      );
+      allow write: if false; // Apenas Cloud Functions
+    }
+
+    match /auctionPayments/{paymentId} {
+      allow read: if isLoggedIn() && (
+        request.auth.uid == resource.data.buyerUid
+        || canOperate()
+      );
+      allow write: if false; // Apenas Cloud Functions
+    }
+
+    match /auctionNotifications/{notifId} {
+      allow read: if isLoggedIn() && request.auth.uid == resource.data.recipientUid;
+      // Permite marcar notificação como lida
+      allow update: if isLoggedIn()
+                    && request.auth.uid == resource.data.recipientUid
+                    && request.resource.data.diff(resource.data).changedKeys().hasOnly(["read"]);
+      allow create, delete: if false; // Apenas Cloud Functions
+    }
+  }
+}

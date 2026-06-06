@@ -167,6 +167,8 @@ const STATUS_LABELS = {
   cancelado:   { label: "Cancelado",   cls: "bg-danger" },
 };
 
+const CAT_LABELS = { animal:"Animais", genetica:"Genética", produto:"Produtos" };
+
 function fmtBRL(v) {
   return (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -204,7 +206,7 @@ function renderLots() {
       <div class="lot-row" id="row-${lot.id}">
         <div>
           <button class="lot-title-btn" onclick="toggleDetail('${lot.id}')">${escHtml(lot.title || "Sem título")}</button>
-          <div class="small text-muted">${escHtml(lot.category || "")} ${lot.subcategory ? "· " + escHtml(lot.subcategory) : ""}</div>
+          <div class="small text-muted">${escHtml(CAT_LABELS[lot.category] || lot.category || "")} ${lot.subcategory ? "· " + escHtml(lot.subcategory) : ""}</div>
         </div>
         <div class="lot-col-status">
           <span class="badge status-badge ${st.cls}">${st.label}</span>
@@ -301,12 +303,19 @@ onAuthStateChanged(auth, user => {
     where("sellerUid", "==", user.uid),
     orderBy("createdAt", "desc")
   );
-  onSnapshot(q, snap => {
-    allLots = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    document.getElementById("lotsLoading").style.display = "none";
-    updateStats();
-    renderLots();
-  });
+  onSnapshot(q,
+    snap => {
+      allLots = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      document.getElementById("lotsLoading").style.display = "none";
+      updateStats();
+      renderLots();
+    },
+    err => {
+      console.error("Erro ao carregar lotes:", err);
+      document.getElementById("lotsLoading").style.display = "none";
+      document.getElementById("lotsEmpty").style.display = "";
+    }
+  );
 });
 </script>
 </body>

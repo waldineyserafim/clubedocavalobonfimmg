@@ -63,13 +63,15 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
         <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
         <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
+        <li class="nav-item d-none" id="adminBtnArea">
+          <a href="admin_leiloes.html" class="btn btn-warning text-dark ms-lg-2">Gestão de Leilões</a>
+        </li>
         <li class="nav-item mt-2 mt-lg-0">
           <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
         </li>
@@ -93,9 +95,9 @@
   <!-- Filtros -->
   <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
     <button class="btn btn-sm btn-outline-secondary filter-btn active" data-cat="">Todos</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Animais">Animais</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Genética">Genética</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="Equipamentos">Equipamentos</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="animal">Animais</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="genetica">Genética</button>
+    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="produto">Produtos</button>
     <div class="ms-auto">
       <input id="searchInput" class="form-control form-control-sm" style="min-width:180px"
              placeholder="Buscar lote...">
@@ -227,6 +229,8 @@ function filterLots(lots) {
   return r;
 }
 
+const CAT_LABELS = { animal:"Animais", genetica:"Genética", produto:"Produtos" };
+
 function fmtBRL(v) {
   return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 }
@@ -249,7 +253,7 @@ function cardHtml(lot, ended = false) {
           ${lot.bidCount > 0 ? `<div class="position-absolute bottom-0 start-0 m-2 badge bg-dark bg-opacity-75">${lot.bidCount} lance${lot.bidCount!==1?"s":""}</div>` : ""}
         </div>
         <div class="p-3">
-          <div class="small text-muted mb-1">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
+          <div class="small text-muted mb-1">${escHtml(CAT_LABELS[lot.category]||lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
           <h3 class="h6 fw-bold mb-1 text-truncate">${escHtml(lot.title||"")}</h3>
           <p class="small text-muted mb-2 text-truncate">${escHtml(lot.description||"")}</p>
           <div class="d-flex justify-content-between align-items-center">

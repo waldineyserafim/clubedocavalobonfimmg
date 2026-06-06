@@ -68,17 +68,9 @@
         <label class="form-label">Categoria <span class="text-danger">*</span></label>
         <select id="category" class="form-select" required>
           <option value="">Selecione...</option>
-          <optgroup label="Animais">
-            <option value="animal" data-sub='["Cavalo","Égua","Potro","Potra","Garanhão"]'>Animal</option>
-          </optgroup>
-          <optgroup label="Genética">
-            <option value="genetica" data-sub='["Cobertura","Sêmen","Embrião"]'>Genética</option>
-          </optgroup>
-          <optgroup label="Equipamentos">
-            <option value="sela"     data-sub='[]'>Sela / Arreio</option>
-            <option value="carreta"  data-sub='[]'>Carreta / Reboque</option>
-            <option value="caminhao" data-sub='[]'>Caminhão</option>
-          </optgroup>
+          <option value="animal"   data-sub='["Cavalo","Égua","Potro","Potra","Garanhão"]'>Animais</option>
+          <option value="genetica" data-sub='["Cobertura","Sêmen","Embrião"]'>Genética</option>
+          <option value="produto"  data-sub='[]'>Produtos</option>
         </select>
       </div>
       <div class="col-md-6" id="subcategoryWrap" style="display:none">
@@ -242,29 +234,13 @@ const EXTRA_FIELDS = {
     { id:"condicoes",   label:"Condições da cobertura",req:false, type:"textarea" },
     { id:"obsVet",      label:"Informações veterinárias",req:false,type:"textarea" },
   ],
-  sela: [
+  produto: [
+    { id:"tipo",        label:"Tipo de produto",       req:true,  placeholder:"Ex: Sela, Arreio, Carreta, Caminhão..." },
+    { id:"condicao",    label:"Estado",                req:true,  type:"select", opts:["Novo","Usado"] },
     { id:"marca",       label:"Marca",                 req:false },
     { id:"modelo",      label:"Modelo",                req:false },
     { id:"ano",         label:"Ano",                   req:false, type:"number" },
-    { id:"conservacao", label:"Estado de conservação", req:false,
-        type:"select", opts:["Novo","Excelente","Bom","Regular","Precisa de reparo"] },
     { id:"obs",         label:"Observações",           req:false, type:"textarea" },
-  ],
-  carreta: [
-    { id:"marca",       label:"Marca",                 req:false },
-    { id:"modelo",      label:"Modelo",                req:false },
-    { id:"ano",         label:"Ano",                   req:false, type:"number" },
-    { id:"eixos",       label:"Qtd. de eixos",         req:false, type:"number" },
-    { id:"capacidade",  label:"Capacidade (ton)",      req:false, type:"number" },
-    { id:"renavam",     label:"RENAVAM",               req:false },
-  ],
-  caminhao: [
-    { id:"marca",       label:"Marca",                 req:false },
-    { id:"modelo",      label:"Modelo",                req:false },
-    { id:"ano",         label:"Ano",                   req:false, type:"number" },
-    { id:"km",          label:"KM",                    req:false, type:"number" },
-    { id:"placa",       label:"Placa",                 req:false },
-    { id:"renavam",     label:"RENAVAM",               req:false },
   ],
 };
 
