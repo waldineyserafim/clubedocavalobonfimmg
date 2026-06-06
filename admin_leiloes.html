@@ -339,10 +339,16 @@ const STATUS_CFG = {
 let analiseRows = [];
 
 onSnapshot(
-  query(collection(db,"auctionLots"), where("status","==","em_analise"), orderBy("updatedAt","asc")),
+  query(collection(db,"auctionLots"), where("status","==","em_analise"), orderBy("createdAt","asc")),
   snap => {
     analiseRows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("badgeAnalise").textContent = analiseRows.length || "0";
+    document.getElementById("analiseLoading").style.display = "none";
+    renderAnalise();
+  },
+  err => {
+    console.error("Aprovação query:", err);
+    document.getElementById("analiseLoading").style.display = "none";
     renderAnalise();
   }
 );
@@ -433,15 +439,19 @@ function renderAllLots() {
         <div><span class="badge ${st.cls}" style="font-size:.7rem">${st.label}</span></div>
       </div>
       <div id="al-${lot.id}" style="display:none" class="details-panel">
-        <div class="d-flex gap-2 flex-wrap small">
+        <div class="d-flex gap-2 flex-wrap small mb-2">
           <span><strong>Início:</strong> ${fmtDate(lot.startTime)}</span>
           <span><strong>Encerramento:</strong> ${fmtDate(lot.endTime)}</span>
           <span><strong>Lances:</strong> ${lot.bidCount||0}</span>
           <span><strong>Valor inicial:</strong> ${fmtBRL(lot.initialBid)}</span>
+          <span><strong>Seller:</strong> ${escHtml(lot.sellerEmail||lot.sellerUid||"")}</span>
         </div>
-        <div class="d-flex gap-2 mt-2">
+        <div class="d-flex gap-2 mt-1 mb-2">
           <a href="leilao_lote.html?id=${lot.id}" class="btn btn-sm btn-outline-secondary" target="_blank">Ver lote público</a>
           ${lot.status === "publicado" ? `<button class="btn btn-sm btn-outline-danger btn-admin-cancel" data-id="${lot.id}">Cancelar lote</button>` : ""}
+        </div>
+        <div id="bids-${lot.id}" class="mt-2">
+          <button class="btn btn-sm btn-outline-primary btn-load-bids" data-lot="${lot.id}">Carregar lances</button>
         </div>
       </div>
     </div>`;
@@ -454,6 +464,44 @@ function renderAllLots() {
       await updateDoc(doc(db,"auctionLots",btn.dataset.id), {
         status:"cancelado", rejectionReason: motivo, updatedAt: serverTimestamp()
       });
+    });
+  });
+
+  list.querySelectorAll(".btn-load-bids").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const lotId  = btn.dataset.lot;
+      const wrap   = document.getElementById("bids-" + lotId);
+      btn.disabled = true;
+      btn.textContent = "Carregando…";
+      try {
+        const snap = await getDocs(
+          query(collection(db,"auctionLots",lotId,"bids"), orderBy("placedAt","desc"))
+        );
+        if (snap.empty) {
+          wrap.innerHTML = `<p class="small text-muted mb-0">Nenhum lance registrado.</p>`;
+          return;
+        }
+        wrap.innerHTML = `
+          <table class="table table-sm mt-1" style="font-size:.78rem">
+            <thead class="table-light">
+              <tr><th>#</th><th>Valor</th><th>Licitante (UID)</th><th>Data/Hora</th></tr>
+            </thead>
+            <tbody>
+              ${snap.docs.map((d,i) => {
+                const b = d.data();
+                const uid = b.bidderUid || "";
+                return `<tr>
+                  <td>${snap.size - i}</td>
+                  <td><strong>${fmtBRL(b.amount)}</strong></td>
+                  <td class="text-muted" style="font-family:monospace">${escHtml(uid.slice(0,6)+"…"+uid.slice(-4))}</td>
+                  <td>${fmtDate(b.placedAt)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`;
+      } catch(e) {
+        wrap.innerHTML = `<p class="small text-danger mb-0">Erro ao carregar lances: ${escHtml(e.message)}</p>`;
+      }
     });
   });
 }
@@ -537,9 +585,15 @@ document.getElementById("filterVendaStatus").addEventListener("change", renderVe
 let participantes = [];
 
 onSnapshot(
-  query(collection(db,"users"), where("role","==","participanteLeilao"), orderBy("createdAt","desc")),
+  query(collection(db,"users"), where("role","==","participanteLeilao")),
   snap => {
     participantes = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    participantes.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+    document.getElementById("participantesLoading").style.display = "none";
+    renderParticipantes();
+  },
+  err => {
+    console.error("Participantes query:", err);
     document.getElementById("participantesLoading").style.display = "none";
     renderParticipantes();
   }

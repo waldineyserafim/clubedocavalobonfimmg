@@ -135,7 +135,7 @@
                 <ol>
                   <li>O lance é uma obrigação de compra. O não pagamento resultará em bloqueio do perfil.</li>
                   <li>O pagamento deverá ser realizado em até 5 dias corridos após o encerramento do lote.</li>
-                  <li>O clube cobrará comissão de 8% sobre o valor arrematado (5% clube + 3% sistema).</li>
+                  <li>O clube cobrará comissão de 10% sobre o valor arrematado (5% clube + 5% sistema).</li>
                   <li>O repasse ao vendedor será realizado após a confirmação do pagamento.</li>
                   <li>O animal/item deve ser retirado conforme combinado com o vendedor.</li>
                 </ol>
@@ -289,9 +289,16 @@ onSnapshot(doc(db,"auctionLots",lotId), snap => {
   renderLot(lotData);
   renderBidForm();
   if (cdInterval) clearInterval(cdInterval);
-  endTime = lotData.endTime?.toMillis?.() || 0;
-  cdInterval = setInterval(tickCd, 1000);
-  tickCd();
+  const cdWrap = document.getElementById("countdownWrap");
+  if (lotData.status === "publicado") {
+    endTime = lotData.endTime?.toMillis?.() || 0;
+    cdWrap.style.display = "";
+    cdInterval = setInterval(tickCd, 1000);
+    tickCd();
+  } else {
+    cdWrap.style.display = "none";
+    endTime = 0;
+  }
 });
 
 /* ---- Histórico de lances (realtime) ---- */
