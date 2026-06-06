@@ -1,0 +1,52 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ===== Helpers =====
+    function isSignedIn() { return request.auth != null; }
+    function isImage() {
+      return request.resource != null
+        && request.resource.size < 5 * 1024 * 1024     // máx. 5 MB
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ===== NOVO: caminho usado pelo seu frontend (uploads/*) =====
+    // Ex.: uploads/products/..., uploads/services/..., uploads/classifieds/...
+    match /uploads/{category}/{fileName} {
+      allow read: if true; // leitura pública das imagens (ajuste se quiser)
+      allow write: if isSignedIn() && isImage()
+        && (category == 'products' || category == 'services' || category == 'classifieds');
+      // write cobre create/update/delete
+    }
+
+    // ===== Caminhos por-usuário que você já tinha =====
+    // Classificados (leitura pública; gravação só do dono)
+    match /classifieds/{uid}/{docId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage();
+    }
+
+    // Produtos e Serviços por-usuário (opcional – mantém compatibilidade)
+    match /products/{uid}/{docId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage();
+    }
+
+    match /services/{uid}/{docId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage();
+    }
+
+    // ===== Módulo de Leilões =====
+    // Imagens de lotes: auctionLots/{uid}/{fileName}
+    match /auctionLots/{uid}/{fileName} {
+      allow read: if true;  // leitura pública (exibição nos cards)
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage();
+    }
+
+    // ===== Bloqueia todo o resto =====
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
