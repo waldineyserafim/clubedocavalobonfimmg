@@ -1,0 +1,14 @@
+{
+  "name": "ccbmg-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "serve": "npx serve . -l 3333 --no-clipboard",
+    "test:e2e": "npx playwright test",
+    "test:e2e:report": "npx playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "serve": "^14.2.6"
+  }
+}
