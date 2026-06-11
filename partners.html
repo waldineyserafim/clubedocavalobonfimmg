@@ -117,12 +117,12 @@
 
   (async () => {
     try {
-      const q = query(collection(db,"cms_partners"),
-        where("orgId","==",currentOrgId), where("ativo","==",true),
-        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const q = query(collection(db,"cms_partners"), where("orgId","==",currentOrgId));
       const snap = await getDocs(q);
-      if (snap.empty) return;
-      const parceiros = snap.docs.map(d=>d.data());
+      const parceiros = snap.docs.map(d=>d.data())
+        .filter(p=>p.ativo&&!p.deleted)
+        .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+      if (!parceiros.length) return;
       const row = document.getElementById("partnersRow");
       if (!row) return;
       row.innerHTML = parceiros.map(p => {

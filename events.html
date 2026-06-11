@@ -170,12 +170,12 @@
 
   (async () => {
     try {
-      const q = query(collection(db,"cms_events"),
-        where("orgId","==",currentOrgId), where("ativo","==",true),
-        where("deleted","!=",true), orderBy("deleted"), orderBy("data","asc"));
+      const q = query(collection(db,"cms_events"), where("orgId","==",currentOrgId));
       const snap = await getDocs(q);
-      if (snap.empty) return;
-      const eventos = snap.docs.map(d=>d.data());
+      const eventos = snap.docs.map(d=>d.data())
+        .filter(e=>e.ativo&&!e.deleted)
+        .sort((a,b)=>{const ta=a.data?.toDate?.()?.getTime()||0,tb=b.data?.toDate?.()?.getTime()||0;return ta-tb;});
+      if (!eventos.length) return;
       const row = document.getElementById("eventsRow");
       if (!row) return;
       row.innerHTML = eventos.map(ev => `

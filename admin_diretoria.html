@@ -291,9 +291,11 @@
   async function loadList(){
     document.getElementById("listWrap").innerHTML='<div class="text-center text-secondary py-3">Carregando…</div>';
     try{
-      const q=query(collection(db,"cms_board"),where("orgId","==",currentOrgId),where("deleted","!=",true),orderBy("deleted"),orderBy("ordem"));
+      const q=query(collection(db,"cms_board"),where("orgId","==",currentOrgId));
       const snap=await getDocs(q);
-      allItems=snap.docs.map(d=>({id:d.id,...d.data()}));
+      allItems=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(b=>!b.deleted)
+        .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
       renderList();
     }catch(err){document.getElementById("listWrap").innerHTML=`<div class="text-danger p-3">${err.message}</div>`;}
   }

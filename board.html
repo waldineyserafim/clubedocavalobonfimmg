@@ -217,12 +217,12 @@
 
   (async () => {
     try {
-      const q = query(collection(db,"cms_board"),
-        where("orgId","==",currentOrgId), where("ativo","==",true),
-        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const q = query(collection(db,"cms_board"), where("orgId","==",currentOrgId));
       const snap = await getDocs(q);
-      if (snap.empty) return;
-      const members = snap.docs.map(d=>d.data());
+      const members = snap.docs.map(d=>d.data())
+        .filter(m=>m.ativo&&!m.deleted)
+        .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
+      if (!members.length) return;
 
       // Group by categoria
       const cats = {};

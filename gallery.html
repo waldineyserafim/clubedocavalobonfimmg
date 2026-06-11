@@ -129,16 +129,16 @@
 
   (async () => {
     try {
-      const q = query(collection(db,"cms_gallery"),
-        where("orgId","==",currentOrgId), where("ativo","==",true),
-        where("deleted","!=",true), orderBy("deleted"), orderBy("updatedAt","desc"));
+      const q = query(collection(db,"cms_gallery"), where("orgId","==",currentOrgId));
       const snap = await getDocs(q);
-      if (snap.empty) return;
-      const albums = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const albumsRaw = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(a=>a.ativo&&!a.deleted)
+        .sort((a,b)=>{const ta=a.updatedAt?.toDate?.()?.getTime()||0,tb=b.updatedAt?.toDate?.()?.getTime()||0;return tb-ta;});
+      if (!albumsRaw.length) return;
 
       // Load photos for each album
       const albumPhotos = {};
-      for (const album of albums) {
+      for (const album of albumsRaw) {
         try {
           const pq = query(collection(db,"cms_gallery",album.id,"fotos"), orderBy("ordem"));
           const ps = await getDocs(pq);
@@ -151,7 +151,7 @@
 
       // Build gallery: albums with photos
       const cols = [];
-      for (const album of albums) {
+      for (const album of albumsRaw) {
         const photos = albumPhotos[album.id] || [];
         if (!photos.length && !album.coverUrl) continue;
         const allPhotos = photos.length ? photos : [album.coverUrl];

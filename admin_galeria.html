@@ -246,9 +246,11 @@
   async function loadAlbums(){
     document.getElementById("albumsGrid").innerHTML='<div class="col-12 text-center text-secondary py-4">Carregando…</div>';
     try{
-      const q=query(collection(db,"cms_gallery"),where("orgId","==",currentOrgId),where("deleted","!=",true),orderBy("deleted"),orderBy("updatedAt","desc"));
+      const q=query(collection(db,"cms_gallery"),where("orgId","==",currentOrgId));
       const snap=await getDocs(q);
-      albums=snap.docs.map(d=>({id:d.id,...d.data()}));
+      albums=snap.docs.map(d=>({id:d.id,...d.data()}))
+        .filter(b=>!b.deleted)
+        .sort((a,b)=>{const ta=a.updatedAt?.toDate?.()?.getTime()||0,tb=b.updatedAt?.toDate?.()?.getTime()||0;return tb-ta;});
       renderAlbums();
     }catch(err){document.getElementById("albumsGrid").innerHTML=`<div class="col-12 text-danger">${err.message}</div>`;}
   }
