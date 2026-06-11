@@ -99,7 +99,7 @@
     <!-- Nossas atividades -->
     <section class="mb-5">
       <h2 class="h4 section-title">Nossas atividades</h2>
-      <div class="row g-4">
+      <div class="row g-4" id="secAtividadesRow">
         <div class="col-md-6">
           <ul class="list-unstyled mb-0">
             <li class="mb-2"><span class="icon-bullet">🐎</span><strong>Aulas de Equitação:</strong> Para iniciantes e avançados.</li>
@@ -139,7 +139,7 @@
 <section class="mt-5">
   <h2 class="h4 mb-3">Planos de Associação</h2>
 
-  <p>
+  <p id="planosIntroEl">
     Faça parte do <strong>Clube do Cavalo – Bonfim MG</strong> e ajude a fortalecer
     a cultura equestre da nossa região, participando de eventos, parcerias e
     benefícios exclusivos.
@@ -176,7 +176,7 @@
         </tr>
       </tbody>
     </table>
-    <div class="alert alert-secondary mt-3 mb-0 small" role="note">
+    <div class="alert alert-secondary mt-3 mb-0 small" id="planosNotaEl" role="note">
     <strong>Quer plano anual ou outras condições (ex.: familiar, infantil, etc)?</strong>
     <a class="link-underline link-underline-opacity-0" href="https://wa.me/5531986685028?text=Olá!%20Gostaria%20de%20conversar%20sobre%20planos%20da%20associação%20do%20Clube%20do%20Cavalo." target="_blank" rel="noopener">
       Entre em contato com a Diretoria do Clube para combinar a melhor opção.
@@ -190,7 +190,7 @@
       Junte-se a quem valoriza a tradição, os animais e a união do meio equestre.
     </p>
 
-    <a href="signup.html" class="btn btn-primary btn-lg w-100 w-md-auto">
+    <a href="signup.html" id="linkAssociacaoBtn" class="btn btn-primary btn-lg w-100 w-md-auto">
       Quero me associar
     </a>
   </div>
@@ -202,7 +202,7 @@
     <section class="mb-5">
       <h2 class="h4 section-title">Documentos</h2>
       <p class="text-muted">Baixe nossos documentos institucionais (PDF):</p>
-      <div class="d-flex flex-wrap gap-2">
+      <div class="d-flex flex-wrap gap-2" id="secDocumentosLinks">
         <a class="btn btn-outline-primary" href="assets/docs/Estatuto Social Clube do Cavalo Bonfim-MG.pdf" target="_blank" rel="noopener">📄 Baixar Estatuto</a>
         <!-- <a class="btn btn-outline-primary" href="assets/docs/regulamento_interno.pdf" target="_blank" rel="noopener">📄 Baixar Regulamento Interno</a> -->
       </div>
@@ -218,12 +218,12 @@
             esportiva, cultural e social, regida por seu Estatuto e Regulamento Interno.
           </p>
           <ul class="mb-3">
-            <li class="mb-1"><strong>CNPJ:</strong> <span class="text-muted">62.944.023/0001-01</span></li>
-            <li class="mb-1"><strong>Registro em Cartório:</strong> <span class="text-muted">Livro A13 N1632-AV.01 / folha 244</span></li>
+            <li class="mb-1"><strong>CNPJ:</strong> <span class="text-muted" id="legalCnpj">62.944.023/0001-01</span></li>
+            <li class="mb-1"><strong>Registro em Cartório:</strong> <span class="text-muted" id="legalRegistro">Livro A13 N1632-AV.01 / folha 244</span></li>
             <li class="mb-1">
-              <strong>Sede Administrativa:</strong> Antiga Escola Melo Viana — Rua Doutor Melo Viana, nº 183, Sala 08 — Centro, Bonfim-MG — CEP 35480-000.
+              <strong>Sede Administrativa:</strong> <span id="legalSede">Antiga Escola Melo Viana — Rua Doutor Melo Viana, nº 183, Sala 08 — Centro, Bonfim-MG — CEP 35480-000.</span>
             </li>
-            <li class="mb-1"><strong>E-mail oficial:</strong> <a href="mailto:contato@clubedocavalobonfim.com.br">contato@clubedocavalobonfim.com.br</a></li>
+            <li class="mb-1"><strong>E-mail oficial:</strong> <a href="mailto:contato@clubedocavalobonfim.com.br" id="legalEmail">contato@clubedocavalobonfim.com.br</a></li>
           </ul>
         </div>
       </div>
@@ -259,21 +259,24 @@
   function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
   function nl2br(s){ return esc(s).replace(/\n/g,"<br>"); }
 
+  function renderItemLines(lines) {
+    const half = Math.ceil(lines.length / 2);
+    const renderCol = items => items.map(l => {
+      const m = l.match(/^(\S+)\s+(.+?):\s*(.+)$/);
+      if (m) return `<li class="mb-2"><span class="icon-bullet">${esc(m[1])}</span><strong>${esc(m[2])}:</strong> ${esc(m[3])}</li>`;
+      return `<li class="mb-2">${esc(l.replace(/^[•\-\*]\s*/,""))}</li>`;
+    }).join("");
+    const col1 = lines.slice(0, half);
+    const col2 = lines.slice(half);
+    return `<div class="col-md-6"><ul class="list-unstyled mb-0">${renderCol(col1)}</ul></div>`
+      + (col2.length ? `<div class="col-md-6"><ul class="list-unstyled mb-0">${renderCol(col2)}</ul></div>` : "");
+  }
+
   (async () => {
     try {
       const snap = await getDoc(doc(db,"cms_about",currentOrgId));
       if (!snap.exists()) return;
       const d = snap.data();
-
-      // História
-      if (d.historia?.trim()) {
-        const sec = document.getElementById("cmsAboutDynamic");
-        if (sec) sec.innerHTML = `
-          <section class="mb-5">
-            <h2 class="h4 section-title">História do Clube</h2>
-            <p class="lead-small">${nl2br(d.historia)}</p>
-          </section>`;
-      }
 
       // Missão
       if (d.missao?.trim()) {
@@ -281,43 +284,59 @@
         if (el) el.innerHTML = nl2br(d.missao);
       }
 
-      // Visão + Valores (insert after Missão if present)
-      if (d.visao?.trim() || d.valores?.trim()) {
-        const missaoSec = document.getElementById("secMissao");
-        if (missaoSec) {
-          const extra = document.createElement("div");
-          extra.className = "row g-4 mb-5";
-          extra.innerHTML = `
-            ${d.visao?.trim() ? `<div class="col-md-6"><h4 class="h5">Visão</h4><p>${nl2br(d.visao)}</p></div>` : ''}
-            ${d.valores?.trim() ? `<div class="col-md-6"><h4 class="h5">Valores</h4><p>${nl2br(d.valores)}</p></div>` : ''}`;
-          missaoSec.after(extra);
-        }
+      // Nossas Atividades
+      if (d.atividades?.trim()) {
+        const row = document.getElementById("secAtividadesRow");
+        if (row) row.innerHTML = renderItemLines(d.atividades.split("\n").filter(l=>l.trim()));
       }
 
-      // Texto de Associação (insert before planos section)
-      if (d.textoAssociacao?.trim()) {
-        const planosEl = document.querySelector("#secBeneficios + section") || document.querySelector("section.mt-5");
-        if (planosEl) {
-          const extra = document.createElement("section");
-          extra.className = "mb-5";
-          extra.innerHTML = `<h2 class="h4 section-title">Como se Associar</h2><p class="lead-small">${nl2br(d.textoAssociacao)}</p>`;
-          planosEl.before(extra);
-        }
-      }
-
-      // Benefícios
+      // Benefícios para Associados
       if (d.beneficios?.trim()) {
-        const secContent = document.getElementById("secBeneficiosContent");
-        if (secContent) {
-          const lines = d.beneficios.split("\n").filter(l=>l.trim());
-          secContent.innerHTML = `<div class="col-12"><ul class="list-unstyled mb-0">${
-            lines.map(l => {
-              const clean = l.replace(/^[•\-\*]\s*/,"").trim();
-              return clean ? `<li class="mb-2">• ${esc(clean)}</li>` : '';
-            }).join("")
-          }</ul></div>`;
+        const sec = document.getElementById("secBeneficiosContent");
+        if (sec) sec.innerHTML = renderItemLines(d.beneficios.split("\n").filter(l=>l.trim()));
+      }
+
+      // Planos — texto introdutório
+      if (d.planosIntro?.trim()) {
+        const el = document.getElementById("planosIntroEl");
+        if (el) el.innerHTML = nl2br(d.planosIntro);
+      }
+
+      // Planos — nota abaixo da tabela
+      if (d.planosNota?.trim()) {
+        const el = document.getElementById("planosNotaEl");
+        if (el) el.innerHTML = `<strong>${esc(d.planosNota)}</strong>`;
+      }
+
+      // Botão "Quero me associar"
+      const btn = document.getElementById("linkAssociacaoBtn");
+      if (btn) {
+        if (d.linkAssociacaoUrl?.trim()) btn.href = d.linkAssociacaoUrl.trim();
+        if (d.linkAssociacaoTexto?.trim()) btn.textContent = d.linkAssociacaoTexto.trim();
+      }
+
+      // Documentos
+      if (d.documentos?.trim()) {
+        const container = document.getElementById("secDocumentosLinks");
+        if (container) {
+          const links = d.documentos.split("\n").filter(l=>l.trim()).map(l => {
+            const [nome, url] = l.split("|").map(s=>s.trim());
+            if (!nome || !url) return "";
+            return `<a class="btn btn-outline-primary" href="${esc(url)}" target="_blank" rel="noopener">📄 ${esc(nome)}</a>`;
+          }).join("");
+          if (links) container.innerHTML = links;
         }
       }
+
+      // Informações Legais
+      if (d.cnpj?.trim()) { const el=document.getElementById("legalCnpj"); if(el) el.textContent=d.cnpj; }
+      if (d.registroCartorio?.trim()) { const el=document.getElementById("legalRegistro"); if(el) el.textContent=d.registroCartorio; }
+      if (d.sede?.trim()) { const el=document.getElementById("legalSede"); if(el) el.textContent=d.sede; }
+      if (d.emailOficial?.trim()) {
+        const el=document.getElementById("legalEmail");
+        if(el){ el.textContent=d.emailOficial; el.href=`mailto:${d.emailOficial}`; }
+      }
+
     } catch(e){ console.warn("CMS sobre:", e); }
   })();
 </script>
