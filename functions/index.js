@@ -8,7 +8,8 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
 const ASAAS_BASE_URL      = 'https://api.asaas.com/v3';
 const ASAAS_SECRET        = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
-const ASAAS_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
+const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
+const ASAAS_AUCTION_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-auction-webhook-token/versions/latest';
 
 // Mesma lógica do firebase.js: trim + normalize + includes
 function mapRoleServer(r) {
@@ -1524,8 +1525,8 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
   }
 
   const { targetUid, newPassword } = data;
-  if (!targetUid || !newPassword || newPassword.length < 6) {
-    throw new functions.https.HttpsError('invalid-argument', 'UID e senha (mínimo 6 caracteres) são obrigatórios.');
+  if (!targetUid || !newPassword || newPassword.length < 8) {
+    throw new functions.https.HttpsError('invalid-argument', 'UID e senha (mínimo 8 caracteres) são obrigatórios.');
   }
 
   // Impede que o master redefina a própria senha por esta rota
@@ -1810,8 +1811,8 @@ exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
 exports.auctionAsaasWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  // Validar token
-  const webhookToken = await getSecret(ASAAS_WEBHOOK_TOKEN);
+  // Validar token exclusivo do webhook de leilões
+  const webhookToken = await getSecret(ASAAS_AUCTION_WEBHOOK_TOKEN);
   const incomingToken = req.headers['asaas-access-token'];
   if (!incomingToken || incomingToken !== webhookToken) {
     console.warn('auctionAsaasWebhook: token inválido');
