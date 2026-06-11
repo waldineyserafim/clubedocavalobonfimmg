@@ -266,6 +266,12 @@
   const bootstrap = window.bootstrap;
   [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el => new bootstrap.Popover(el));
 
+  function escHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = String(s ?? "");
+    return d.innerHTML;
+  }
+
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
   checkModuleEnabled("associados").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =
@@ -746,8 +752,8 @@
     return `
       <div class="user-row" id="row-${uid}">
         <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
-        <button class="user-name" type="button" data-uid="${uid}">${u.nome||"Sem nome"}</button>
-        <div class="apelido-display col-apelido text-secondary small">${u.apelido||"—"}</div>
+        <button class="user-name" type="button" data-uid="${uid}">${escHtml(u.nome||"Sem nome")}</button>
+        <div class="apelido-display col-apelido text-secondary small">${escHtml(u.apelido||"—")}</div>
         <div class="plan-display col-plan">—</div>
         <div class="last-payment text-secondary small col-lastpay">—</div>
         <div class="last-amount text-secondary small col-value">—</div>
@@ -916,8 +922,8 @@
         <div class="modal-content">
           <div class="modal-header">
             <div>
-              <h5 class="modal-title">${u.nome || "Associado"}</h5>
-              <div class="small text-secondary">CPF: ${(u.cpf||"").replace(/\D/g,"") || "—"}</div>
+              <h5 class="modal-title">${escHtml(u.nome || "Associado")}</h5>
+              <div class="small text-secondary">CPF: ${escHtml((u.cpf||"").replace(/\D/g,"") || "—")}</div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
@@ -1059,27 +1065,27 @@
       <div class="row g-3 align-items-end">
         <div class="col-md-4">
           <label class="form-label">Nome</label>
-          <input type="text" id="pfNome" class="form-control" value="${u.nome||''}">
+          <input type="text" id="pfNome" class="form-control" value="${escHtml(u.nome||'')}">
         </div>
         <div class="col-md-3">
           <label class="form-label">Apelido</label>
-          <input type="text" id="pfApelido" class="form-control" value="${u.apelido||''}" placeholder="Opcional">
+          <input type="text" id="pfApelido" class="form-control" value="${escHtml(u.apelido||'')}" placeholder="Opcional">
         </div>
         <div class="col-md-2">
           <label class="form-label">CPF</label>
-          <input type="text" id="pfCPF" class="form-control" value="${u.cpf||''}">
+          <input type="text" id="pfCPF" class="form-control" value="${escHtml(u.cpf||'')}">
         </div>
         <div class="col-md-3">
           <label class="form-label">Telefone</label>
-          <input type="text" id="pfTelefone" class="form-control" value="${u.telefone||''}">
+          <input type="text" id="pfTelefone" class="form-control" value="${escHtml(u.telefone||'')}">
         </div>
         <div class="col-md-3">
           <label class="form-label">E-mail (opcional)</label>
-          <input type="email" id="pfEmail" class="form-control" value="${u.email||''}" placeholder="ex.: pessoa@email.com">
+          <input type="email" id="pfEmail" class="form-control" value="${escHtml(u.email||'')}" placeholder="ex.: pessoa@email.com">
         </div>
         <div class="col-md-9">
           <label class="form-label">Endereço</label>
-          <input type="text" id="pfEndereco" class="form-control" value="${u.endereco||''}">
+          <input type="text" id="pfEndereco" class="form-control" value="${escHtml(u.endereco||'')}">
         </div>
         <div class="col-md-3">
           <label class="form-label">Perfil de acesso</label>

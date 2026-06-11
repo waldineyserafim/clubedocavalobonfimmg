@@ -11,13 +11,6 @@ service cloud.firestore {
       return isLoggedIn() && request.auth.uid == userId;
     }
 
-    // Super-UID(s) com passe-livre (ajuste conforme necessário)
-    function isSuperUID() {
-      return isLoggedIn() && (
-        request.auth.uid == "MXOSb23C4eX7G57LMlLg24sxKSD3"
-      );
-    }
-
     // Lê o papel do usuário logado; se não existir doc, devolve string vazia
     function userRoleRaw() {
       return isLoggedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -37,25 +30,31 @@ service cloud.firestore {
       return (userRoleRaw() is string) ? userRoleRaw().lower().trim() : "";
     }
     function isRole(roleName) { return roleLower() == roleName; }
-    function isMaster()    { return isLoggedIn() && (isSuperUID() || roleLower() == "master"); }
+    function isMaster()    { return isLoggedIn() && roleLower() == "master"; }
     function isAdminRole() { return isLoggedIn() && roleLower() == "admin"; }
 
-    // Quem pode operar (admin OU master OU super-UID opcional)
-    function canOperate() { return isMaster() || isAdminRole() || isSuperUID(); }
+    // Quem pode operar (admin OU master)
+    function canOperate() { return isMaster() || isAdminRole(); }
 
     // Associado ativo (pode criar lotes)
     function isAssociadoOrAdmin() {
       return isLoggedIn() && (
-        isRole("associado") || isRole("admin") || isRole("master") || isSuperUID()
+        isRole("associado") || isRole("admin") || isRole("master")
       );
     }
 
-    // Impede que cliente comum troque 'role' e 'status' (aplicado em update de users)
-    function noRoleStatusChange() {
-      return !(
-        "role" in request.resource.data.diff(resource.data).changedKeys() ||
-        "status" in request.resource.data.diff(resource.data).changedKeys()
-      );
+    // Impede que cliente comum altere campos sensíveis (aplicado em update de users)
+    function noSensitiveFieldChange() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return !changed.hasAny([
+        "role",
+        "status",
+        "inadimplenteLeilao",
+        "ativo",
+        "asaasId",
+        "asaasSubscriptionId",
+        "orgId"
+      ]);
     }
 
     // >>> ADIÇÃO: helpers para validação de criação de faturas pelo cliente
@@ -230,7 +229,7 @@ service cloud.firestore {
       // - dono: tudo exceto 'role' e 'status'
       // - admin/master: podem atualizar qualquer campo
       allow update: if
-        (isSelf(userId) && noRoleStatusChange())
+        (isSelf(userId) && noSensitiveFieldChange())
         || canOperate();
 
       // -------- FINANCE (doc 'summary' e outros docs soltos) --------
@@ -274,7 +273,7 @@ service cloud.firestore {
                      ));
       allow list: if
         canOperate()
-        || (isLoggedIn() && request.query != null); // listas filtradas para logados
+        || isAssociadoOrAdmin(); // associados podem listar; participanteLeilao usa apenas get
 
       // Criação: apenas associados (não participanteLeilao)
       allow create: if isAssociadoOrAdmin()
@@ -362,7 +361,8 @@ service cloud.firestore {
 
     match /systemLogs/{logId} {
       allow read: if isMaster();
-      allow create: if isLoggedIn();
+      allow create: if isLoggedIn()
+        && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
 

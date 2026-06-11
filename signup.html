@@ -236,7 +236,7 @@
   }
   function mapErr(e) {
     const c = e?.code || "";
-    if (c.includes("auth/email-already-in-use")) return "E-mail ou CPF já cadastrado.";
+    if (c.includes("auth/email-already-in-use")) return "Não foi possível criar a conta. Entre em contato com o clube se precisar de ajuda.";
     if (c.includes("auth/weak-password"))        return "Senha fraca (use 6+ caracteres).";
     if (c.includes("auth/invalid-email"))        return "E-mail inválido.";
     return e?.message || "Erro ao criar conta.";

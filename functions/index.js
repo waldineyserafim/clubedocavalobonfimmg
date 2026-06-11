@@ -418,6 +418,16 @@ function computeMembership({ invoices = [], summary = {} }) {
 
  
 
+// Escapa entidades HTML para evitar injeção no template de email
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Função auxiliar para formatar data em português
 
 function formatDateBR(date) {
@@ -512,13 +522,13 @@ function generateEmailHtml(data) {
 
           <tr>
 
-            <td>${user.nome}</td>
+            <td>${escHtml(user.nome)}</td>
 
-            <td>${user.apelido || '—'}</td>
+            <td>${escHtml(user.apelido || '—')}</td>
 
-            <td>${user.telefone || '—'}</td>
+            <td>${escHtml(user.telefone || '—')}</td>
 
-            <td>${user.vencimento}</td>
+            <td>${escHtml(user.vencimento)}</td>
 
           </tr>
 
@@ -560,13 +570,13 @@ function generateEmailHtml(data) {
 
           <tr>
 
-            <td>${user.nome}</td>
+            <td>${escHtml(user.nome)}</td>
 
-            <td>${user.apelido || '—'}</td>
+            <td>${escHtml(user.apelido || '—')}</td>
 
-            <td>${user.telefone || '—'}</td>
+            <td>${escHtml(user.telefone || '—')}</td>
 
-            <td>${user.vencimento}</td>
+            <td>${escHtml(user.vencimento)}</td>
 
           </tr>
 
@@ -610,13 +620,13 @@ function generateEmailHtml(data) {
 
           <tr>
 
-            <td>${user.nome}</td>
+            <td>${escHtml(user.nome)}</td>
 
-            <td>${user.apelido || '—'}</td>
+            <td>${escHtml(user.apelido || '—')}</td>
 
-            <td>${user.telefone || '—'}</td>
+            <td>${escHtml(user.telefone || '—')}</td>
 
-            <td>${user.vencimento}</td>
+            <td>${escHtml(user.vencimento)}</td>
 
             <td>${Math.abs(user.diasAtraso)} dias</td>
 
@@ -662,13 +672,13 @@ function generateEmailHtml(data) {
 
           <tr>
 
-            <td>${user.nome}</td>
+            <td>${escHtml(user.nome)}</td>
 
-            <td>${user.apelido || '—'}</td>
+            <td>${escHtml(user.apelido || '—')}</td>
 
-            <td>${user.telefone || '—'}</td>
+            <td>${escHtml(user.telefone || '—')}</td>
 
-            <td>${user.vencimento}</td>
+            <td>${escHtml(user.vencimento)}</td>
 
             <td>${Math.abs(user.diasAtraso)} dias</td>
 
@@ -1707,6 +1717,16 @@ exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
   if (!saleSnap.exists) throw new functions.https.HttpsError('not-found', 'Venda não encontrada.');
 
   const sale = saleSnap.data();
+
+  // Verificar autorização: apenas admin/master ou partes da venda (vendedor/comprador)
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.exists ? (callerSnap.data().role || '') : '');
+  const isAdmin = ['admin', 'master'].includes(callerRole);
+  const isParty = context.auth.uid === sale.sellerUid || context.auth.uid === sale.buyerUid;
+  if (!isAdmin && !isParty) {
+    throw new functions.https.HttpsError('permission-denied', 'Sem permissão para esta operação.');
+  }
+
   if (sale.status !== 'aguardando_pagamento') {
     throw new functions.https.HttpsError('failed-precondition', 'Esta venda não está aguardando pagamento.');
   }
