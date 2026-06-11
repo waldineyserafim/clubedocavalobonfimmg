@@ -85,10 +85,13 @@
 <main class="py-5">
   <div class="container">
 
+    <!-- CMS: conteúdo dinâmico inserido aqui -->
+    <div id="cmsAboutDynamic"></div>
+
     <!-- Missão -->
-    <section class="mb-5">
+    <section class="mb-5" id="secMissao">
       <h2 class="h4 section-title">Missão</h2>
-      <p class="lead-small">
+      <p class="lead-small" id="secMissaoText">
         Promover a cultura equestre, a socialização dos associados e comunidade e o bem-estar dos cavalos.
       </p>
     </section>
@@ -115,9 +118,9 @@
     </section>
 
     <!-- Benefícios -->
-    <section class="mb-5">
+    <section class="mb-5" id="secBeneficios">
       <h2 class="h4 section-title">Benefícios para Associados</h2>
-      <div class="row g-4">
+      <div class="row g-4" id="secBeneficiosContent">
         <div class="col-md-6">
           <ul class="list-unstyled mb-0">
             <li class="mb-2"><span class="icon-bullet">💪</span><strong>Desenvolvimento Físico e Mental:</strong> Atividades equestres promovem saúde e bem-estar.</li>
@@ -246,6 +249,77 @@
 <script type="module">
   import { applyModuleVisibility } from "./firebase.js";
   applyModuleVisibility();
+</script>
+
+<!-- CMS: sobre o clube dinâmico -->
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+  function nl2br(s){ return esc(s).replace(/\n/g,"<br>"); }
+
+  (async () => {
+    try {
+      const snap = await getDoc(doc(db,"cms_about",currentOrgId));
+      if (!snap.exists()) return;
+      const d = snap.data();
+
+      // História
+      if (d.historia?.trim()) {
+        const sec = document.getElementById("cmsAboutDynamic");
+        if (sec) sec.innerHTML = `
+          <section class="mb-5">
+            <h2 class="h4 section-title">História do Clube</h2>
+            <p class="lead-small">${nl2br(d.historia)}</p>
+          </section>`;
+      }
+
+      // Missão
+      if (d.missao?.trim()) {
+        const el = document.getElementById("secMissaoText");
+        if (el) el.innerHTML = nl2br(d.missao);
+      }
+
+      // Visão + Valores (insert after Missão if present)
+      if (d.visao?.trim() || d.valores?.trim()) {
+        const missaoSec = document.getElementById("secMissao");
+        if (missaoSec) {
+          const extra = document.createElement("div");
+          extra.className = "row g-4 mb-5";
+          extra.innerHTML = `
+            ${d.visao?.trim() ? `<div class="col-md-6"><h4 class="h5">Visão</h4><p>${nl2br(d.visao)}</p></div>` : ''}
+            ${d.valores?.trim() ? `<div class="col-md-6"><h4 class="h5">Valores</h4><p>${nl2br(d.valores)}</p></div>` : ''}`;
+          missaoSec.after(extra);
+        }
+      }
+
+      // Texto de Associação (insert before planos section)
+      if (d.textoAssociacao?.trim()) {
+        const planosEl = document.querySelector("#secBeneficios + section") || document.querySelector("section.mt-5");
+        if (planosEl) {
+          const extra = document.createElement("section");
+          extra.className = "mb-5";
+          extra.innerHTML = `<h2 class="h4 section-title">Como se Associar</h2><p class="lead-small">${nl2br(d.textoAssociacao)}</p>`;
+          planosEl.before(extra);
+        }
+      }
+
+      // Benefícios
+      if (d.beneficios?.trim()) {
+        const secContent = document.getElementById("secBeneficiosContent");
+        if (secContent) {
+          const lines = d.beneficios.split("\n").filter(l=>l.trim());
+          secContent.innerHTML = `<div class="col-12"><ul class="list-unstyled mb-0">${
+            lines.map(l => {
+              const clean = l.replace(/^[•\-\*]\s*/,"").trim();
+              return clean ? `<li class="mb-2">• ${esc(clean)}</li>` : '';
+            }).join("")
+          }</ul></div>`;
+        }
+      }
+    } catch(e){ console.warn("CMS sobre:", e); }
+  })();
 </script>
 </body>
 </html>

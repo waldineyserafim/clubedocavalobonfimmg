@@ -89,7 +89,7 @@
     <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
   </div>
 
-  <div class="row row-cols-1 row-cols-md-2 g-4">
+  <div class="row row-cols-1 row-cols-md-2 g-4" id="eventsRow">
 
     <!-- Evento 1 -->
     <div class="col">
@@ -156,6 +156,43 @@
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="container my-5"><div class="alert alert-warning">O módulo de Eventos não está disponível para esta associação.</div></div>';
   });
+</script>
+
+<!-- CMS: eventos dinâmicos -->
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+  function fmtDate(ts){ try{ return ts.toDate().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}); }catch{return"";} }
+  function fmtCurrency(v){ return v>0 ? new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v) : "Gratuito"; }
+
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_events"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("data","asc"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const eventos = snap.docs.map(d=>d.data());
+      const row = document.getElementById("eventsRow");
+      if (!row) return;
+      row.innerHTML = eventos.map(ev => `
+        <div class="col">
+          <div class="card h-100 shadow-sm">
+            ${ev.imagem ? `<div class="event-media"><img src="${esc(ev.imagem)}" alt="${esc(ev.titulo||'Evento')}" loading="lazy" decoding="async"></div>` : ''}
+            <div class="card-body">
+              <h5 class="card-title">${esc(ev.titulo||'Evento')}${ev.eventoDestaque?' <span class="badge bg-warning text-dark ms-1 small">Destaque</span>':''}</h5>
+              ${ev.data ? `<p class="card-text text-secondary mb-1">📅 ${fmtDate(ev.data)}${ev.hora?' — '+esc(ev.hora):''}${ev.local?' — '+esc(ev.local):''}</p>` : ''}
+              ${ev.descricao ? `<p class="card-text">${esc(ev.descricao)}</p>` : ''}
+              <p class="card-text text-primary fw-semibold">${fmtCurrency(ev.valor||0)}</p>
+              ${ev.linkInscricao ? `<a href="${esc(ev.linkInscricao)}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Inscrever-se</a>` : ''}
+            </div>
+          </div>
+        </div>`).join("");
+    } catch(e){ console.warn("CMS eventos:", e); }
+  })();
 </script>
 </body>
 </html>

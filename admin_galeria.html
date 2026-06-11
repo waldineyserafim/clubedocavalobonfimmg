@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+  <title>Admin • Galeria — Clube do Cavalo</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css?v=cms-2025-01a">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root{ --brand:#111279; --accent:#2a9d8f; }
+    .bg-primary{ background-color:var(--brand)!important; }
+    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
+    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
+    .badge-role{ background:var(--accent); }
+    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
+    main.container{ padding-top:1rem; padding-bottom:4rem; }
+
+    /* Album cards */
+    .album-card{ border:1px solid #e9ecef; border-radius:10px; overflow:hidden; transition:box-shadow .15s; }
+    .album-card:hover{ box-shadow:0 4px 16px rgba(0,0,0,.12); }
+    .album-cover{ width:100%; height:160px; object-fit:cover; display:block; background:#f0f0f0; }
+    .album-cover-ph{ width:100%;height:160px;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#adb5bd; }
+
+    /* Photo grid inside modal */
+    .photo-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:8px; }
+    .photo-item{ position:relative; border-radius:6px; overflow:hidden; border:1px solid #dee2e6; }
+    .photo-item img{ width:100%; height:90px; object-fit:cover; display:block; }
+    .photo-item .btn-del-photo{ position:absolute; top:3px; right:3px; width:22px;height:22px;border-radius:50%;border:0;background:rgba(220,53,69,.85);color:#fff;font-size:.75rem;display:flex;align-items:center;justify-content:center;cursor:pointer; }
+
+    /* Upload zone */
+    .upload-zone{ border:2px dashed #ced4da; border-radius:8px; padding:2rem 1rem; text-align:center; cursor:pointer; transition:border-color .15s; }
+    .upload-zone:hover{ border-color:var(--brand); }
+    .upload-zone.dragover{ border-color:var(--accent); background:#e0f2f1; }
+
+    .fab{ position:fixed;bottom:1.5rem;right:1.5rem;width:56px;height:56px;border-radius:50%;font-size:1.6rem;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:1000;display:flex;align-items:center;justify-content:center;border:0;background:var(--brand);color:#fff; }
+    @media(min-width:576px){ .fab{ display:none; } }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container">
+    <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
+        <li class="nav-item me-2"><a class="nav-link" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<header class="border-bottom bg-light">
+  <div class="container py-3 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 mb-1">Conteúdo — Galeria</h1>
+      <p class="text-secondary mb-0">Álbuns de fotos exibidos no site público.</p>
+    </div>
+    <div class="text-md-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
+  </div>
+</header>
+
+<div class="subnav">
+  <div class="container">
+    <div class="d-flex flex-nowrap gap-2 py-2" style="overflow-x:auto">
+      <a class="btn btn-sm btn-outline-primary" href="admin_conteudo.html">Dashboard</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_banners.html">Banners</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_diretoria.html">Diretoria</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_eventos.html">Eventos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_parceiros.html">Parceiros</a>
+      <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Galeria</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_sobre.html">Sobre</a>
+    </div>
+  </div>
+</div>
+
+<main class="container">
+  <!-- New Album Form -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 id="albumFormTitle" class="mb-0">Novo álbum</h5>
+        <button id="btnNewAlbum" class="btn btn-primary d-none d-sm-inline-flex" type="button" data-bs-toggle="collapse" data-bs-target="#albumCollapse">+ Novo álbum</button>
+      </div>
+      <div id="albumCollapse" class="collapse mt-3">
+        <form id="albumForm" class="row g-3">
+          <input type="hidden" id="aId">
+          <div class="col-md-7">
+            <label class="form-label">Título <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="aTitulo" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Data do Evento</label>
+            <input type="date" class="form-control" id="aData">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="aAtivo" checked>
+              <label class="form-check-label" for="aAtivo">Ativo</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="aDesc" rows="2"></textarea>
+          </div>
+          <div class="col-12 d-flex gap-2 flex-wrap align-items-center">
+            <button class="btn btn-primary" type="submit" id="btnSalvarAlbum">Criar álbum</button>
+            <button class="btn btn-light" type="button" id="btnCancelarAlbum">Cancelar</button>
+            <span id="albumMsg" class="small"></span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Albums grid -->
+  <div id="albumsGrid" class="row g-3">
+    <div class="col-12 text-center text-secondary py-4">Carregando álbuns…</div>
+  </div>
+</main>
+
+<!-- Modal: Fotos do Álbum -->
+<div class="modal fade" id="modalFotos" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalFotosTitle">Fotos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="upload-zone mb-3" id="uploadZone">
+          <div class="text-secondary mb-2">📁 Clique ou arraste fotos aqui</div>
+          <div class="small text-muted">JPG/PNG/WEBP • Múltiplas fotos • Máx 5 MB cada</div>
+          <input type="file" id="fotosInput" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
+        </div>
+        <div id="uploadProgress" class="d-none mb-3">
+          <div class="progress" style="height:6px"><div id="progressBar" class="progress-bar bg-success" style="width:0%"></div></div>
+          <div id="uploadMsg" class="small text-secondary mt-1">Enviando…</div>
+        </div>
+        <div id="photosGrid" class="photo-grid mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="fab" id="fabNewAlbum" data-bs-toggle="collapse" data-bs-target="#albumCollapse">+</button>
+
+<footer class="mt-5 py-4 bg-body-tertiary border-top">
+  <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
+    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG.<br><span>Sistema por <u>Serafim Technologies</u></span></div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { requireAuth, currentOrgId, logAction } from "./firebase.js";
+  import { auth, db, storage } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy, doc, getDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { ref as sref, uploadBytesResumable, getDownloadURL, deleteObject }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+  import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) return;
+    try {
+      const snap = await getDoc(doc(db,"users",user.uid));
+      const d = snap.exists() ? snap.data() : {};
+      document.getElementById("opName").textContent = d.nome||"Operador(a)";
+      const role = document.getElementById("opRole");
+      role.textContent = String(d.role||"admin").toLowerCase();
+      role.classList.remove("d-none");
+    } catch {}
+    loadAlbums();
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async () => {
+    try { await signOut(auth); location.href="login.html"; } catch(e){ alert(e.message); }
+  });
+
+  async function compressImage(file) {
+    const img = await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file);});
+    let {width,height}=img; const MAX=1600;
+    if(width>MAX||height>MAX){const r=Math.min(MAX/width,MAX/height);width=Math.round(width*r);height=Math.round(height*r);}
+    const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
+    canvas.getContext("2d").drawImage(img,0,0,width,height);
+    let q=0.85,blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",q));
+    while(blob&&blob.size>300*1024&&q>0.45){q-=0.1;blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",q));}
+    return blob;
+  }
+
+  /* ===== Album form ===== */
+  const aId=document.getElementById("aId"),aTitulo=document.getElementById("aTitulo"),
+    aData=document.getElementById("aData"),aAtivo=document.getElementById("aAtivo"),
+    aDesc=document.getElementById("aDesc"),albumMsg=document.getElementById("albumMsg"),
+    btnSalvarAlbum=document.getElementById("btnSalvarAlbum"),
+    albumCollapse=document.getElementById("albumCollapse"),
+    albumFormTitle=document.getElementById("albumFormTitle");
+
+  document.getElementById("btnCancelarAlbum").addEventListener("click",()=>{resetAlbumForm();bootstrap.Collapse.getOrCreateInstance(albumCollapse).hide();});
+  document.getElementById("btnNewAlbum").addEventListener("click",()=>{resetAlbumForm();albumFormTitle.textContent="Novo álbum";});
+  document.getElementById("fabNewAlbum").addEventListener("click",()=>{resetAlbumForm();albumFormTitle.textContent="Novo álbum";});
+
+  function resetAlbumForm(){aId.value="";aTitulo.value="";aData.value="";aAtivo.checked=true;aDesc.value="";albumMsg.textContent="";btnSalvarAlbum.disabled=false;btnSalvarAlbum.textContent="Criar álbum";}
+  function showAlbumMsg(t,k="info"){albumMsg.textContent=t;albumMsg.className=`small text-${k==="danger"?"danger":k==="success"?"success":"secondary"}`;}
+
+  document.getElementById("albumForm").addEventListener("submit",async(e)=>{
+    e.preventDefault();
+    btnSalvarAlbum.disabled=true;btnSalvarAlbum.textContent="Salvando…";showAlbumMsg("Aguarde…");
+    try{
+      const isEdit=!!aId.value;
+      const dataTs=aData.value?Timestamp.fromDate(new Date(aData.value+"T00:00:00")):null;
+      const payload={
+        orgId:currentOrgId,titulo:aTitulo.value.trim(),descricao:aDesc.value.trim(),
+        data:dataTs,ativo:aAtivo.checked,deleted:false,
+        updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.uid||""
+      };
+      if(isEdit){
+        await updateDoc(doc(db,"cms_gallery",aId.value),payload);
+        await logAction("cms_album_editado",{id:aId.value,titulo:payload.titulo});
+      }else{
+        payload.createdAt=serverTimestamp();payload.createdBy=auth.currentUser?.uid||"";payload.coverUrl="";
+        const ref=await addDoc(collection(db,"cms_gallery"),payload);
+        await logAction("cms_album_criado",{id:ref.id,titulo:payload.titulo});
+      }
+      showAlbumMsg("Salvo!","success");resetAlbumForm();bootstrap.Collapse.getOrCreateInstance(albumCollapse).hide();loadAlbums();
+    }catch(err){showAlbumMsg(err.message,"danger");}
+    finally{btnSalvarAlbum.disabled=false;btnSalvarAlbum.textContent="Salvar álbum";}
+  });
+
+  /* ===== Albums list ===== */
+  let albums=[];
+
+  async function loadAlbums(){
+    document.getElementById("albumsGrid").innerHTML='<div class="col-12 text-center text-secondary py-4">Carregando…</div>';
+    try{
+      const q=query(collection(db,"cms_gallery"),where("orgId","==",currentOrgId),where("deleted","!=",true),orderBy("deleted"),orderBy("updatedAt","desc"));
+      const snap=await getDocs(q);
+      albums=snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderAlbums();
+    }catch(err){document.getElementById("albumsGrid").innerHTML=`<div class="col-12 text-danger">${err.message}</div>`;}
+  }
+
+  function esc(s){const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML;}
+  function fmtDate(ts){if(!ts)return"";try{return ts.toDate().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});}catch{return"";}}
+
+  function renderAlbums(){
+    const grid=document.getElementById("albumsGrid");
+    if(!albums.length){grid.innerHTML='<div class="col-12 text-center text-secondary py-4">Nenhum álbum criado.</div>';return;}
+    grid.innerHTML=albums.map(a=>`
+      <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="album-card">
+          ${a.coverUrl?`<img class="album-cover" src="${a.coverUrl}" alt="">`:
+            `<div class="album-cover-ph">🖼️</div>`}
+          <div class="p-2">
+            <div class="fw-semibold text-truncate">${esc(a.titulo||"—")}</div>
+            <div class="small text-secondary">${fmtDate(a.data)||"Sem data"}</div>
+            <div class="d-flex gap-1 mt-2 flex-wrap">
+              <button class="btn btn-sm btn-outline-primary flex-fill" onclick="openFotos('${a.id}','${esc(a.titulo||"")}')">📷 Fotos</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="editAlbum('${a.id}')">✏️</button>
+              <button class="btn btn-sm ${a.ativo?'btn-outline-warning':'btn-outline-success'}" onclick="toggleAlbum('${a.id}',${a.ativo})">${a.ativo?'⏸':'▶'}</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteAlbum('${a.id}','${esc(a.titulo||"")}')">🗑</button>
+            </div>
+            <div class="mt-1"><span class="badge ${a.ativo?'bg-success':'bg-secondary'}">${a.ativo?'Ativo':'Inativo'}</span></div>
+          </div>
+        </div>
+      </div>`).join("");
+  }
+
+  window.editAlbum=async(id)=>{
+    const a=albums.find(x=>x.id===id);if(!a)return;
+    aId.value=id;aTitulo.value=a.titulo||"";aAtivo.checked=!!a.ativo;aDesc.value=a.descricao||"";
+    if(a.data?.toDate){aData.value=a.data.toDate().toISOString().slice(0,10);}else{aData.value="";}
+    albumFormTitle.textContent="Editar álbum";
+    bootstrap.Collapse.getOrCreateInstance(albumCollapse).show();
+    albumCollapse.scrollIntoView({behavior:"smooth",block:"start"});
+  };
+
+  window.toggleAlbum=async(id,ativo)=>{
+    try{
+      await updateDoc(doc(db,"cms_gallery",id),{ativo:!ativo,updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.uid||""});
+      albums=albums.map(a=>a.id===id?{...a,ativo:!ativo}:a);renderAlbums();
+    }catch(err){alert("Erro: "+err.message);}
+  };
+
+  window.deleteAlbum=async(id,titulo)=>{
+    if(!confirm(`Excluir álbum "${titulo}" e todas as suas fotos?`))return;
+    try{
+      await updateDoc(doc(db,"cms_gallery",id),{deleted:true,deletedAt:serverTimestamp(),deletedBy:auth.currentUser?.uid||""});
+      await logAction("cms_album_excluido",{id,titulo});
+      albums=albums.filter(a=>a.id!==id);renderAlbums();
+    }catch(err){alert("Erro: "+err.message);}
+  };
+
+  /* ===== Modal Fotos ===== */
+  let currentAlbumId="";
+  const modalEl=document.getElementById("modalFotos");
+  const modalFotos=new bootstrap.Modal(modalEl);
+  const uploadZone=document.getElementById("uploadZone");
+  const fotosInput=document.getElementById("fotosInput");
+
+  window.openFotos=async(albumId,titulo)=>{
+    currentAlbumId=albumId;
+    document.getElementById("modalFotosTitle").textContent=`Fotos — ${titulo}`;
+    document.getElementById("photosGrid").innerHTML='<div class="text-secondary small">Carregando…</div>';
+    document.getElementById("uploadProgress").classList.add("d-none");
+    modalFotos.show();
+    loadPhotos(albumId);
+  };
+
+  async function loadPhotos(albumId){
+    try{
+      const q=query(collection(db,"cms_gallery",albumId,"fotos"),orderBy("ordem"));
+      const snap=await getDocs(q);
+      const photos=snap.docs.map(d=>({id:d.id,...d.data()}));
+      renderPhotos(photos);
+    }catch(err){document.getElementById("photosGrid").innerHTML=`<span class="text-danger">${err.message}</span>`;}
+  }
+
+  function renderPhotos(photos){
+    const grid=document.getElementById("photosGrid");
+    if(!photos.length){grid.innerHTML='<div class="text-muted small col-12">Nenhuma foto. Envie fotos acima.</div>';return;}
+    grid.innerHTML=photos.map(p=>`
+      <div class="photo-item" data-photo-id="${p.id}">
+        <img src="${p.fotoUrl}" alt="">
+        <button class="btn-del-photo" onclick="deletePhoto('${currentAlbumId}','${p.id}','${p.fotoPath||""}',this)">×</button>
+      </div>`).join("");
+  }
+
+  uploadZone.addEventListener("click",()=>fotosInput.click());
+  uploadZone.addEventListener("dragover",e=>{e.preventDefault();uploadZone.classList.add("dragover");});
+  uploadZone.addEventListener("dragleave",()=>uploadZone.classList.remove("dragover"));
+  uploadZone.addEventListener("drop",e=>{e.preventDefault();uploadZone.classList.remove("dragover");handleFiles(e.dataTransfer.files);});
+  fotosInput.addEventListener("change",()=>handleFiles(fotosInput.files));
+
+  async function handleFiles(files){
+    if(!files?.length||!currentAlbumId)return;
+    const valid=Array.from(files).filter(f=>f.type.startsWith("image/")&&f.size<=5*1024*1024);
+    if(!valid.length){alert("Nenhuma imagem válida (máx 5 MB cada).");return;}
+    const progressDiv=document.getElementById("uploadProgress");
+    const progressBar=document.getElementById("progressBar");
+    const uploadMsg=document.getElementById("uploadMsg");
+    progressDiv.classList.remove("d-none");progressBar.style.width="0%";
+    let done=0;
+    for(const file of valid){
+      uploadMsg.textContent=`Enviando ${done+1}/${valid.length}: ${file.name}`;
+      const blob=await compressImage(file);
+      const fname=`${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const path=`tenants/${currentOrgId}/cms/galeria/${currentAlbumId}/${fname}`;
+      const r=sref(storage,path);
+      const task=uploadBytesResumable(r,blob,{contentType:"image/jpeg",cacheControl:"public,max-age=31536000,immutable"});
+      await new Promise((res,rej)=>task.on("state_changed",null,rej,res));
+      const fotoUrl=await getDownloadURL(r);
+      const fotosCol=collection(db,"cms_gallery",currentAlbumId,"fotos");
+      const snap=await getDocs(fotosCol);
+      const ordem=snap.size+1;
+      await addDoc(fotosCol,{fotoUrl,fotoPath:path,ordem,createdAt:serverTimestamp()});
+      // update album cover if first photo
+      if(ordem===1){
+        const alb=albums.find(a=>a.id===currentAlbumId);
+        if(alb&&!alb.coverUrl){
+          await updateDoc(doc(db,"cms_gallery",currentAlbumId),{coverUrl:fotoUrl,updatedAt:serverTimestamp()});
+          alb.coverUrl=fotoUrl;renderAlbums();
+        }
+      }
+      done++;progressBar.style.width=`${Math.round(done/valid.length*100)}%`;
+    }
+    uploadMsg.textContent=`${done} foto(s) enviada(s)!`;
+    fotosInput.value="";
+    setTimeout(()=>progressDiv.classList.add("d-none"),2500);
+    loadPhotos(currentAlbumId);
+    await logAction("cms_fotos_adicionadas",{albumId:currentAlbumId,count:done});
+  }
+
+  window.deletePhoto=async(albumId,photoId,fotoPath,btn)=>{
+    if(!confirm("Remover esta foto?"))return;
+    try{
+      await deleteDoc(doc(db,"cms_gallery",albumId,"fotos",photoId));
+      if(fotoPath){try{await deleteObject(sref(storage,fotoPath));}catch{}}
+      btn.closest(".photo-item").remove();
+      await logAction("cms_foto_excluida",{albumId,photoId});
+      // refresh cover if needed
+      loadPhotos(albumId);
+    }catch(err){alert("Erro: "+err.message);}
+  };
+</script>
+</body>
+</html>

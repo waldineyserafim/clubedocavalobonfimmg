@@ -63,7 +63,8 @@
     </div>
   </div>
 </nav>
-<main class="container py-5">
+<div id="cmsBoardDynamic"></div>
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Diretoria Executiva</h1>
     <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
@@ -76,7 +77,7 @@
     
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Conselho Fundador</h1>
    </div>
@@ -97,7 +98,7 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets/fotos/serafim.png><div class="card-body"><p class="mb-1">Serafim</p><p class="text-secondary small">Waldiney Jose Costa Serafim</p></div></div></div>
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Conselho Fiscal</h1>
    </div>
@@ -106,7 +107,7 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets/fotos/antu.png><div class="card-body"><p class="mb-1">Antu</p><p class="text-secondary small">Antu Sergio Lopes da Silva</p></div></div></div>
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Diretoria de Eventos</h1>
     </div>
@@ -115,7 +116,7 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets/fotos/mariana.png><div class="card-body"><p class="mb-1">Mariana</p><p class="text-secondary small">Mariana Parreiras Marques</p></div></div></div>
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Diretoria Técnica Esportiva</h1>
    </div>
@@ -126,7 +127,7 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets/fotos/tiago.png><div class="card-body"><p class="mb-1">Tiago</p><p class="text-secondary small">Tiago Rafael Mendes de Lima Aguiar</p></div></div></div>
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Diretoria de Marketing e Comunicação</h1>
    </div>
@@ -135,7 +136,7 @@
     <div class="col"><div class="card h-100 text-center"><img class="img-fluid foto-diretoria" src=assets/fotos/mariana.png><div class="card-body"><p class="mb-1">Mariana</p><p class="text-secondary small">Mariana Parreiras Marques</p></div></div></div>
   </div>
 </main>
-<main class="container py-5">
+<main class="container py-5" data-board-static>
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3">Diretoria de Associados</h1>
    </div>
@@ -204,6 +205,67 @@
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="container my-5"><div class="alert alert-warning">O módulo de Diretoria não está disponível para esta associação.</div></div>';
   });
+</script>
+
+<!-- CMS: diretoria dinâmica -->
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_board"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const members = snap.docs.map(d=>d.data());
+
+      // Group by categoria
+      const cats = {};
+      members.forEach(m => {
+        const cat = m.categoria || "Diretoria";
+        if (!cats[cat]) cats[cat] = [];
+        cats[cat].push(m);
+      });
+
+      const wrap = document.getElementById("cmsBoardDynamic");
+      if (!wrap) return;
+
+      const catOrder = ["Diretoria Executiva","Conselho Fiscal","Conselho Fundador","Conselho Consultivo","Outros"];
+      const sortedCats = Object.keys(cats).sort((a,b)=>{
+        const ia=catOrder.indexOf(a), ib=catOrder.indexOf(b);
+        return (ia<0?99:ia)-(ib<0?99:ib);
+      });
+
+      wrap.innerHTML = sortedCats.map(cat => `
+        <div class="container py-4">
+          <h2 class="h3 mb-4">${esc(cat)}</h2>
+          <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4">
+            ${cats[cat].map(m => `
+              <div class="col">
+                <div class="card h-100 text-center shadow-sm">
+                  ${m.foto
+                    ? `<img class="img-fluid foto-diretoria mt-3 mx-auto" src="${esc(m.foto)}" alt="${esc(m.nome)}" loading="lazy">`
+                    : `<div class="d-flex align-items-center justify-content-center mt-3" style="font-size:3rem;height:80px;">👤</div>`}
+                  <div class="card-body pt-2">
+                    <h5 class="card-title mb-0">${esc(m.cargo||"")}</h5>
+                    <p class="mb-1 fw-semibold">${esc(m.nome||"")}</p>
+                    ${m.descricao ? `<p class="text-secondary small">${esc(m.descricao)}</p>` : ''}
+                    ${m.whatsapp ? `<a href="https://wa.me/${esc(m.whatsapp)}" class="btn btn-outline-success btn-sm mt-1" target="_blank">WhatsApp</a>` : ''}
+                  </div>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>`).join("<hr class='my-0'>");
+
+      // Hide static sections since CMS data is loaded
+      document.querySelectorAll("[data-board-static]").forEach(el => el.style.display="none");
+    } catch(e){ console.warn("CMS diretoria:", e); }
+  })();
 </script>
 </body>
 </html>

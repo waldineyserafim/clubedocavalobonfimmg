@@ -142,12 +142,12 @@
 <!-- CARROSSEL -->
 <section class="position-relative mb-0">
   <div id="bannerCarousel" class="carousel slide hero-carousel" data-bs-ride="carousel" data-bs-interval="6000">
-    <div class="carousel-indicators">
+    <div class="carousel-indicators" id="carouselIndicators">
       <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
       <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
       <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
     </div>
-    <div class="carousel-inner">
+    <div class="carousel-inner" id="carouselInner">
       <div class="carousel-item active">
         <img src="assets/banners/banner4.png?v=ccbmg-2025-09-10d" class="d-block w-100" alt="Banner 1" loading="lazy">
       </div>
@@ -225,7 +225,7 @@
 <section class="bg-body-secondary py-5">
   <div class="container">
     <h2 class="h4 mb-4">Parceiros</h2>
-    <div class="row g-4 align-items-center">
+    <div class="row g-4 align-items-center" id="homePartnersRow">
       <div class="col-6 col-md-3 d-flex justify-content-center">
         <img class="img-fluid partner-logo" src="assets/parceiro/logoEquusProNutrition.png?v=ccbmg-2025-09-10d" alt="Equus ProNutrition" loading="lazy">
       </div>
@@ -359,6 +359,62 @@
   });
 
   setTimeout(() => evaluateAndToggle(auth.currentUser || null), 1000);
+</script>
+
+<!-- CMS: banners e parceiros dinâmicos -->
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+
+  // Banners
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_banners"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const banners = snap.docs.map(d=>d.data());
+      const inner = document.getElementById("carouselInner");
+      const indicators = document.getElementById("carouselIndicators");
+      if (!inner) return;
+      inner.innerHTML = banners.map((b,i) => `
+        <div class="carousel-item ${i===0?'active':''}">
+          ${b.link
+            ? `<a href="${esc(b.link)}" target="_blank" rel="noopener"><img src="${esc(b.imagemUrl)}" class="d-block w-100" alt="${esc(b.titulo||'Banner')}"></a>`
+            : `<img src="${esc(b.imagemUrl)}" class="d-block w-100" alt="${esc(b.titulo||'Banner')}" loading="lazy">`}
+          ${b.titulo ? `<div class="carousel-caption d-none d-md-block"><h5>${esc(b.titulo)}</h5>${b.subtitulo?`<p>${esc(b.subtitulo)}</p>`:''}</div>` : ''}
+        </div>`).join("");
+      if (indicators) {
+        indicators.innerHTML = banners.map((_,i) =>
+          `<button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="${i}" ${i===0?'class="active" aria-current="true"':''} aria-label="Slide ${i+1}"></button>`
+        ).join("");
+      }
+    } catch {}
+  })();
+
+  // Parceiros da home
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_partners"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const parceiros = snap.docs.map(d=>d.data());
+      const row = document.getElementById("homePartnersRow");
+      if (!row) return;
+      row.innerHTML = parceiros.map(p => `
+        <div class="col-6 col-md-3 d-flex justify-content-center">
+          ${p.site
+            ? `<a href="${esc(p.site)}" target="_blank" rel="noopener" title="${esc(p.nome)}">${p.logo ? `<img class="img-fluid partner-logo" src="${esc(p.logo)}" alt="${esc(p.nome)}" loading="lazy">` : `<span class="fw-semibold">${esc(p.nome)}</span>`}</a>`
+            : (p.logo ? `<img class="img-fluid partner-logo" src="${esc(p.logo)}" alt="${esc(p.nome)}" loading="lazy">` : `<span class="fw-semibold">${esc(p.nome)}</span>`)}
+        </div>`).join("");
+    } catch {}
+  })();
 </script>
 </body>
 </html>

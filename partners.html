@@ -64,7 +64,7 @@
     <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
   </div>
   <p>Empresas e criatórios que apoiam o Clube do Cavalo.</p>
-  <div class="row g-4">
+  <div class="row g-4" id="partnersRow">
     <div class="col-6 col-md-3 d-flex align-items-center justify-content-center">
       <img class="img-fluid partner-logo" src="assets/parceiro/logoEquusProNutrition.png" alt="Equus Pro Nutrition">
     </div>
@@ -105,6 +105,37 @@
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="container my-5"><div class="alert alert-warning">O módulo de Parcerias não está disponível para esta associação.</div></div>';
   });
+</script>
+
+<!-- CMS: parceiros dinâmicos -->
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_partners"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("ordem"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const parceiros = snap.docs.map(d=>d.data());
+      const row = document.getElementById("partnersRow");
+      if (!row) return;
+      row.innerHTML = parceiros.map(p => {
+        const logo = p.logo
+          ? `<img class="img-fluid partner-logo" src="${esc(p.logo)}" alt="${esc(p.nome)}" loading="lazy">`
+          : `<div class="fw-semibold text-center">${esc(p.nome)}</div>`;
+        const inner = p.site
+          ? `<a href="${esc(p.site)}" target="_blank" rel="noopener" title="${esc(p.nome)}">${logo}</a>`
+          : logo;
+        return `<div class="col-6 col-md-3 d-flex align-items-center justify-content-center">${inner}</div>`;
+      }).join("");
+    } catch(e){ console.warn("CMS parceiros:", e); }
+  })();
 </script>
 </body>
 </html>

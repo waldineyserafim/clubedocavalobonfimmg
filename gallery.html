@@ -59,7 +59,7 @@
     <h1 class="h3">Galeria de Fotos</h1>
     <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
   </div>
-  <div class="row g-3">
+  <div class="row g-3" id="galleryRow">
     <div class="col-12 col-sm-6 col-lg-7"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto1.jpg" alt="Primeiras reuniões do CCBMG"></div>
     <div class="col-6 col-sm-6 col-lg-5"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto2.jpg" alt="Reunião com prefeito de Bonfim-MG"></div>
     <div class="col-6 col-sm-4 col-lg-4"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto3.jpg" alt="Reunião com presidente da câmara de vereadores de Bonfim-MG"></div>
@@ -83,6 +83,104 @@
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="container my-5"><div class="alert alert-warning">O módulo de Galeria não está disponível para esta associação.</div></div>';
   });
+</script>
+
+<!-- CMS: galeria dinâmica com lightbox -->
+<style>
+  .gallery-album-title{ font-weight:600; margin-top:.5rem; font-size:.9rem; }
+  .gallery-thumb-wrap{ cursor:pointer; overflow:hidden; border-radius:8px; }
+  .gallery-thumb-wrap img{ transition:transform .2s; width:100%; }
+  .gallery-thumb-wrap:hover img{ transform:scale(1.04); }
+  #lightboxOverlay{ position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column; }
+  #lightboxOverlay img{ max-width:95vw;max-height:85vh;object-fit:contain;border-radius:8px; }
+  #lightboxClose{ position:fixed;top:1rem;right:1.25rem;font-size:2rem;color:#fff;cursor:pointer;background:none;border:0;line-height:1; }
+  #lightboxNav{ display:flex;gap:2rem;margin-top:.75rem; }
+  #lightboxNav button{ background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:50%;width:44px;height:44px;font-size:1.2rem;cursor:pointer; }
+</style>
+<div id="lightboxOverlay" style="display:none">
+  <button id="lightboxClose">×</button>
+  <img id="lightboxImg" src="" alt="">
+  <div id="lightboxNav">
+    <button id="lightboxPrev">‹</button>
+    <button id="lightboxNext">›</button>
+  </div>
+</div>
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { collection, getDocs, query, where, orderBy }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  function esc(s){ const d=document.createElement("div");d.textContent=String(s||"");return d.innerHTML; }
+  function fmtDate(ts){ try{ return ts.toDate().toLocaleDateString("pt-BR",{month:"short",year:"numeric"}); }catch{return"";} }
+
+  let lightboxPhotos=[]; let lightboxIdx=0;
+
+  function openLightbox(photos, idx){ lightboxPhotos=photos; lightboxIdx=idx; showLightboxPhoto(); document.getElementById("lightboxOverlay").style.display="flex"; }
+  function showLightboxPhoto(){ document.getElementById("lightboxImg").src=lightboxPhotos[lightboxIdx]||""; }
+  document.getElementById("lightboxClose").addEventListener("click",()=>{ document.getElementById("lightboxOverlay").style.display="none"; });
+  document.getElementById("lightboxPrev").addEventListener("click",()=>{ lightboxIdx=(lightboxIdx-1+lightboxPhotos.length)%lightboxPhotos.length; showLightboxPhoto(); });
+  document.getElementById("lightboxNext").addEventListener("click",()=>{ lightboxIdx=(lightboxIdx+1)%lightboxPhotos.length; showLightboxPhoto(); });
+  document.addEventListener("keydown",(e)=>{
+    if(document.getElementById("lightboxOverlay").style.display!=="flex")return;
+    if(e.key==="ArrowLeft")document.getElementById("lightboxPrev").click();
+    if(e.key==="ArrowRight")document.getElementById("lightboxNext").click();
+    if(e.key==="Escape")document.getElementById("lightboxClose").click();
+  });
+
+  (async () => {
+    try {
+      const q = query(collection(db,"cms_gallery"),
+        where("orgId","==",currentOrgId), where("ativo","==",true),
+        where("deleted","!=",true), orderBy("deleted"), orderBy("updatedAt","desc"));
+      const snap = await getDocs(q);
+      if (snap.empty) return;
+      const albums = snap.docs.map(d=>({id:d.id,...d.data()}));
+
+      // Load photos for each album
+      const albumPhotos = {};
+      for (const album of albums) {
+        try {
+          const pq = query(collection(db,"cms_gallery",album.id,"fotos"), orderBy("ordem"));
+          const ps = await getDocs(pq);
+          albumPhotos[album.id] = ps.docs.map(d=>d.data().fotoUrl).filter(Boolean);
+        } catch { albumPhotos[album.id] = []; }
+      }
+
+      const row = document.getElementById("galleryRow");
+      if (!row) return;
+
+      // Build gallery: albums with photos
+      const cols = [];
+      for (const album of albums) {
+        const photos = albumPhotos[album.id] || [];
+        if (!photos.length && !album.coverUrl) continue;
+        const allPhotos = photos.length ? photos : [album.coverUrl];
+
+        cols.push(`
+          <div class="col-6 col-md-4 col-lg-3">
+            <div class="gallery-thumb-wrap shadow-sm" onclick="openGalleryAlbum('${album.id}')">
+              <img src="${esc(album.coverUrl||allPhotos[0])}" alt="${esc(album.titulo)}" loading="lazy">
+            </div>
+            <div class="gallery-album-title">${esc(album.titulo)}</div>
+            ${album.data?`<div class="text-muted small">${fmtDate(album.data)}</div>`:''}
+            <div class="text-muted small">${allPhotos.length} foto(s)</div>
+          </div>`);
+      }
+
+      if (!cols.length) return;
+      row.innerHTML = cols.join("");
+
+      // Store photos globally for lightbox
+      window._galleryAlbumPhotos = albumPhotos;
+      window._galleryAlbums = albums;
+    } catch(e){ console.warn("CMS galeria:", e); }
+  })();
+
+  window.openGalleryAlbum = (albumId) => {
+    const photos = window._galleryAlbumPhotos?.[albumId];
+    if (!photos?.length) return;
+    openLightbox(photos, 0);
+  };
 </script>
 </body>
 </html>
