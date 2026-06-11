@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seed CMS — CCBMG</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root{ --brand:#111279; }
+    body{ background:#f4f6fb; }
+    pre{ background:#1e1e2e; color:#cdd6f4; border-radius:8px; padding:1rem; font-size:.78rem; max-height:460px; overflow-y:auto; }
+  </style>
+</head>
+<body class="p-4">
+<div class="container" style="max-width:760px">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h2 class="h4 mb-1">Seed CMS — CCBMG</h2>
+      <p class="text-secondary small mb-3">Insere o conteúdo estático existente nas coleções Firestore do CMS. Execute apenas uma vez enquanto estiver logado como admin.</p>
+      <button id="btnSeed" class="btn btn-primary">▶ Executar Seed</button>
+      <button id="btnClear" class="btn btn-outline-danger ms-2" style="display:none">🗑 Limpar coleções (CUIDADO)</button>
+      <hr>
+      <pre id="log">Aguardando…</pre>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { requireAuth } from "./firebase.js";
+import { auth, db, currentOrgId } from "./firebase.js";
+import {
+  collection, addDoc, setDoc, doc, serverTimestamp, writeBatch, getDocs, query, where
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+requireAuth({ requiredRole: ["admin","master","Admin","Master"] });
+
+const BASE = "https://clubedocavalobonfim.com.br/";
+const img  = p => BASE + p;
+const log  = (msg, cls="") => {
+  const el = document.getElementById("log");
+  el.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+};
+
+// ── DATA ────────────────────────────────────────────────────────────────────
+
+const BANNERS = [
+  { titulo:"", imagemUrl: img("assets/banners/banner4.png"), ordem:1, ativo:true },
+  { titulo:"", imagemUrl: img("assets/banners/banner2.png"), ordem:2, ativo:true },
+  { titulo:"", imagemUrl: img("assets/banners/banner3.png"), ordem:3, ativo:true },
+];
+
+const EVENTS = [
+  {
+    titulo:"Inauguração do Clube do Cavalo Bonfim-MG",
+    imagem: img("assets/img/inauguracao.jpg"),
+    data: new Date("2025-12-06"),
+    hora:"",
+    local:"Cantinho do Vale",
+    descricao:"Entrada gratuita.",
+    valor:0,
+    eventoDestaque:false,
+    linkInscricao:"",
+    ativo:true,
+  },
+  {
+    titulo:"1ª Cavalgada do Clube do Cavalo",
+    imagem: img("assets/img/cavalgada.jpeg.jpeg"),
+    data: new Date("2026-01-24"),
+    hora:"11h",
+    local:"Clube Beriso",
+    descricao:"Percurso de 15 km com apoio veterinário e pontos de hidratação.",
+    valor:0,
+    eventoDestaque:false,
+    linkInscricao:"",
+    ativo:true,
+  },
+];
+
+const PARTNERS = [
+  { nome:"Equus Pro Nutrition",        logo: img("assets/parceiro/logoEquusProNutrition.png"), site:"", ordem:1, ativo:true },
+  { nome:"Muralha de Pedra",           logo: img("assets/parceiro/logoMuralhadePedra.jpg"),    site:"", ordem:2, ativo:true },
+  { nome:"Julio Andrade",              logo: img("assets/parceiro/logoJulioAndrade.png"),       site:"", ordem:3, ativo:true },
+  { nome:"Calabar",                    logo: img("assets/parceiro/logoCalabar.png"),            site:"", ordem:4, ativo:true },
+  { nome:"Dudu Catireiro",             logo: img("assets/parceiro/duducatireiro.jpg"),          site:"", ordem:5, ativo:true },
+  { nome:"Dudu",                       logo: img("assets/parceiro/dudu.png"),                   site:"", ordem:6, ativo:true },
+  { nome:"Câmara Municipal de Bonfim MG", logo: img("assets/parceiro/camaramunicipal.png"),    site:"", ordem:7, ativo:true },
+];
+
+const BOARD = [
+  // Diretoria Executiva
+  { nome:"Waldiney Jose Costa Serafim",             cargo:"Presidente",          categoria:"Diretoria Executiva",          foto: img("assets/fotos/serafim.png"),   ordem:1,  ativo:true },
+  { nome:"Carlos Henrique Balthazar da Silveira Silva", cargo:"Vice-Presidente", categoria:"Diretoria Executiva",          foto: img("assets/fotos/carlao.png"),    ordem:2,  ativo:true },
+  { nome:"Leonardo Mauricio Borges Silva",          cargo:"Diretor Financeiro",  categoria:"Diretoria Executiva",          foto: img("assets/fotos/leo.png"),       ordem:3,  ativo:true },
+  { nome:"Mariana Parreiras Marques",               cargo:"Secretaria",          categoria:"Diretoria Executiva",          foto: img("assets/fotos/mariana.png"),   ordem:4,  ativo:true },
+  // Conselho Fundador
+  { nome:"Agnaldo Ferreira de Amorim",              cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/agnaldo.png"),   ordem:10, ativo:true },
+  { nome:"Carlos Henrique Balthazar da Silveira Silva", cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",       foto: img("assets/fotos/carlao.png"),    ordem:11, ativo:true },
+  { nome:"Carlos Heugenio da Silva Rocha",          cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/carlito.png"),   ordem:12, ativo:true },
+  { nome:"Diógenes Carvalho de Souza",              cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/diogenes.jpg"),  ordem:13, ativo:true },
+  { nome:"Eduardo Baptista Rocha",                  cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/dudu.png"),      ordem:14, ativo:true },
+  { nome:"Fabio Junior Ferreira Ramos",             cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/fabim.png"),     ordem:15, ativo:true },
+  { nome:"Geovana Julia Barbosa Amorim",            cargo:"Conselheira Fundadora", categoria:"Conselho Fundador",          foto: img("assets/fotos/geovana.png"),   ordem:16, ativo:true },
+  { nome:"Gustavo Antonio de Oliveira Carmo",       cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/gustavo.png"),   ordem:17, ativo:true },
+  { nome:"Julio Pires de Andrade",                  cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/julio.png"),     ordem:18, ativo:true },
+  { nome:"Junio Teodorico de Oliveira Mota",        cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/junin.png"),     ordem:19, ativo:true },
+  { nome:"Leonardo Mauricio Borges Silva",          cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/leo.png"),       ordem:20, ativo:true },
+  { nome:"Mariana Parreiras Marques",               cargo:"Conselheira Fundadora", categoria:"Conselho Fundador",          foto: img("assets/fotos/mariana.png"),   ordem:21, ativo:true },
+  { nome:"Tiago Rafael Mendes de Lima Aguiar",      cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/tiago.png"),     ordem:22, ativo:true },
+  { nome:"Waldiney Jose Costa Serafim",             cargo:"Conselheiro Fundador", categoria:"Conselho Fundador",           foto: img("assets/fotos/serafim.png"),   ordem:23, ativo:true },
+  // Conselho Fiscal
+  { nome:"Tiago Rafael Mendes de Lima Aguiar",      cargo:"Conselheiro Fiscal",   categoria:"Conselho Fiscal",             foto: img("assets/fotos/tiago.png"),     ordem:30, ativo:true },
+  { nome:"Antu Sergio Lopes da Silva",              cargo:"Conselheiro Fiscal",   categoria:"Conselho Fiscal",             foto: img("assets/fotos/antu.png"),      ordem:31, ativo:true },
+  // Diretoria de Eventos
+  { nome:"Gustavo Antonio de Oliveira Carmo",       cargo:"Diretor de Eventos",   categoria:"Diretoria de Eventos",        foto: img("assets/fotos/gustavo.png"),   ordem:40, ativo:true },
+  { nome:"Mariana Parreiras Marques",               cargo:"Diretora de Eventos",  categoria:"Diretoria de Eventos",        foto: img("assets/fotos/mariana.png"),   ordem:41, ativo:true },
+  // Diretoria Técnica Esportiva
+  { nome:"Geovana Julia Barbosa Amorim",            cargo:"Diretora Técnica",     categoria:"Diretoria Técnica Esportiva", foto: img("assets/fotos/geovana.png"),   ordem:50, ativo:true },
+  { nome:"Julio Pires de Andrade",                  cargo:"Diretor Técnico",      categoria:"Diretoria Técnica Esportiva", foto: img("assets/fotos/julio.png"),     ordem:51, ativo:true },
+  { nome:"Junio Teodorico de Oliveira Mota",        cargo:"Diretor Técnico",      categoria:"Diretoria Técnica Esportiva", foto: img("assets/fotos/junin.png"),     ordem:52, ativo:true },
+  { nome:"Tiago Rafael Mendes de Lima Aguiar",      cargo:"Diretor Técnico",      categoria:"Diretoria Técnica Esportiva", foto: img("assets/fotos/tiago.png"),     ordem:53, ativo:true },
+  // Diretoria de Marketing e Comunicação
+  { nome:"Gustavo Antonio de Oliveira Carmo",       cargo:"Diretor de Marketing", categoria:"Diretoria de Marketing e Comunicação", foto: img("assets/fotos/gustavo.png"), ordem:60, ativo:true },
+  { nome:"Mariana Parreiras Marques",               cargo:"Diretora de Marketing", categoria:"Diretoria de Marketing e Comunicação", foto: img("assets/fotos/mariana.png"), ordem:61, ativo:true },
+  // Diretoria de Associados
+  { nome:"Eduardo Baptista Rocha",                  cargo:"Diretor de Associados", categoria:"Diretoria de Associados",    foto: img("assets/fotos/dudu.png"),      ordem:70, ativo:true },
+  { nome:"Fabio Junior Ferreira Ramos",             cargo:"Diretor de Associados", categoria:"Diretoria de Associados",    foto: img("assets/fotos/fabim.png"),     ordem:71, ativo:true },
+  { nome:"Flavia Geralda Silva",                    cargo:"Diretora de Associados", categoria:"Diretoria de Associados",   foto: img("assets/fotos/flavia.png"),    ordem:72, ativo:true },
+];
+
+const GALLERY_ALBUM = {
+  titulo:"Registros do Clube",
+  coverUrl: img("assets/fotos/foto1.jpg"),
+  descricao:"",
+  ativo:true,
+};
+const GALLERY_FOTOS = [
+  { fotoUrl: img("assets/fotos/foto1.jpg"), legenda:"Primeiras reuniões do CCBMG",                                        ordem:1 },
+  { fotoUrl: img("assets/fotos/foto2.jpg"), legenda:"Reunião com prefeito de Bonfim-MG",                                  ordem:2 },
+  { fotoUrl: img("assets/fotos/foto3.jpg"), legenda:"Reunião com presidente da câmara de vereadores de Bonfim-MG",       ordem:3 },
+  { fotoUrl: img("assets/fotos/foto4.jpg"), legenda:"Reunião com fundadores do Clube do Cavalo",                          ordem:4 },
+];
+
+const ABOUT = {
+  missao:"Promover a cultura equestre, a socialização dos associados e comunidade e o bem-estar dos cavalos.",
+  historia:"",
+  visao:"",
+  valores:"",
+  textoAssociacao:"",
+  beneficios:"",
+};
+
+// ── SEED ────────────────────────────────────────────────────────────────────
+
+async function seed() {
+  const btn = document.getElementById("btnSeed");
+  btn.disabled = true;
+  btn.textContent = "⏳ Executando…";
+  document.getElementById("log").innerHTML = "";
+
+  try {
+    log("=== SEED CMS CCBMG ===\n");
+    const ORG = currentOrgId;
+    const ts  = { orgId: ORG, deleted: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+
+    // BANNERS
+    log("── Banners ──");
+    for (const b of BANNERS) {
+      await addDoc(collection(db,"cms_banners"), { ...b, ...ts });
+      log(`  ✅ Banner ${b.ordem}: ${b.imagemUrl.split("/").pop()}`);
+    }
+
+    // EVENTS
+    log("\n── Eventos ──");
+    for (const e of EVENTS) {
+      const payload = { ...e, ...ts };
+      payload.data = e.data; // native Date → Firestore converts automatically
+      await addDoc(collection(db,"cms_events"), payload);
+      log(`  ✅ ${e.titulo}`);
+    }
+
+    // PARTNERS
+    log("\n── Parceiros ──");
+    for (const p of PARTNERS) {
+      await addDoc(collection(db,"cms_partners"), { ...p, ...ts });
+      log(`  ✅ ${p.nome}`);
+    }
+
+    // BOARD
+    log("\n── Diretoria ──");
+    for (const m of BOARD) {
+      await addDoc(collection(db,"cms_board"), { ...m, ...ts });
+      log(`  ✅ [${m.categoria}] ${m.nome} — ${m.cargo}`);
+    }
+
+    // GALLERY
+    log("\n── Galeria ──");
+    const albumRef = await addDoc(collection(db,"cms_gallery"), { ...GALLERY_ALBUM, ...ts });
+    log(`  ✅ Álbum criado: "${GALLERY_ALBUM.titulo}" (id: ${albumRef.id})`);
+    for (const f of GALLERY_FOTOS) {
+      await addDoc(collection(db,"cms_gallery",albumRef.id,"fotos"), { ...f, updatedAt: serverTimestamp() });
+      log(`     📷 ${f.legenda}`);
+    }
+
+    // ABOUT
+    log("\n── Sobre o Clube ──");
+    await setDoc(doc(db,"cms_about",ORG), { ...ABOUT, ...ts }, { merge:true });
+    log(`  ✅ Documento cms_about/${ORG} salvo`);
+
+    log("\n\n✅ SEED CONCLUÍDO COM SUCESSO!\nAbra admin_banners.html, admin_eventos.html, etc. para verificar.");
+    btn.textContent = "✅ Concluído";
+    btn.className = "btn btn-success";
+
+  } catch(err) {
+    log(`\n❌ ERRO: ${err.message}`, "text-danger");
+    console.error(err);
+    btn.disabled = false;
+    btn.textContent = "▶ Tentar novamente";
+  }
+}
+
+document.getElementById("btnSeed").addEventListener("click", seed);
+</script>
+</body>
+</html>
