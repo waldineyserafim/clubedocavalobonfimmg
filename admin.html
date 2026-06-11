@@ -25,16 +25,16 @@
     header .container{ padding-top:1rem; padding-bottom:1rem; }
     @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
     .badge-role{ background:var(--accent); }
-    main.container{ padding-top:1rem; padding-bottom:1.25rem; }
+    main.container{ padding-top:1.25rem; padding-bottom:2rem; max-width:680px; }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
     @media (min-width: 992px){ .brand-logo{ height:42px; } }
-    .app-grid{ display:grid; gap:16px; grid-template-columns: repeat(1,1fr); }
-    @media (min-width:576px){ .app-grid{ grid-template-columns: repeat(2,1fr); } }
-    @media (min-width:992px){ .app-grid{ grid-template-columns: repeat(4,1fr); } }
-    .app-card{ border:1px solid #e9ecef; border-radius:14px; padding:18px; transition:.2s; background:#fff; height:100%; }
-    .app-card:hover{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(17,18,121,.08); }
-    .app-card h3{ font-size:1.05rem; margin:0 0 .25rem; }
-    .app-card p{ margin:0; color:#6c757d; font-size:.925rem; }
+    .mod-card{ border:0; box-shadow:0 1px 8px rgba(0,0,0,.08); border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:14px; text-decoration:none; color:inherit; background:#fff; transition:transform .15s,box-shadow .15s; }
+    .mod-card:hover{ transform:translateY(-2px); box-shadow:0 4px 16px rgba(17,18,121,.1); }
+    .mod-icon{ width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0; }
+    .mod-label{ font-weight:600; font-size:.97rem; margin:0 0 .1rem; }
+    .mod-sub{ font-size:.82rem; color:#6c757d; margin:0; }
+    .mod-arrow{ margin-left:auto; color:#ced4da; font-size:1.2rem; }
+    .sec-title{ font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8e9aaf; margin:1.5rem 0 .6rem; }
   </style>
 </head>
 <body>
@@ -69,44 +69,70 @@
 </header>
 
 <main class="container">
-  <div class="app-grid">
-    <a class="text-decoration-none" href="admin_associados.html" data-module="associados">
-      <div class="app-card">
-        <h3>Associados</h3>
-        <p>Cadastro, busca e financeiro.</p>
-      </div>
+
+  <p class="sec-title">Gestão Geral da Associação</p>
+  <div class="d-flex flex-column gap-2">
+    <a class="mod-card" href="admin_associados.html" data-module="associados">
+      <div class="mod-icon" style="background:#e8f0fe">👤</div>
+      <div><p class="mod-label">Associados</p><p class="mod-sub">Cadastro, busca e financeiro.</p></div>
+      <span class="mod-arrow">›</span>
     </a>
-    <a class="text-decoration-none" href="admin_produtos.html" data-module="produtos">
-      <div class="app-card">
-        <h3>Produtos</h3>
-        <p>Benefícios e ofertas para associados.</p>
-      </div>
+    <a class="mod-card" href="admin_produtos.html" data-module="produtos">
+      <div class="mod-icon" style="background:#fff3e0">📦</div>
+      <div><p class="mod-label">Produtos</p><p class="mod-sub">Benefícios e ofertas para associados.</p></div>
+      <span class="mod-arrow">›</span>
     </a>
-    <a class="text-decoration-none" href="admin_servicos.html" data-module="servicos">
-      <div class="app-card">
-        <h3>Serviços</h3>
-        <p>Provedores, descrições e imagens.</p>
-      </div>
+    <a class="mod-card" href="admin_servicos.html" data-module="servicos">
+      <div class="mod-icon" style="background:#e8f5e9">⚙️</div>
+      <div><p class="mod-label">Serviços</p><p class="mod-sub">Provedores, descrições e imagens.</p></div>
+      <span class="mod-arrow">›</span>
     </a>
-    <a class="text-decoration-none" href="admin_classificados.html" data-module="classificados">
-      <div class="app-card">
-        <h3>Classificados</h3>
-        <p>Moderação, status e pagamentos.</p>
-      </div>
+    <a class="mod-card" href="admin_classificados.html" data-module="classificados">
+      <div class="mod-icon" style="background:#fce4ec">🏷️</div>
+      <div><p class="mod-label">Classificados</p><p class="mod-sub">Moderação, status e pagamentos.</p></div>
+      <span class="mod-arrow">›</span>
     </a>
-    <a class="text-decoration-none" href="admin_leiloes.html" data-module="leiloes">
-      <div class="app-card">
-        <h3>Leilões</h3>
-        <p>Aprovação de lotes, vendas e repasses.</p>
-      </div>
-    </a>
-    <a class="text-decoration-none" href="admin_conteudo.html" data-module="conteudo">
-      <div class="app-card">
-        <h3>Conteúdo do Site</h3>
-        <p>Banners, eventos, parceiros, diretoria, galeria e sobre.</p>
-      </div>
+    <a class="mod-card" href="admin_leiloes.html" data-module="leiloes">
+      <div class="mod-icon" style="background:#f3e5f5">🔨</div>
+      <div><p class="mod-label">Leilões</p><p class="mod-sub">Aprovação de lotes, vendas e repasses.</p></div>
+      <span class="mod-arrow">›</span>
     </a>
   </div>
+
+  <p class="sec-title">Conteúdo do Site</p>
+  <div class="d-flex flex-column gap-2">
+    <a class="mod-card" href="admin_banners.html">
+      <div class="mod-icon" style="background:#e8f4fd">🖼️</div>
+      <div><p class="mod-label">Banners</p><p class="mod-sub">Imagens em destaque na página inicial.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+    <a class="mod-card" href="admin_eventos.html" data-module="eventos">
+      <div class="mod-icon" style="background:#fff8e1">📅</div>
+      <div><p class="mod-label">Eventos</p><p class="mod-sub">Calendário e divulgação de eventos.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+    <a class="mod-card" href="admin_parceiros.html" data-module="parcerias">
+      <div class="mod-icon" style="background:#fce4ec">🤝</div>
+      <div><p class="mod-label">Parceiros</p><p class="mod-sub">Empresas e criatórios parceiros.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+    <a class="mod-card" href="admin_diretoria.html" data-module="diretoria">
+      <div class="mod-icon" style="background:#f0f9f0">👥</div>
+      <div><p class="mod-label">Diretoria</p><p class="mod-sub">Membros e cargos da diretoria.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+    <a class="mod-card" href="admin_galeria.html" data-module="galeria">
+      <div class="mod-icon" style="background:#ede7f6">📷</div>
+      <div><p class="mod-label">Galeria</p><p class="mod-sub">Álbuns e fotos do clube.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+    <a class="mod-card" href="admin_sobre.html">
+      <div class="mod-icon" style="background:#e0f2f1">ℹ️</div>
+      <div><p class="mod-label">Sobre o Clube</p><p class="mod-sub">Texto e informações institucionais.</p></div>
+      <span class="mod-arrow">›</span>
+    </a>
+  </div>
+
 </main>
 
 <footer class="mt-4 py-4 bg-body-tertiary border-top">
