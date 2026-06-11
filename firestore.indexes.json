@@ -148,6 +148,103 @@
         { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "cpf",   "order": "ASCENDING" }
       ]
+    },
+
+    {
+      "collectionGroup": "cms_banners",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING"  },
+        { "fieldPath": "deleted", "order": "ASCENDING"  },
+        { "fieldPath": "data",    "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_partners",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_board",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_gallery",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",      "order": "ASCENDING"  },
+        { "fieldPath": "deleted",    "order": "ASCENDING"  },
+        { "fieldPath": "updatedAt",  "order": "DESCENDING" }
+      ]
+    },
+
+    {
+      "collectionGroup": "cms_banners",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "ativo",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "ativo",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "data",    "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_partners",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "ativo",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_board",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",   "order": "ASCENDING" },
+        { "fieldPath": "ativo",   "order": "ASCENDING" },
+        { "fieldPath": "deleted", "order": "ASCENDING" },
+        { "fieldPath": "ordem",   "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "cms_gallery",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",     "order": "ASCENDING"  },
+        { "fieldPath": "ativo",     "order": "ASCENDING"  },
+        { "fieldPath": "deleted",   "order": "ASCENDING"  },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

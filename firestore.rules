@@ -373,5 +373,51 @@ service cloud.firestore {
     match /systemConfig/{docId} {
       allow read, write: if isMaster();
     }
+
+    // ===========================
+    //   CMS — Conteúdo do Site
+    // ===========================
+
+    // Banners: leitura pública, escrita somente admin/master
+    match /cms_banners/{docId} {
+      allow read: if true;
+      allow write: if canOperate();
+    }
+
+    // Eventos: leitura pública, escrita somente admin/master
+    match /cms_events/{docId} {
+      allow read: if true;
+      allow write: if canOperate();
+    }
+
+    // Parceiros: leitura pública, escrita somente admin/master
+    match /cms_partners/{docId} {
+      allow read: if true;
+      allow write: if canOperate();
+    }
+
+    // Diretoria: leitura pública, escrita somente admin/master
+    match /cms_board/{docId} {
+      allow read: if true;
+      allow write: if canOperate();
+    }
+
+    // Galeria (álbuns): leitura pública, escrita somente admin/master
+    match /cms_gallery/{albumId} {
+      allow read: if true;
+      allow write: if canOperate();
+
+      // Fotos (subcoleção): leitura pública, escrita somente admin/master
+      match /fotos/{fotoId} {
+        allow read: if true;
+        allow write: if canOperate();
+      }
+    }
+
+    // Sobre o Clube (singleton): leitura pública, escrita somente admin/master
+    match /cms_about/{docId} {
+      allow read: if true;
+      allow write: if canOperate();
+    }
   }
 }
