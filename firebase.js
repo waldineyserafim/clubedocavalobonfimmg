@@ -22,14 +22,7 @@ import {
   collection,
   addDoc,
   updateDoc,
-  deleteDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-  onSnapshot
+  Timestamp
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
 // ==== STORAGE (UNIFICADO) ====
@@ -38,8 +31,7 @@ import {
   ref,                    // reexportado como sRef (compat)
   uploadBytes,            // compat
   uploadBytesResumable,   // usado no progresso
-  getDownloadURL,
-  deleteObject
+  getDownloadURL
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
 // === Configuração do Firebase (seus dados) ===
@@ -163,14 +155,7 @@ export async function doLogin(email, password) {
   const uid = auth.currentUser?.uid;
   const role = await fetchRoleByUid(uid);
   cacheRole(role);
-  __emitRoleChange(role);
   return role;
-}
-
-// 5.1) LOGIN por CPF (açúcar sintático)
-export async function doLoginCPF(cpf, password) {
-  const email = cpfToEmail(cpf);
-  return doLogin(email, password);
 }
 
 /* 6) CADASTRO padrão (via tela pública de signup) */
@@ -194,7 +179,6 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
   }, { merge: true });
 
   cacheRole("associado");
-  __emitRoleChange("associado");
   return { uid };
 }
 
@@ -219,45 +203,7 @@ export async function doSignupParticipanteLeilao({ cpf, email, password, nome, t
   }, { merge: true });
 
   cacheRole("participanteLeilao");
-  __emitRoleChange("participanteLeilao");
   return { uid };
-}
-
-/* ============================
-   Controle de Role em tempo real
-   ============================ */
-const roleListeners = new Set();
-function __emitRoleChange(role) {
-  const r = mapRole(role);
-  for (const cb of roleListeners) {
-    try { cb(r); } catch {}
-  }
-}
-export function attachRoleChangeListener(cb) {
-  if (typeof cb === "function") {
-    roleListeners.add(cb);
-    return () => roleListeners.delete(cb);
-  }
-  return () => {};
-}
-
-export function hasAnyRole(role, roles) {
-  const r = mapRole(role);
-  return (Array.isArray(roles) ? roles : [roles]).map(mapRole).includes(r);
-}
-export function isAdminOrMaster(role) {
-  const r = mapRole(role);
-  return r === "admin" || r === "master";
-}
-export async function canViewAllUsers() {
-  let r = loadCachedRole();
-  if (!r || r === "associado") {
-    if (auth?.currentUser?.uid) {
-      r = await fetchRoleByUid(auth.currentUser.uid);
-      cacheRole(r);
-    }
-  }
-  return isAdminOrMaster(r);
 }
 
 // 7) GUARDA DE ROTA (protege páginas e/ou exige papel)
@@ -274,7 +220,6 @@ export function requireAuth(options = {}) {
     if (!role || role === "associado") {
       role = await fetchRoleByUid(user.uid);
       cacheRole(role);
-      __emitRoleChange(role);
     }
 
     if (requiredRole) {
@@ -387,137 +332,6 @@ export async function updateMemberProduct(id, partial) {
   await updateDoc(refDoc, patch);
 }
 
-// ===== Classificados (PÚBLICOS) =====
-export async function addClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
-  if (!auth || !auth.currentUser) throw new Error("Usuário não autenticado. Faça login para publicar.");
-  const payload = {
-    title: toStr(title),
-    description: toStr(description),
-    imageUrls: strArray(imageUrls),
-    whatsapp: onlyDigits(whatsapp),
-    price: toNumberOrNull(price),
-    active: !!active,
-    approved: !!approved,
-    ownerUid: auth.currentUser.uid,
-    ownerEmail: auth.currentUser.email || null,
-    orgId: currentOrgId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-  const ref = await addDoc(collection(db, "classificados"), payload);
-  return ref.id;
-}
-export async function updateClassified(id, partial) {
-  const refDoc = doc(db, "classificados", id);
-  const patch = { updatedAt: serverTimestamp() };
-  if ("title" in partial) patch.title = toStr(partial.title);
-  if ("description" in partial) patch.description = toStr(partial.description);
-  if ("imageUrls" in partial) patch.imageUrls = strArray(partial.imageUrls);
-  if ("whatsapp" in partial) patch.whatsapp = onlyDigits(partial.whatsapp);
-  if ("price" in partial) patch.price = toNumberOrNull(partial.price);
-  if ("active" in partial) patch.active = !!partial.active;
-  if ("approved" in partial) patch.approved = !!partial.approved;
-  await updateDoc(refDoc, patch);
-}
-export async function deleteClassified(id) {
-  const refDoc = doc(db, "classificados", id);
-  await deleteDoc(refDoc);
-}
-
-// ===== Legacy memberClassifieds (se ainda usar) =====
-export async function addMemberClassified({ title, description, imageUrls, whatsapp, price = null, active = true, approved = false }) {
-  const payload = {
-    title: toStr(title),
-    description: toStr(description),
-    imageUrls: strArray(imageUrls),
-    whatsapp: onlyDigits(whatsapp),
-    price: toNumberOrNull(price),
-    active: !!active,
-    approved: !!approved,
-    orgId: currentOrgId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-  const ref = await addDoc(collection(db, "memberClassifieds"), payload);
-  return ref.id;
-}
-export async function updateMemberClassified(id, partial) {
-  const refDoc = doc(db, "memberClassifieds", id);
-  const patch = { updatedAt: serverTimestamp() };
-  if ("title" in partial) patch.title = toStr(partial.title);
-  if ("description" in partial) patch.description = toStr(partial.description);
-  if ("imageUrls" in partial) patch.imageUrls = strArray(partial.imageUrls);
-  if ("whatsapp" in partial) patch.whatsapp = onlyDigits(partial.whatsapp);
-  if ("price" in partial) patch.price = toNumberOrNull(partial.price);
-  if ("active" in partial) patch.active = !!partial.active;
-  if ("approved" in partial) patch.approved = !!partial.approved;
-  await updateDoc(refDoc, patch);
-}
-
-// ===== Financeiro =====
-export async function setFinanceSummary(uid, { balance, lastPayment, nextDue, lastAmount } = {}) {
-  const refDoc = doc(db, "users", uid, "finance", "summary");
-  const payload = { updatedAt: serverTimestamp() };
-  const bn = toNumberOrNull(balance);
-  if (bn !== null) payload.balance = bn;
-  const la = toNumberOrNull(lastAmount);
-  if (la !== null) payload.lastAmount = la;
-  const lp = toTimestamp(lastPayment);
-  if (lp) payload.lastPayment = lp;
-  const nd = toTimestamp(nextDue);
-  if (nd) payload.nextDue = nd;
-  await setDoc(refDoc, payload, { merge: true });
-}
-export async function addInvoice(uid, { dueDate, amount, status }) {
-  const invRef = collection(db, "users", uid, "finance", "invoices");
-  const payload = {
-    dueDate: toTimestamp(dueDate) || serverTimestamp(),
-    amount: Number(amount || 0),
-    status: (toStr(status).toLowerCase() || "em_aberto"),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-  const ref = await addDoc(invRef, payload);
-  return ref.id;
-}
-export async function updateInvoice(uid, invoiceId, partial) {
-  const refDoc = doc(db, "users", uid, "financeInvoices", invoiceId);
-  const patch = { updatedAt: serverTimestamp() };
-  if (partial.dueDate) patch.dueDate = toTimestamp(partial.dueDate);
-  if (partial.amount != null && partial.amount !== "") patch.amount = Number(partial.amount);
-  if (partial.status) patch.status = toStr(partial.status).toLowerCase();
-  await updateDoc(refDoc, patch);
-}
-
-/* ====== Usuários: consultas ====== */
-export async function findUserUidByCPF(cpf) {
-  const clean = onlyDigits(cpf);
-  if (!clean) return null;
-  const qRef = query(collection(db, "users"), where("cpf", "==", clean));
-  const snap = await getDocs(qRef);
-  if (snap.empty) return null;
-  return snap.docs[0].id;
-}
-export async function listUsersByName(limitTo = 100) {
-  const qRef = query(collection(db, "users"), orderBy("nome"), limit(limitTo));
-  const snap = await getDocs(qRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-export async function searchUsersByNamePrefix(term, limitTo = 100) {
-  const t = (term || "").trim();
-  if (!t) return listUsersByName(limitTo);
-  const lower = t.toLowerCase();
-  const all = await listUsersByName(100);
-  return all.filter(u => (u.nome || "").toLowerCase().includes(lower)).slice(0, limitTo);
-}
-export async function searchUsersByCPF(cpf) {
-  const clean = onlyDigits(cpf);
-  if (!clean) return [];
-  const qRef = query(collection(db, "users"), where("cpf", "==", clean));
-  const snap = await getDocs(qRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
 // utilitários exportados
 export { Timestamp, serverTimestamp };
 
@@ -531,52 +345,6 @@ export {
   getDoc,
   signOut
 };
-
-/* ============================
-   Consulta pública de classificados
-   ============================ */
-
-// Retorna uma query pronta (ordem desc por createdAt)
-export function getPublicClassifiedsQuery({ onlyApproved = false, limitTo = 100 } = {}) {
-  const colRef = collection(db, "classificados");
-  let q;
-  if (onlyApproved) {
-    q = query(colRef, where("approved", "==", true), orderBy("createdAt", "desc"), limit(limitTo));
-  } else {
-    q = query(colRef, orderBy("createdAt", "desc"), limit(limitTo));
-  }
-  return q;
-}
-
-// Lista (snapshot único)
-export async function fetchPublicClassifiedsOnce({ onlyApproved = false, limitTo = 100 } = {}) {
-  try {
-    const q = getPublicClassifiedsQuery({ onlyApproved, limitTo });
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch (err) {
-    console.error("fetchPublicClassifiedsOnce error:", err);
-    return [];
-  }
-}
-
-// Observador real-time (retorna unsubscribe)
-export function watchPublicClassifieds(onUpdate, onError, opts = { onlyApproved: false, limitTo: 100 }) {
-  const q = getPublicClassifiedsQuery(opts);
-  try {
-    return onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (typeof onUpdate === "function") onUpdate(docs);
-    }, (err) => {
-      if (typeof onError === "function") onError(err);
-      console.error("watchPublicClassifieds error:", err);
-    });
-  } catch (e) {
-    console.error("watchPublicClassifieds (sync) error:", e);
-    if (typeof onError === "function") onError(e);
-    return () => {};
-  }
-}
 
 /* ============================
    Multi-Tenant: módulos e logs
@@ -652,7 +420,6 @@ export async function getCurrentRole() {
     if (!role) {
       role = await fetchRoleByUid(auth.currentUser.uid);
       cacheRole(role);
-      __emitRoleChange(role);
     }
     return mapRole(role || "associado");
   }
@@ -837,11 +604,3 @@ export async function uploadImageFile(file, pathBase, onProgress, opts = {}) {
   return { url, path: objectPath };
 }
 
-export async function deleteImageAt(path) {
-  if (!path) return;
-  try {
-    await deleteObject(ref(storage, path));
-  } catch (e) {
-    console.warn("Falha ao excluir imagem:", e);
-  }
-}
