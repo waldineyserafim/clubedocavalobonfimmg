@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Master — SaaS CCBMG</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root { --brand: #111279; }
+    body { background: #f4f6fb; }
+    .sidebar {
+      width: 220px; min-height: 100vh;
+      background: var(--brand); color: #fff;
+      position: fixed; top: 0; left: 0;
+      display: flex; flex-direction: column;
+      padding: 1.5rem 0;
+    }
+    .sidebar .brand { padding: .5rem 1.25rem 1.5rem; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid rgba(255,255,255,.15); }
+    .sidebar .nav-link { color: rgba(255,255,255,.8); padding: .55rem 1.25rem; border-radius: 0; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,.1); }
+    .sidebar .nav-link.text-danger { color: #ff7b7b!important; }
+    .main { margin-left: 220px; padding: 2rem; }
+    .kpi-card { background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+    .kpi-value { font-size: 2rem; font-weight: 700; color: var(--brand); }
+    .kpi-label { color: #666; font-size: .85rem; }
+    @media (max-width: 767px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="brand">⚡ Painel Master</div>
+  <ul class="nav flex-column mt-2">
+    <li class="nav-item"><a class="nav-link active" href="admin_master.html">Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_associacoes.html">Associações</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_faturamento.html">Faturamento</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_configuracoes.html">Configurações</a></li>
+    <li class="nav-item mt-auto"><a class="nav-link text-danger" id="btnSair" href="#">Sair</a></li>
+  </ul>
+</nav>
+
+<!-- CONTEÚDO PRINCIPAL -->
+<main class="main">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div>
+      <h1 class="h4 mb-0">Dashboard</h1>
+      <div class="text-muted small" id="dataAtual"></div>
+    </div>
+    <div class="text-end">
+      <div class="small text-muted mb-1">Logado como</div>
+      <strong id="masterNome" class="d-block">—</strong>
+      <span class="badge bg-primary px-3 py-1 mt-1">Master</span>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4" id="kpiRow">
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" id="kpiOrgs">—</div>
+        <div class="kpi-label">Organizações</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" id="kpiAssociados">—</div>
+        <div class="kpi-label">Associados Totais</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value text-success" id="kpiAtivas">—</div>
+        <div class="kpi-label">Org. Ativas</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" id="kpiLotes">—</div>
+        <div class="kpi-label">Lotes Publicados</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela de Organizações -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex align-items-center justify-content-between">
+      <strong>Organizações cadastradas</strong>
+      <a href="admin_master_associacoes.html" class="btn btn-sm btn-primary">Gerenciar</a>
+    </div>
+    <div class="card-body p-0">
+      <div class="text-center py-4 text-muted small" id="orgsLoading">Carregando...</div>
+      <table class="table table-hover mb-0 d-none" id="orgsTable">
+        <thead class="table-light">
+          <tr>
+            <th>Nome</th>
+            <th>Plano</th>
+            <th class="d-none d-md-table-cell">Domínio</th>
+            <th>Status</th>
+            <th class="d-none d-md-table-cell">Módulos</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="orgsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Últimos logs -->
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white"><strong>Últimas ações registradas</strong></div>
+    <div class="card-body p-0">
+      <div class="text-center py-4 text-muted small" id="logsLoading">Carregando...</div>
+      <table class="table table-sm mb-0 d-none" id="logsTable">
+        <thead class="table-light">
+          <tr><th>Data/Hora</th><th>Usuário</th><th>Org</th><th>Ação</th></tr>
+        </thead>
+        <tbody id="logsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { auth, db } from "./firebase.js";
+import { requireAuth } from "./firebase.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import {
+  collection, getDocs, query, orderBy, limit, where, getCountFromServer, doc, getDoc
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+requireAuth({ requiredRole: "master", loginUrl: "./login_master.html" });
+
+document.getElementById("dataAtual").textContent = new Date().toLocaleDateString("pt-BR", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+
+document.getElementById("btnSair").addEventListener("click", async e => {
+  e.preventDefault();
+  await signOut(auth);
+  location.href = "login_master.html";
+});
+
+const PLAN_LABELS = { starter:"Starter", professional:"Professional", enterprise:"Enterprise" };
+const MODULE_NAMES = ["associados","financeiro","classificados","eventos","parcerias","galeria","diretoria","produtos","servicos","leiloes"];
+
+function fmtTs(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" });
+}
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+
+  // Exibir nome do usuário master
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const nome = snap.exists() ? (snap.data().nome || user.email) : user.email;
+    document.getElementById("masterNome").textContent = nome;
+  } catch { document.getElementById("masterNome").textContent = user.email; }
+
+  // ── KPIs ──────────────────────────────────────────────────
+  try {
+    const orgsSnap   = await getDocs(collection(db, "organizations"));
+    const orgs       = orgsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const ativas     = orgs.filter(o => o.ativo !== false).length;
+    document.getElementById("kpiOrgs").textContent    = orgs.length;
+    document.getElementById("kpiAtivas").textContent  = ativas;
+
+    // Contar associados (role != master)
+    let totalAssoc = 0;
+    try {
+      const usersSnap = await getCountFromServer(query(collection(db,"users"), where("role","!=","master")));
+      totalAssoc = usersSnap.data().count;
+    } catch { /* getCountFromServer pode não estar disponível */ }
+    document.getElementById("kpiAssociados").textContent = totalAssoc || "—";
+
+    // Lotes publicados
+    try {
+      const lotesSnap = await getCountFromServer(query(collection(db,"auctionLots"), where("status","==","publicado")));
+      document.getElementById("kpiLotes").textContent = lotesSnap.data().count;
+    } catch {
+      document.getElementById("kpiLotes").textContent = "—";
+    }
+
+    // ── Tabela de Orgs ─────────────────────────────────────
+    const tbody = document.getElementById("orgsTbody");
+    tbody.innerHTML = orgs.map(o => {
+      const mods = MODULE_NAMES.filter(m => o.modules?.[m] !== false).length;
+      return `<tr>
+        <td><strong>${o.nome || o.id}</strong></td>
+        <td><span class="badge bg-secondary">${PLAN_LABELS[o.plan] || o.plan || "—"}</span></td>
+        <td class="d-none d-md-table-cell text-muted small">${o.dominio || "—"}</td>
+        <td>${o.ativo !== false ? '<span class="badge bg-success">Ativa</span>' : '<span class="badge bg-danger">Suspensa</span>'}</td>
+        <td class="d-none d-md-table-cell text-muted small">${mods}/10 módulos</td>
+        <td><a href="admin_master_associacoes.html" class="btn btn-sm btn-outline-primary">Editar</a></td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="6" class="text-center text-muted py-3">Nenhuma organização</td></tr>';
+    document.getElementById("orgsLoading").classList.add("d-none");
+    document.getElementById("orgsTable").classList.remove("d-none");
+  } catch (e) {
+    document.getElementById("orgsLoading").textContent = "Erro ao carregar organizações.";
+    console.error(e);
+  }
+
+  // ── Últimos Logs ───────────────────────────────────────────
+  try {
+    const logsSnap = await getDocs(query(collection(db,"systemLogs"), orderBy("timestamp","desc"), limit(20)));
+    const logsTbody = document.getElementById("logsTbody");
+    logsTbody.innerHTML = logsSnap.docs.map(d => {
+      const l = d.data();
+      return `<tr>
+        <td class="text-muted small">${fmtTs(l.timestamp)}</td>
+        <td class="small">${l.userEmail || "—"}</td>
+        <td class="small text-muted">${l.orgId || "—"}</td>
+        <td class="small">${l.action || "—"}</td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="4" class="text-center text-muted py-3">Nenhum log registrado</td></tr>';
+    document.getElementById("logsLoading").classList.add("d-none");
+    document.getElementById("logsTable").classList.remove("d-none");
+  } catch (e) {
+    document.getElementById("logsLoading").textContent = "Erro ao carregar logs.";
+  }
+});
+</script>
+</body>
+</html>

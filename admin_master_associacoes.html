@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Associações — Painel Master</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root { --brand: #111279; }
+    body { background: #f4f6fb; }
+    .sidebar {
+      width: 220px; min-height: 100vh;
+      background: var(--brand); color: #fff;
+      position: fixed; top: 0; left: 0;
+      display: flex; flex-direction: column;
+      padding: 1.5rem 0;
+    }
+    .sidebar .brand { padding: .5rem 1.25rem 1.5rem; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid rgba(255,255,255,.15); }
+    .sidebar .nav-link { color: rgba(255,255,255,.8); padding: .55rem 1.25rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,.1); }
+    .sidebar .nav-link.text-danger { color: #ff7b7b!important; }
+    .main { margin-left: 220px; padding: 2rem; }
+    @media (max-width: 767px) { .sidebar { display: none; } .main { margin-left: 0; padding: 1rem; } }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="brand">⚡ Painel Master</div>
+  <ul class="nav flex-column mt-2">
+    <li class="nav-item"><a class="nav-link" href="admin_master.html">Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link active" href="admin_master_associacoes.html">Associações</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_faturamento.html">Faturamento</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_configuracoes.html">Configurações</a></li>
+    <li class="nav-item mt-auto"><a class="nav-link text-danger" id="btnSair" href="#">Sair</a></li>
+  </ul>
+</nav>
+
+<main class="main">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="h4 mb-0">Associações</h1>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalOrg" id="btnNova">+ Nova Associação</button>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="text-center py-4 text-muted" id="loading">Carregando...</div>
+      <table class="table table-hover mb-0 d-none" id="tbl">
+        <thead class="table-light">
+          <tr>
+            <th>Nome</th>
+            <th>Slug</th>
+            <th>Plano</th>
+            <th>Status</th>
+            <th class="d-none d-md-table-cell">Módulos</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Criar/Editar Organização -->
+<div class="modal fade" id="modalOrg" tabindex="-1" aria-labelledby="modalOrgLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalOrgLabel">Nova Associação</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="orgEditId">
+        <div class="row g-3">
+          <!-- Identificação -->
+          <div class="col-12"><h6 class="text-muted mb-0">Identificação</h6><hr class="mt-1"></div>
+          <div class="col-md-8">
+            <label class="form-label">Nome *</label>
+            <input class="form-control" id="orgNome" required placeholder="Ex: Clube do Cavalo Bonfim MG">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Slug (ID) *</label>
+            <input class="form-control" id="orgSlug" required placeholder="org_bonfim">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">CNPJ</label>
+            <input class="form-control" id="orgCnpj" placeholder="00.000.000/0000-00">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Domínio</label>
+            <input class="form-control" id="orgDominio" placeholder="clubedocavalobonfim.com.br">
+          </div>
+
+          <!-- Contato -->
+          <div class="col-12 mt-2"><h6 class="text-muted mb-0">Contato</h6><hr class="mt-1"></div>
+          <div class="col-md-4">
+            <label class="form-label">Telefone</label>
+            <input class="form-control" id="orgTelefone" placeholder="(31) 98668-5028">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">WhatsApp</label>
+            <input class="form-control" id="orgWhatsapp" placeholder="5531986685028">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">E-mail</label>
+            <input class="form-control" id="orgEmail" type="email" placeholder="contato@clube.com.br">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Website</label>
+            <input class="form-control" id="orgSite" placeholder="https://clube.com.br">
+          </div>
+
+          <!-- Endereço -->
+          <div class="col-12 mt-2"><h6 class="text-muted mb-0">Endereço</h6><hr class="mt-1"></div>
+          <div class="col-md-6">
+            <label class="form-label">Cidade</label>
+            <input class="form-control" id="orgCidade" placeholder="Bonfim">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <input class="form-control" id="orgEstado" placeholder="MG" maxlength="2">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">CEP</label>
+            <input class="form-control" id="orgCep" placeholder="35765-000">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Endereço completo</label>
+            <input class="form-control" id="orgEndereco" placeholder="Rua, número, bairro">
+          </div>
+
+          <!-- Plano e Módulos -->
+          <div class="col-12 mt-2"><h6 class="text-muted mb-0">Plano e Módulos</h6><hr class="mt-1"></div>
+          <div class="col-md-4">
+            <label class="form-label">Plano</label>
+            <select class="form-select" id="orgPlan" onchange="applyPlanDefaults()">
+              <option value="starter">Starter</option>
+              <option value="professional">Professional</option>
+              <option value="enterprise" selected>Enterprise</option>
+              <option value="custom">Customizado</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Status</label>
+            <select class="form-select" id="orgAtivo">
+              <option value="true">Ativa</option>
+              <option value="false">Suspensa</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label d-block">Módulos habilitados</label>
+            <div class="d-flex flex-wrap gap-2" id="modulesCheckboxes">
+              <!-- gerado pelo JS -->
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Observações</label>
+            <textarea class="form-control" id="orgObs" rows="2" placeholder="Notas internas..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger d-none" id="btnSuspender">Suspender</button>
+        <button type="button" class="btn btn-primary" id="btnSalvar">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { auth, db } from "./firebase.js";
+import { requireAuth, logAction } from "./firebase.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import {
+  collection, getDocs, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, query, orderBy
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+requireAuth({ requiredRole: "master", loginUrl: "./login_master.html" });
+
+document.getElementById("btnSair").addEventListener("click", async e => {
+  e.preventDefault();
+  await signOut(auth);
+  location.href = "login_master.html";
+});
+
+const MODULES_ALL = ["associados","financeiro","classificados","eventos","parcerias","galeria","diretoria","produtos","servicos","leiloes"];
+const MODULE_LABELS = {
+  associados:"Associados", financeiro:"Financeiro", classificados:"Classificados",
+  eventos:"Eventos", parcerias:"Parcerias", galeria:"Galeria", diretoria:"Diretoria",
+  produtos:"Produtos", servicos:"Serviços", leiloes:"Leilões"
+};
+const PLAN_MODULES = {
+  starter:      ["associados","classificados","eventos"],
+  professional: ["associados","classificados","eventos","produtos","servicos","parcerias","galeria"],
+  enterprise:   [...MODULES_ALL],
+  custom:       null, // null = não alterar checkboxes
+};
+const PLAN_LABELS = { starter:"Starter", professional:"Professional", enterprise:"Enterprise", custom:"Customizado" };
+
+// Detecta se o conjunto de módulos marcados bate com algum plano predefinido
+function detectPlanFromModules() {
+  const checked = MODULES_ALL.filter(m => document.getElementById(`mod_${m}`)?.checked).sort().join(",");
+  for (const [plan, mods] of Object.entries(PLAN_MODULES)) {
+    if (!mods) continue;
+    if ([...mods].sort().join(",") === checked) return plan;
+  }
+  return "custom";
+}
+
+// Gerar checkboxes de módulos
+const modDiv = document.getElementById("modulesCheckboxes");
+MODULES_ALL.forEach(m => {
+  const id = `mod_${m}`;
+  modDiv.innerHTML += `
+    <div class="form-check form-check-inline border rounded px-2 py-1">
+      <input class="form-check-input" type="checkbox" id="${id}" value="${m}" checked>
+      <label class="form-check-label small" for="${id}">${MODULE_LABELS[m] || m}</label>
+    </div>`;
+});
+
+// Quando um checkbox é alterado manualmente, atualiza o plano conforme correspondência
+modDiv.addEventListener("change", () => {
+  document.getElementById("orgPlan").value = detectPlanFromModules();
+});
+
+window.applyPlanDefaults = function() {
+  const plan = document.getElementById("orgPlan").value;
+  if (plan === "custom") return; // Customizado: mantém checkboxes como estão
+  const active = PLAN_MODULES[plan] || [];
+  MODULES_ALL.forEach(m => {
+    const el = document.getElementById(`mod_${m}`);
+    if (el) el.checked = active.includes(m);
+  });
+};
+
+const modalEl = document.getElementById("modalOrg");
+const modal   = new bootstrap.Modal(modalEl);
+
+function getModules() {
+  const result = {};
+  MODULES_ALL.forEach(m => {
+    result[m] = !!document.getElementById(`mod_${m}`)?.checked;
+  });
+  return result;
+}
+
+function fillForm(org) {
+  document.getElementById("orgEditId").value   = org?.id || "";
+  document.getElementById("orgNome").value     = org?.nome || "";
+  document.getElementById("orgSlug").value     = org?.slug || org?.id || "";
+  document.getElementById("orgCnpj").value     = org?.cnpj || "";
+  document.getElementById("orgDominio").value  = org?.dominio || "";
+  document.getElementById("orgTelefone").value = org?.telefone || "";
+  document.getElementById("orgWhatsapp").value = org?.whatsapp || "";
+  document.getElementById("orgEmail").value    = org?.email || "";
+  document.getElementById("orgSite").value     = org?.site || "";
+  document.getElementById("orgCidade").value   = org?.cidade || "";
+  document.getElementById("orgEstado").value   = org?.estado || "";
+  document.getElementById("orgCep").value      = org?.cep || "";
+  document.getElementById("orgEndereco").value = org?.endereco || "";
+  document.getElementById("orgAtivo").value    = String(org?.ativo !== false);
+  document.getElementById("orgObs").value      = org?.observacoes || "";
+  // Preenche módulos primeiro, depois detecta o plano correspondente
+  const mods = org?.modules || {};
+  MODULES_ALL.forEach(m => {
+    const el = document.getElementById(`mod_${m}`);
+    if (el) el.checked = mods[m] !== false;
+  });
+  // Se o org tem um plano salvo e ele bate com os módulos, usa-o; senão detecta automaticamente
+  const savedPlan = org?.plan || "enterprise";
+  const detectedPlan = org ? detectPlanFromModules() : "enterprise";
+  document.getElementById("orgPlan").value = detectedPlan !== "custom" ? detectedPlan : (savedPlan || "custom");
+  document.getElementById("modalOrgLabel").textContent = org ? "Editar Associação" : "Nova Associação";
+  document.getElementById("btnSuspender").classList.toggle("d-none", !org);
+}
+
+document.getElementById("btnNova").addEventListener("click", () => {
+  fillForm(null);
+  applyPlanDefaults();
+});
+
+document.getElementById("btnSalvar").addEventListener("click", async () => {
+  const editId   = document.getElementById("orgEditId").value.trim();
+  const slug     = document.getElementById("orgSlug").value.trim().replace(/\s+/g,"_").toLowerCase();
+  const nome     = document.getElementById("orgNome").value.trim();
+  if (!slug || !nome) { alert("Nome e Slug são obrigatórios."); return; }
+
+  const orgId   = editId || slug;
+  const payload = {
+    id:           orgId,
+    nome,
+    slug,
+    cnpj:         document.getElementById("orgCnpj").value.trim(),
+    dominio:      document.getElementById("orgDominio").value.trim(),
+    telefone:     document.getElementById("orgTelefone").value.trim(),
+    whatsapp:     document.getElementById("orgWhatsapp").value.trim().replace(/\D/g,""),
+    email:        document.getElementById("orgEmail").value.trim(),
+    site:         document.getElementById("orgSite").value.trim(),
+    cidade:       document.getElementById("orgCidade").value.trim(),
+    estado:       document.getElementById("orgEstado").value.trim().toUpperCase(),
+    cep:          document.getElementById("orgCep").value.trim(),
+    endereco:     document.getElementById("orgEndereco").value.trim(),
+    plan:         document.getElementById("orgPlan").value,
+    ativo:        document.getElementById("orgAtivo").value === "true",
+    modules:      getModules(),
+    observacoes:  document.getElementById("orgObs").value.trim(),
+    updatedAt:    serverTimestamp(),
+  };
+  if (!editId) payload.createdAt = serverTimestamp();
+
+  try {
+    await setDoc(doc(db, "organizations", orgId), payload, { merge: true });
+    await logAction(editId ? "org_atualizada" : "org_criada", { orgId, nome });
+    modal.hide();
+    await loadOrgs();
+  } catch (e) {
+    alert("Erro ao salvar: " + e.message);
+  }
+});
+
+document.getElementById("btnSuspender").addEventListener("click", async () => {
+  const editId = document.getElementById("orgEditId").value.trim();
+  if (!editId) return;
+  if (!confirm("Suspender esta associação? Seus usuários não poderão mais acessar o sistema.")) return;
+  try {
+    await updateDoc(doc(db, "organizations", editId), { ativo: false, updatedAt: serverTimestamp() });
+    await logAction("org_suspensa", { orgId: editId });
+    modal.hide();
+    await loadOrgs();
+  } catch (e) {
+    alert("Erro: " + e.message);
+  }
+});
+
+let orgsCache = [];
+
+async function loadOrgs() {
+  document.getElementById("loading").classList.remove("d-none");
+  document.getElementById("tbl").classList.add("d-none");
+  try {
+    const snap = await getDocs(query(collection(db,"organizations"), orderBy("nome")));
+    orgsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderOrgs();
+  } catch (e) {
+    document.getElementById("loading").textContent = "Erro ao carregar organizações.";
+  }
+}
+
+function renderOrgs() {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = orgsCache.map(o => {
+    const mods = Object.values(o.modules || {}).filter(Boolean).length;
+    return `<tr>
+      <td><strong>${o.nome || o.id}</strong><div class="text-muted small">${o.email || ""}</div></td>
+      <td>${o.slug || o.id}</td>
+      <td><span class="badge bg-secondary">${PLAN_LABELS[o.plan] || o.plan || "—"}</span></td>
+      <td>${o.ativo !== false ? '<span class="badge bg-success">Ativa</span>' : '<span class="badge bg-danger">Suspensa</span>'}</td>
+      <td class="d-none d-md-table-cell text-muted small">${mods}/10</td>
+      <td>
+        <button class="btn btn-sm btn-outline-primary btn-edit" data-id="${o.id}">Editar</button>
+      </td>
+    </tr>`;
+  }).join("") || '<tr><td colspan="6" class="text-center text-muted py-4">Nenhuma associação cadastrada</td></tr>';
+
+  document.querySelectorAll(".btn-edit").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const org = orgsCache.find(o => o.id === btn.dataset.id);
+      if (org) { fillForm(org); modal.show(); }
+    });
+  });
+
+  document.getElementById("loading").classList.add("d-none");
+  document.getElementById("tbl").classList.remove("d-none");
+}
+
+onAuthStateChanged(auth, user => { if (user) loadOrgs(); });
+</script>
+</body>
+</html>

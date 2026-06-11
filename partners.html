@@ -47,11 +47,11 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
         <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
       </ul>
@@ -98,5 +98,13 @@
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script src="assets/js/main.js"></script>
+<script type="module">
+  import { checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+  applyModuleVisibility();
+  checkModuleEnabled("parcerias").then(ok => {
+    if (!ok) document.querySelector("main").innerHTML =
+      '<div class="container my-5"><div class="alert alert-warning">O módulo de Parcerias não está disponível para esta associação.</div></div>';
+  });
+</script>
 </body>
 </html>

@@ -99,12 +99,12 @@
 <!-- Subnav de seções do painel -->
 <div class="subnav">
   <div class="container">
-    <div class="d-flex flex-wrap gap-2 py-2">
-      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html">Associados</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html">Produtos</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html">Serviços</a>
+    <div class="d-flex flex-nowrap gap-2 py-2" style="overflow-x:auto">
+      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html" data-module="associados">Associados</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_leiloes.html" data-module="leiloes">Leilões</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html" data-module="produtos">Produtos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html" data-module="servicos">Serviços</a>
       <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Classificados</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_leiloes.html">Leilões</a>
     </div>
   </div>
 </div>
@@ -216,11 +216,11 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
-  import { requireAuth } from "./firebase.js";
+  import { requireAuth, currentOrgId, checkModuleEnabled, logAction } from "./firebase.js";
   import { auth, db } from "./firebase.js";
 
   import {
-    collection, getDocs, query, orderBy, doc, getDoc,
+    collection, getDocs, query, orderBy, where, doc, getDoc,
     setDoc, updateDoc, addDoc
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
@@ -232,6 +232,10 @@
   /* ========= Requer admin/master logado (mesma regra da operação) ========= */
   const storage = getStorage();
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  checkModuleEnabled("classificados").then(ok => {
+    if (!ok) document.querySelector("main").innerHTML =
+      '<div class="alert alert-warning m-4">O módulo de Classificados não está habilitado para esta associação.</div>';
+  });
 
   /* ========= Header: usuário e role ========= */
   const opNameEl = document.getElementById("opName");
@@ -437,7 +441,7 @@
     if (!wrap) return;
     wrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
     try {
-      const snap = await getDocs(query(collection(db,"memberClassifieds"), orderBy("title")));
+      const snap = await getDocs(query(collection(db,"memberClassifieds"), where("orgId","==",currentOrgId), orderBy("title")));
       classifRows = snap.docs.map(d=>({id:d.id, ...d.data()}));
       renderClassif();
     } catch {
@@ -561,6 +565,7 @@
             ...payload,
             updatedAt: (await import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js")).serverTimestamp()
           });
+          await logAction(action === "approve" ? "classificado_aprovado" : "classificado_rejeitado", { id });
           loadClassif();
         }
         catch(err){ alert("Erro ao aprovar/reprovar: "+err.message); }

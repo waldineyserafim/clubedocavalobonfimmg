@@ -59,11 +59,11 @@
 
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
         <li class="nav-item mt-2 mt-lg-0">
           <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html?logout=1">Área do Associado</a>
@@ -123,6 +123,7 @@
 <script type="module">
   // Importa tudo do seu firebase.js (mantém sua lógica original)
   import * as fb from "./firebase.js";
+  fb.applyModuleVisibility();
 
   // ---------- DOM ----------
   const cpfEl  = document.getElementById("cpf");

@@ -59,6 +59,10 @@ export const auth = getAuth(app);
 export const db   = getFirestore(app);
 export const storage = getStorage(app);
 
+// ─── MULTI-TENANT ──────────────────────────────────────────────────────────────
+// Identificador da organização ativa. Em fase futura será derivado do domínio.
+export const currentOrgId = "org_bonfim";
+
 // Compatibilidade: reexports (sem redeclarar nada)
 export { ref as sRef, uploadBytes, getDownloadURL };
 
@@ -83,8 +87,9 @@ const norm = (s) =>
 
 const mapRole = (r) => {
   const n = norm(r || "");
-  if (n.includes("master")) return "master";
-  if (n.includes("admin")) return "admin";
+  if (n.includes("master"))       return "master";
+  if (n.includes("admin"))        return "admin";
+  if (n.includes("operador"))     return "operador";
   if (n.includes("participante")) return "participanteLeilao";
   return "associado";
 };
@@ -184,6 +189,7 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
     role: "associado",
     status: "Anuidade Pendente",
     ativo: true,
+    orgId: currentOrgId,
     createdAt: serverTimestamp()
   }, { merge: true });
 
@@ -208,6 +214,7 @@ export async function doSignupParticipanteLeilao({ cpf, email, password, nome, t
     status: "Ativo",
     ativo: true,
     inadimplenteLeilao: false,
+    orgId: currentOrgId,
     createdAt: serverTimestamp()
   }, { merge: true });
 
@@ -255,11 +262,11 @@ export async function canViewAllUsers() {
 
 // 7) GUARDA DE ROTA (protege páginas e/ou exige papel)
 export function requireAuth(options = {}) {
-  const { requiredRole } = options;
+  const { requiredRole, loginUrl = "./login.html" } = options;
 
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
-      redirect("./login.html");
+      redirect(loginUrl);
       return;
     }
 
@@ -331,6 +338,7 @@ export async function addMemberService({ title, description, benefit, imageUrl, 
     imageUrl: toStr(imageUrl),
     whatsapp: onlyDigits(whatsapp),
     active: !!active,
+    orgId: currentOrgId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -359,6 +367,7 @@ export async function addMemberProduct({ title, description, benefit, imageUrls,
     whatsapp: onlyDigits(whatsapp),
     price: toNumberOrNull(price),
     active: !!active,
+    orgId: currentOrgId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -391,6 +400,7 @@ export async function addClassified({ title, description, imageUrls, whatsapp, p
     approved: !!approved,
     ownerUid: auth.currentUser.uid,
     ownerEmail: auth.currentUser.email || null,
+    orgId: currentOrgId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -424,6 +434,7 @@ export async function addMemberClassified({ title, description, imageUrls, whats
     price: toNumberOrNull(price),
     active: !!active,
     approved: !!approved,
+    orgId: currentOrgId,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -564,6 +575,70 @@ export function watchPublicClassifieds(onUpdate, onError, opts = { onlyApproved:
     console.error("watchPublicClassifieds (sync) error:", e);
     if (typeof onError === "function") onError(e);
     return () => {};
+  }
+}
+
+/* ============================
+   Multi-Tenant: módulos e logs
+   ============================ */
+
+/**
+ * Verifica se um módulo está habilitado para a organização atual.
+ * Cacheia em sessionStorage por 10 min. Retorna true por padrão (fail-safe).
+ */
+export async function checkModuleEnabled(moduleName) {
+  const cacheKey = `modules_${currentOrgId}`;
+  const cached = sessionStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const { modules, ts } = JSON.parse(cached);
+      if (Date.now() - ts < 600000) return modules[moduleName] !== false;
+    } catch (_) {}
+  }
+  try {
+    const snap = await getDoc(doc(db, "organizations", currentOrgId));
+    const modules = snap.exists() ? (snap.data()?.modules || {}) : {};
+    sessionStorage.setItem(cacheKey, JSON.stringify({ modules, ts: Date.now() }));
+    return modules[moduleName] !== false;
+  } catch {
+    return true; // fail-safe: não bloquear se Firestore inacessível
+  }
+}
+
+/**
+ * Verifica todos os módulos e oculta elementos com data-module="X" quando desativados.
+ * Chame uma vez por página para manter o nav sincronizado com os módulos ativos.
+ */
+export async function applyModuleVisibility() {
+  // Sempre busca dados frescos do Firestore — evita cache stale quando módulos são alterados
+  sessionStorage.removeItem(`modules_${currentOrgId}`);
+  const mods = ["leiloes","classificados","eventos","parcerias","galeria","diretoria","produtos","servicos","associados","financeiro"];
+  const results = await Promise.all(mods.map(m => checkModuleEnabled(m)));
+  mods.forEach((m, i) => {
+    if (!results[i]) {
+      document.querySelectorAll(`[data-module="${m}"]`).forEach(el => el.classList.add("d-none"));
+    }
+  });
+}
+
+/**
+ * Registra uma ação auditável na coleção systemLogs.
+ * Falha silenciosamente para não interromper o fluxo principal.
+ */
+export async function logAction(action, details = {}) {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    await addDoc(collection(db, "systemLogs"), {
+      userId:    user.uid,
+      userEmail: user.email || "",
+      orgId:     currentOrgId,
+      action,
+      details,
+      timestamp: serverTimestamp()
+    });
+  } catch (e) {
+    console.warn("logAction falhou:", e);
   }
 }
 

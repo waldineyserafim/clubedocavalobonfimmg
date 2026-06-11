@@ -47,7 +47,7 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item me-2"><a class="nav-link" href="admin_leiloes.html">Leilões</a></li>
+        <li class="nav-item me-2" data-module="leiloes"><a class="nav-link" href="admin_leiloes.html">Leilões</a></li>
         <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
         <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
       </ul>
@@ -70,31 +70,31 @@
 
 <main class="container">
   <div class="app-grid">
-    <a class="text-decoration-none" href="admin_associados.html">
+    <a class="text-decoration-none" href="admin_associados.html" data-module="associados">
       <div class="app-card">
         <h3>Associados</h3>
         <p>Cadastro, busca e financeiro.</p>
       </div>
     </a>
-    <a class="text-decoration-none" href="admin_produtos.html">
+    <a class="text-decoration-none" href="admin_produtos.html" data-module="produtos">
       <div class="app-card">
         <h3>Produtos</h3>
         <p>Benefícios e ofertas para associados.</p>
       </div>
     </a>
-    <a class="text-decoration-none" href="admin_servicos.html">
+    <a class="text-decoration-none" href="admin_servicos.html" data-module="servicos">
       <div class="app-card">
         <h3>Serviços</h3>
         <p>Provedores, descrições e imagens.</p>
       </div>
     </a>
-    <a class="text-decoration-none" href="admin_classificados.html">
+    <a class="text-decoration-none" href="admin_classificados.html" data-module="classificados">
       <div class="app-card">
         <h3>Classificados</h3>
         <p>Moderação, status e pagamentos.</p>
       </div>
     </a>
-    <a class="text-decoration-none" href="admin_leiloes.html">
+    <a class="text-decoration-none" href="admin_leiloes.html" data-module="leiloes">
       <div class="app-card">
         <h3>Leilões</h3>
         <p>Aprovação de lotes, vendas e repasses.</p>
@@ -115,12 +115,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
-  import { requireAuth } from "./firebase.js";
+  import { requireAuth, applyModuleVisibility } from "./firebase.js";
   import { auth, db } from "./firebase.js";
   import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  applyModuleVisibility();
 
   const opNameEl = document.getElementById("opName");
   const opRoleEl = document.getElementById("opRole");

@@ -55,6 +55,99 @@
         { "fieldPath": "status",  "order": "ASCENDING"  },
         { "fieldPath": "dueDate", "order": "ASCENDING"  }
       ]
+    },
+    {
+      "collectionGroup": "memberProducts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "title", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberServices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "title", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberClassifieds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",  "order": "ASCENDING" },
+        { "fieldPath": "title",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "memberClassifieds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",          "order": "ASCENDING"  },
+        { "fieldPath": "active",         "order": "ASCENDING"  },
+        { "fieldPath": "approved",       "order": "ASCENDING"  },
+        { "fieldPath": "paymentStatus",  "order": "ASCENDING"  },
+        { "fieldPath": "createdAt",      "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auctionLots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",     "order": "ASCENDING" },
+        { "fieldPath": "status",    "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auctionLots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",     "order": "ASCENDING"  },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auctionLots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",      "order": "ASCENDING"  },
+        { "fieldPath": "sellerUid",  "order": "ASCENDING"  },
+        { "fieldPath": "createdAt",  "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "auctionSales",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",     "order": "ASCENDING"  },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "nome",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "role",  "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId", "order": "ASCENDING" },
+        { "fieldPath": "cpf",   "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

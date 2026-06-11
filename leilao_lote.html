@@ -60,12 +60,12 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link active" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
         <li class="nav-item mt-2 mt-lg-0">
           <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
@@ -157,6 +157,7 @@
 
         <!-- Countdown -->
         <div id="countdownWrap" class="countdown-box mb-3">
+          <div class="small text-muted mb-1 w-100" style="font-size:.75rem;letter-spacing:.02em">TERMINA EM:</div>
           <div class="cd-unit"><div class="cd-num" id="cdD">0</div><div class="cd-lbl">dias</div></div>
           <div class="cd-unit"><div class="cd-num" id="cdH">00</div><div class="cd-lbl">horas</div></div>
           <div class="cd-unit"><div class="cd-num" id="cdM">00</div><div class="cd-lbl">min</div></div>
@@ -238,8 +239,7 @@ import { getFirestore, doc, collection, query, orderBy, limit,
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import { getFunctions, httpsCallable }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
-import "./firebase.js";
-import { setupAdminButton } from "./firebase.js";
+import { setupAdminButton, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
 
 const db        = getFirestore(getApp());
 const auth      = getAuth(getApp());
@@ -247,6 +247,14 @@ const functions = getFunctions(getApp(), "us-central1");
 
 const lotId = new URLSearchParams(location.search).get("id");
 if (!lotId) { location.href = "leiloes.html"; }
+
+applyModuleVisibility();
+checkModuleEnabled("leiloes").then(enabled => {
+  if (!enabled) {
+    document.getElementById("pageLoading").style.display = "none";
+    document.getElementById("pageNotFound").style.display = "";
+  }
+});
 
 /* ---- helpers ---- */
 function fmtBRL(v) { return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); }

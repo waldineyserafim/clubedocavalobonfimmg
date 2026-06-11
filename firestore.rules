@@ -25,12 +25,20 @@ service cloud.firestore {
         : "";
     }
 
-    // Testes de papel (case-insensitive)
-    function isRole(roleName) {
-      return (userRoleRaw() is string) && userRoleRaw().matches('(?i)^' + roleName + '$');
+    // Lê o orgId do usuário logado
+    function userOrgId() {
+      return isLoggedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId
+        : null;
     }
-    function isMaster()    { return isLoggedIn() && isRole("master"); }
-    function isAdminRole() { return isLoggedIn() && isRole("admin"); }
+
+    // Testes de papel (lower + trim para evitar problemas de capitalização/espaço)
+    function roleLower() {
+      return (userRoleRaw() is string) ? userRoleRaw().lower().trim() : "";
+    }
+    function isRole(roleName) { return roleLower() == roleName; }
+    function isMaster()    { return isLoggedIn() && (isSuperUID() || roleLower() == "master"); }
+    function isAdminRole() { return isLoggedIn() && roleLower() == "admin"; }
 
     // Quem pode operar (admin OU master OU super-UID opcional)
     function canOperate() { return isMaster() || isAdminRole() || isSuperUID(); }
@@ -333,6 +341,37 @@ service cloud.firestore {
                     && request.auth.uid == resource.data.recipientUid
                     && request.resource.data.diff(resource.data).changedKeys().hasOnly(["read"]);
       allow create, delete: if false; // Apenas Cloud Functions
+    }
+
+    // ===========================
+    //   Multi-Tenant: Organizations & System
+    // ===========================
+
+    match /organizations/{orgId} {
+      // list (getDocs sem filtro) — só master pode listar todas as orgs
+      allow list: if isMaster();
+      // get (documento específico) — master ou mesmo org
+      allow get: if isMaster() || (isLoggedIn() && userOrgId() == orgId);
+      allow write: if isMaster();
+    }
+
+    match /systemPlans/{planId} {
+      allow read: if isLoggedIn();
+      allow write: if isMaster();
+    }
+
+    match /systemLogs/{logId} {
+      allow read: if isMaster();
+      allow create: if isLoggedIn();
+      allow update, delete: if false;
+    }
+
+    match /organizationSubscriptions/{subId} {
+      allow read, write: if isMaster();
+    }
+
+    match /systemConfig/{docId} {
+      allow read, write: if isMaster();
     }
   }
 }

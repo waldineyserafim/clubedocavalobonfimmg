@@ -56,7 +56,7 @@
 </nav>
 
 <header class="border-bottom bg-light">
-  <div class="container py-3 d-flex justify-content-between align-items-start align-items-md-center gap-2">
+  <div class="container py-3 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
     <div>
       <h1 class="h4 h3-md mb-1">Administração — Serviços</h1>
       <p class="text-secondary mb-0">Gerencie os serviços e benefícios para associados.</p>
@@ -71,12 +71,12 @@
 <!-- Subnav de seções do painel -->
 <div class="subnav">
   <div class="container">
-    <div class="d-flex flex-wrap gap-2 py-2">
-      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html">Associados</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html">Produtos</a>
+    <div class="d-flex flex-nowrap gap-2 py-2" style="overflow-x:auto">
+      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html" data-module="associados">Associados</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_leiloes.html" data-module="leiloes">Leilões</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html" data-module="produtos">Produtos</a>
       <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Serviços</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html">Classificados</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_leiloes.html">Leilões</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html" data-module="classificados">Classificados</a>
     </div>
   </div>
 </div>
@@ -177,15 +177,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
-  import { requireAuth, addMemberService, updateMemberService } from "./firebase.js";
+  import { requireAuth, addMemberService, updateMemberService, currentOrgId, checkModuleEnabled } from "./firebase.js";
   import { auth, db } from "./firebase.js";
-  import { collection, getDocs, query, orderBy, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { collection, getDocs, query, orderBy, where, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   /* ===== Permissão ===== */
   const storage = getStorage();
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  checkModuleEnabled("servicos").then(ok => {
+    if (!ok) document.querySelector("main").innerHTML =
+      '<div class="alert alert-warning m-4">O módulo de Serviços não está habilitado para esta associação.</div>';
+  });
 
   /* ===== Header/login ===== */
   const opNameEl = document.getElementById("opName");
@@ -377,7 +381,7 @@
     const wrap=document.getElementById("servicesWrap"); if(!wrap) return;
     wrap.innerHTML=`<div class="text-center text-secondary py-3">Carregando...</div>`;
     try{
-      const snap=await getDocs(query(collection(db,"memberServices"), orderBy("title")));
+      const snap=await getDocs(query(collection(db,"memberServices"), where("orgId","==",currentOrgId), orderBy("title")));
       servicesRows=snap.docs.map(d=>({id:d.id, ...d.data()}));
       renderServices();
     }catch{ wrap.innerHTML=`<div class="text-center text-danger py-3">Falha ao carregar.</div>`; }

@@ -89,6 +89,9 @@
     }
     #destaquesCarousel .carousel-indicators [data-bs-target]{ background:#6c757d; }
     #destaquesCarousel .carousel-indicators .active{ background:#212529; }
+    .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+    @media (min-width:992px){ .subnav{ top:64px; } }
+    .subnav .btn{ border-radius:999px; }
   </style>
 </head>
 <body>
@@ -106,14 +109,14 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item mt-2 mt-lg-0">
-          <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
+        <li class="nav-item d-none mt-2 mt-lg-0" id="adminBtn">
+          <a href="admin.html" class="btn btn-warning text-dark ms-lg-3 w-100 w-lg-auto">Painel Admin</a>
         </li>
       </ul>
     </div>
@@ -131,6 +134,15 @@
     </div>
   </div>
 </header>
+
+<div class="subnav">
+  <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
+    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html" data-module="produtos">Produtos</a>
+    <a class="btn btn-sm btn-outline-primary" href="leiloes.html" data-module="leiloes">Leilões</a>
+    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html" data-module="servicos">Serviços</a>
+    <a class="btn btn-sm btn-primary">Classificados</a>
+  </div>
+</div>
 
 <!-- ===== BANNER DE DESTAQUES ===== -->
 <main class="container my-3">
@@ -213,7 +225,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
-  import { db } from './firebase.js';
+  import { db, setupAdminButton, currentOrgId, checkModuleEnabled, applyModuleVisibility } from './firebase.js';
   import {
     collection,
     query,
@@ -222,6 +234,13 @@
     orderBy,
     getDocs
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  setupAdminButton("#adminBtn", { href: "admin.html", label: "Painel Admin" });
+  applyModuleVisibility();
+  checkModuleEnabled("classificados").then(ok => {
+    if (!ok) document.querySelector("main").innerHTML =
+      '<div class="container my-5"><div class="alert alert-warning">O módulo de Classificados não está disponível para esta associação.</div></div>';
+  });
 
   const listaEl   = document.getElementById('lista-classificados');
   const noDataEl  = document.getElementById('no-data');
@@ -543,6 +562,7 @@
     const colRef = collection(db, 'memberClassifieds');
     const q = query(
       colRef,
+      where('orgId', '==', currentOrgId),
       where('active', '==', true),
       where('approved', '==', true),
       where('paymentStatus', '!=', 'pending'),

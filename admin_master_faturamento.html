@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Faturamento — Painel Master</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <style>
+    :root { --brand: #111279; }
+    body { background: #f4f6fb; }
+    .sidebar {
+      width: 220px; min-height: 100vh; background: var(--brand); color: #fff;
+      position: fixed; top: 0; left: 0; display: flex; flex-direction: column; padding: 1.5rem 0;
+    }
+    .sidebar .brand { padding: .5rem 1.25rem 1.5rem; font-weight: 700; font-size: 1.05rem; border-bottom: 1px solid rgba(255,255,255,.15); }
+    .sidebar .nav-link { color: rgba(255,255,255,.8); padding: .55rem 1.25rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,.1); }
+    .sidebar .nav-link.text-danger { color: #ff7b7b!important; }
+    .main { margin-left: 220px; padding: 2rem; }
+    .kpi-card { background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+    .kpi-value { font-size: 1.8rem; font-weight: 700; color: var(--brand); }
+    .kpi-label { color: #666; font-size: .85rem; }
+    @media (max-width: 767px) { .sidebar { display: none; } .main { margin-left: 0; padding: 1rem; } }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="brand">⚡ Painel Master</div>
+  <ul class="nav flex-column mt-2">
+    <li class="nav-item"><a class="nav-link" href="admin_master.html">Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_associacoes.html">Associações</a></li>
+    <li class="nav-item"><a class="nav-link active" href="admin_master_faturamento.html">Faturamento</a></li>
+    <li class="nav-item"><a class="nav-link" href="admin_master_configuracoes.html">Configurações</a></li>
+    <li class="nav-item mt-auto"><a class="nav-link text-danger" id="btnSair" href="#">Sair</a></li>
+  </ul>
+</nav>
+
+<main class="main">
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="h4 mb-0">Faturamento SaaS</h1>
+    <button class="btn btn-sm btn-primary" id="btnNovaAssinatura" data-bs-toggle="modal" data-bs-target="#modalSub">+ Registrar Assinatura</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value text-success" id="kpiMrr">—</div>
+        <div class="kpi-label">MRR (R$)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" id="kpiArr">—</div>
+        <div class="kpi-label">ARR Estimado (R$)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value text-success" id="kpiAdim">—</div>
+        <div class="kpi-label">Adimplentes</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value text-danger" id="kpiInadim">—</div>
+        <div class="kpi-label">Inadimplentes</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtro -->
+  <div class="d-flex gap-2 mb-3">
+    <select class="form-select form-select-sm" style="max-width:160px" id="filterStatus">
+      <option value="">Todos os status</option>
+      <option value="ativa">Ativa</option>
+      <option value="inadimplente">Inadimplente</option>
+      <option value="cancelada">Cancelada</option>
+    </select>
+  </div>
+
+  <!-- Tabela -->
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="text-center py-4 text-muted" id="loading">Carregando...</div>
+      <table class="table table-hover mb-0 d-none" id="tbl">
+        <thead class="table-light">
+          <tr>
+            <th>Organização</th>
+            <th>Plano</th>
+            <th>Valor/mês</th>
+            <th>Status</th>
+            <th class="d-none d-md-table-cell">Próx. Cobrança</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Assinatura -->
+<div class="modal fade" id="modalSub" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalSubTitle">Registrar Assinatura</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="subEditId">
+        <div class="mb-3">
+          <label class="form-label">Organização (orgId) *</label>
+          <input class="form-control" id="subOrgId" placeholder="org_bonfim">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Plano *</label>
+          <select class="form-select" id="subPlan">
+            <option value="starter">Starter</option>
+            <option value="professional">Professional</option>
+            <option value="enterprise" selected>Enterprise</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Valor Mensal (R$)</label>
+          <input class="form-control" id="subValor" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Status</label>
+          <select class="form-select" id="subStatus">
+            <option value="ativa">Ativa</option>
+            <option value="inadimplente">Inadimplente</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Data de Início</label>
+          <input class="form-control" id="subInicio" type="date">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Próxima Cobrança</label>
+          <input class="form-control" id="subProxima" type="date">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSalvarSub">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { auth, db } from "./firebase.js";
+import { requireAuth, logAction } from "./firebase.js";
+import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import {
+  collection, getDocs, doc, setDoc, addDoc, updateDoc, query, orderBy, serverTimestamp, Timestamp
+} from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+requireAuth({ requiredRole: "master", loginUrl: "./login_master.html" });
+
+document.getElementById("btnSair").addEventListener("click", async e => {
+  e.preventDefault();
+  await signOut(auth);
+  location.href = "login_master.html";
+});
+
+const PLAN_LABELS = { starter:"Starter", professional:"Professional", enterprise:"Enterprise" };
+
+function fmtBRL(v) { return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); }
+function fmtDate(ts) {
+  if (!ts) return "—";
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString("pt-BR");
+}
+
+let allSubs = [];
+const modal = new bootstrap.Modal(document.getElementById("modalSub"));
+
+document.getElementById("btnNovaAssinatura").addEventListener("click", () => {
+  document.getElementById("subEditId").value = "";
+  document.getElementById("subOrgId").value  = "";
+  document.getElementById("subPlan").value   = "enterprise";
+  document.getElementById("subValor").value  = "";
+  document.getElementById("subStatus").value = "ativa";
+  document.getElementById("subInicio").value  = new Date().toISOString().split("T")[0];
+  document.getElementById("subProxima").value = "";
+  document.getElementById("modalSubTitle").textContent = "Registrar Assinatura";
+});
+
+document.getElementById("btnSalvarSub").addEventListener("click", async () => {
+  const editId = document.getElementById("subEditId").value.trim();
+  const orgId  = document.getElementById("subOrgId").value.trim();
+  const plan   = document.getElementById("subPlan").value;
+  const valor  = parseFloat(document.getElementById("subValor").value) || 0;
+  const status = document.getElementById("subStatus").value;
+  const inicio = document.getElementById("subInicio").value;
+  const proxima = document.getElementById("subProxima").value;
+  if (!orgId) { alert("OrgId obrigatório."); return; }
+  const payload = {
+    orgId, plan, valorMensal: valor, status,
+    dataInicio: inicio ? Timestamp.fromDate(new Date(inicio)) : null,
+    proximaCobranca: proxima ? Timestamp.fromDate(new Date(proxima)) : null,
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    if (editId) {
+      await updateDoc(doc(db, "organizationSubscriptions", editId), payload);
+    } else {
+      payload.createdAt = serverTimestamp();
+      await addDoc(collection(db, "organizationSubscriptions"), payload);
+    }
+    await logAction(editId ? "assinatura_atualizada" : "assinatura_criada", { orgId, plan });
+    modal.hide();
+    await loadSubs();
+  } catch (e) { alert("Erro: " + e.message); }
+});
+
+document.getElementById("filterStatus").addEventListener("change", () => render());
+
+async function loadSubs() {
+  document.getElementById("loading").classList.remove("d-none");
+  document.getElementById("tbl").classList.add("d-none");
+  try {
+    const snap = await getDocs(query(collection(db,"organizationSubscriptions"), orderBy("orgId")));
+    allSubs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  } catch (e) {
+    document.getElementById("loading").textContent = "Erro ao carregar.";
+  }
+}
+
+function render() {
+  const filter = document.getElementById("filterStatus").value;
+  const rows   = filter ? allSubs.filter(s => s.status === filter) : allSubs;
+
+  // KPIs
+  const adim   = allSubs.filter(s => s.status === "ativa").length;
+  const inadim = allSubs.filter(s => s.status === "inadimplente").length;
+  const mrr    = allSubs.filter(s => s.status === "ativa").reduce((a,b) => a + (b.valorMensal||0), 0);
+  document.getElementById("kpiMrr").textContent   = fmtBRL(mrr);
+  document.getElementById("kpiArr").textContent   = fmtBRL(mrr * 12);
+  document.getElementById("kpiAdim").textContent  = adim;
+  document.getElementById("kpiInadim").textContent = inadim;
+
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = rows.map(s => `
+    <tr>
+      <td>${s.orgId}</td>
+      <td><span class="badge bg-secondary">${PLAN_LABELS[s.plan] || s.plan}</span></td>
+      <td>${fmtBRL(s.valorMensal)}</td>
+      <td>${s.status === "ativa" ? '<span class="badge bg-success">Ativa</span>' :
+            s.status === "inadimplente" ? '<span class="badge bg-danger">Inadimplente</span>' :
+            '<span class="badge bg-secondary">Cancelada</span>'}</td>
+      <td class="d-none d-md-table-cell text-muted small">${fmtDate(s.proximaCobranca)}</td>
+      <td><button class="btn btn-sm btn-outline-primary btn-edit" data-id="${s.id}">Editar</button></td>
+    </tr>`).join("") || '<tr><td colspan="6" class="text-center text-muted py-4">Nenhuma assinatura cadastrada</td></tr>';
+
+  document.querySelectorAll(".btn-edit").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const s = allSubs.find(x => x.id === btn.dataset.id);
+      if (!s) return;
+      document.getElementById("subEditId").value  = s.id;
+      document.getElementById("subOrgId").value   = s.orgId || "";
+      document.getElementById("subPlan").value    = s.plan || "enterprise";
+      document.getElementById("subValor").value   = s.valorMensal || "";
+      document.getElementById("subStatus").value  = s.status || "ativa";
+      const toInputDate = ts => {
+        if (!ts) return "";
+        const d = ts.toDate ? ts.toDate() : new Date(ts);
+        return d.toISOString().split("T")[0];
+      };
+      document.getElementById("subInicio").value   = toInputDate(s.dataInicio);
+      document.getElementById("subProxima").value  = toInputDate(s.proximaCobranca);
+      document.getElementById("modalSubTitle").textContent = "Editar Assinatura";
+      modal.show();
+    });
+  });
+
+  document.getElementById("loading").classList.add("d-none");
+  document.getElementById("tbl").classList.remove("d-none");
+}
+
+onAuthStateChanged(auth, user => { if (user) loadSubs(); });
+</script>
+</body>
+</html>

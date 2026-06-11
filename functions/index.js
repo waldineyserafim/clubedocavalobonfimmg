@@ -13,8 +13,9 @@ const ASAAS_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-webhook-to
 // Mesma lógica do firebase.js: trim + normalize + includes
 function mapRoleServer(r) {
   const n = (r || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
-  if (n.includes('master'))      return 'master';
-  if (n.includes('admin'))       return 'admin';
+  if (n.includes('master'))       return 'master';
+  if (n.includes('admin'))        return 'admin';
+  if (n.includes('operador'))     return 'operador';
   if (n.includes('participante')) return 'participanteLeilao';
   return 'associado';
 }
@@ -1433,6 +1434,43 @@ exports.onInvoiceCreatedPaid = functions.firestore
   });
 
 /* =======================================================================
+   getAsaasPaymentLink — retorna o link de pagamento da fatura aberta do associado
+   ======================================================================= */
+exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const uid = context.auth.uid;
+  const userSnap = await db.collection('users').doc(uid).get();
+  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
+
+  const user = userSnap.data();
+  if (!user.asaasSubscriptionId)
+    throw new functions.https.HttpsError('not-found', 'Assinatura não configurada. Entre em contato com o clube.');
+
+  const apiKey = await getAsaasApiKey();
+
+  for (const st of ['PENDING', 'OVERDUE']) {
+    const resp = await fetch(
+      `${ASAAS_BASE_URL}/payments?subscription=${user.asaasSubscriptionId}&status=${st}&limit=1&sort=dueDate&order=asc`,
+      { headers: { 'access_token': apiKey } }
+    );
+    const result = await resp.json();
+    if (result.data?.length) {
+      const p = result.data[0];
+      return {
+        invoiceUrl:     p.invoiceUrl,
+        asaasPaymentId: p.id,
+        dueDate:        p.dueDate,
+        value:          p.value,
+        status:         p.status,
+      };
+    }
+  }
+
+  return { emDia: true };
+});
+
+/* =======================================================================
    WEBHOOK ASAAS → FIREBASE
    Configurar no Asaas: Configurações → Integrações → Webhook
    URL: https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook
@@ -1529,6 +1567,7 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
       paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
       amount:         verifyData.value,
       asaasPaymentId: payment.id,
+      invoiceUrl:     verifyData.invoiceUrl || null,
       planType,
       planStart:      admin.firestore.Timestamp.fromDate(planStart),
       planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
@@ -2099,4 +2138,157 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
 
     console.log(`verificarInadimplentesDiarios: ${uidsToBlock.size} usuário(s) bloqueado(s)`);
     return null;
+  });
+
+// ─── SAAS MULTI-TENANT ────────────────────────────────────────────────────────
+
+/**
+ * Cria as coleções base do SaaS: organizations/org_bonfim e systemPlans.
+ * Idempotente — usa set({ merge: true }).
+ * Acesso exclusivo: role master.
+ */
+exports.seedMultiTenantData = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  if (!callerSnap.exists || mapRoleServer(callerSnap.data().role) !== 'master') {
+    throw new functions.https.HttpsError('permission-denied', 'Acesso exclusivo Master.');
+  }
+
+  const ts = admin.firestore.FieldValue.serverTimestamp();
+
+  // Organização inicial — Clube do Cavalo Bonfim MG
+  await db.collection('organizations').doc('org_bonfim').set({
+    id:        'org_bonfim',
+    nome:      'Clube do Cavalo - Bonfim MG',
+    slug:      'org_bonfim',
+    dominio:   'clubedocavalobonfim.com.br',
+    ativo:     true,
+    plan:      'enterprise',
+    modules: {
+      associados:   true,
+      financeiro:   true,
+      classificados: true,
+      eventos:      true,
+      parcerias:    true,
+      galeria:      true,
+      diretoria:    true,
+      produtos:     true,
+      servicos:     true,
+      leiloes:      true,
+    },
+    moduleOverrides: {},
+    whatsapp:  '5531986685028',
+    email:     'waldiney.serafim@gmail.com',
+    createdAt: ts,
+    updatedAt: ts,
+  }, { merge: true });
+
+  // Planos SaaS
+  const planos = {
+    starter: {
+      nome:    'Starter',
+      modulos: ['associados', 'classificados', 'eventos'],
+      descricao: 'Plano básico: associados, classificados e eventos.',
+      preco:   0,
+      ordem:   1,
+    },
+    professional: {
+      nome:    'Professional',
+      modulos: ['associados', 'classificados', 'eventos', 'produtos', 'servicos', 'parcerias', 'galeria'],
+      descricao: 'Plano intermediário com produtos, serviços, parcerias e galeria.',
+      preco:   0,
+      ordem:   2,
+    },
+    enterprise: {
+      nome:    'Enterprise',
+      modulos: ['associados', 'financeiro', 'classificados', 'eventos', 'produtos', 'servicos', 'parcerias', 'galeria', 'diretoria', 'leiloes'],
+      descricao: 'Plano completo com todos os módulos.',
+      preco:   0,
+      ordem:   3,
+    },
+  };
+
+  for (const [planId, planData] of Object.entries(planos)) {
+    await db.collection('systemPlans').doc(planId).set(planData, { merge: true });
+  }
+
+  console.log('seedMultiTenantData: concluído.');
+  return { ok: true, message: 'Seed multi-tenant concluído com sucesso.' };
+});
+
+/**
+ * Adiciona orgId: "org_bonfim" a todos os documentos existentes.
+ * Pula usuários com role master e documentos que já possuem orgId.
+ * Processa subcoleções financeInvoices de cada usuário.
+ * Acesso exclusivo: role master.
+ */
+exports.migrateToMultiTenant = functions
+  .runWith({ timeoutSeconds: 540, memory: '512MB' })
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    if (!callerSnap.exists || mapRoleServer(callerSnap.data().role) !== 'master') {
+      throw new functions.https.HttpsError('permission-denied', 'Acesso exclusivo Master.');
+    }
+
+    const ORG_ID = 'org_bonfim';
+    let updated = 0;
+    let skipped = 0;
+
+    async function migrateCollection(colRef) {
+      const snap = await colRef.get();
+      let batch = db.batch();
+      let count = 0;
+      for (const docSnap of snap.docs) {
+        if (docSnap.data().orgId) { skipped++; continue; }
+        batch.update(docSnap.ref, { orgId: ORG_ID });
+        count++;
+        updated++;
+        if (count >= 499) {
+          await batch.commit();
+          batch = db.batch();
+          count = 0;
+        }
+      }
+      if (count > 0) await batch.commit();
+    }
+
+    // Coleções top-level (exceto users — tratada separadamente)
+    const topLevel = [
+      'memberProducts', 'memberServices', 'memberClassifieds',
+      'classificados', 'auctionLots', 'auctionSales', 'auctionPayments',
+    ];
+    for (const col of topLevel) {
+      await migrateCollection(db.collection(col));
+    }
+
+    // Usuários: pular masters; coletar uids para migrar subcoleções
+    const usersSnap = await db.collection('users').get();
+    let userBatch  = db.batch();
+    let userCount  = 0;
+    const userIds  = [];
+
+    for (const userDoc of usersSnap.docs) {
+      const ud = userDoc.data();
+      if (mapRoleServer(ud.role) === 'master') { skipped++; continue; }
+      userIds.push(userDoc.id);
+      if (ud.orgId) { skipped++; continue; }
+      userBatch.update(userDoc.ref, { orgId: ORG_ID });
+      userCount++;
+      updated++;
+      if (userCount >= 499) {
+        await userBatch.commit();
+        userBatch = db.batch();
+        userCount = 0;
+      }
+    }
+    if (userCount > 0) await userBatch.commit();
+
+    // Subcoleção financeInvoices de cada usuário
+    for (const uid of userIds) {
+      await migrateCollection(db.collection('users').doc(uid).collection('financeInvoices'));
+    }
+
+    console.log(`migrateToMultiTenant: updated=${updated}, skipped=${skipped}`);
+    return { updated, skipped, orgId: ORG_ID };
   });

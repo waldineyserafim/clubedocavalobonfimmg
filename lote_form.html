@@ -24,6 +24,9 @@
                       font-size:.7rem; line-height:1; cursor:pointer; display:flex;
                       align-items:center; justify-content:center; }
     #termoVendedor{ max-height:200px; overflow-y:auto; font-size:.82rem; }
+    .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+    @media (min-width:992px){ .subnav{ top:64px; } }
+    .subnav .btn{ border-radius:999px; }
     html,body{height:100%}
   body{min-height:100dvh;display:flex;flex-direction:column}
   main{flex:1 0 auto}
@@ -39,15 +42,15 @@
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link active" href="meus_lotes.html">Meus Lotes</a></li>
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link active" href="meus_lotes.html">Meus Lotes</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
-        <li class="nav-item d-none" id="adminBtn"><a class="btn btn-warning text-dark ms-4" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item d-none mt-2 mt-lg-0" id="adminBtn"><a class="btn btn-warning text-dark ms-lg-3 w-100 w-lg-auto" href="admin.html">Painel Admin</a></li>
       </ul>
     </div>
   </div>
@@ -59,6 +62,15 @@
     <a href="meus_lotes.html" class="btn btn-outline-secondary btn-sm">Cancelar</a>
   </div>
 </header>
+
+<div class="subnav">
+  <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
+    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html" data-module="produtos">Produtos</a>
+    <a class="btn btn-sm btn-outline-primary" href="leiloes.html" data-module="leiloes">Leilões</a>
+    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html" data-module="servicos">Serviços</a>
+    <a class="btn btn-sm btn-outline-primary" href="classificados.html" data-module="classificados">Classificados</a>
+  </div>
+</div>
 
 <main class="container py-4" style="max-width:760px">
 
@@ -199,7 +211,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
-import { requireAuth, uploadImageFile } from "./firebase.js";
+import { requireAuth, uploadImageFile, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
 import { getFirestore, collection, doc, getDoc, addDoc, updateDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
@@ -209,6 +221,11 @@ const db   = getFirestore(getApp());
 const auth = getAuth(getApp());
 
 requireAuth({ requiredRole: ["associado", "admin", "master"] });
+applyModuleVisibility();
+checkModuleEnabled("leiloes").then(ok => {
+  if (!ok) document.querySelector("main").innerHTML =
+    '<div class="container my-5"><div class="alert alert-warning">O módulo de Leilões não está disponível para esta associação.</div></div>';
+});
 
 /* ---- URL param: edição de lote existente ---- */
 const params = new URLSearchParams(location.search);
@@ -220,7 +237,7 @@ let newImageFiles     = [];   // Arquivos novos a enviar
 /* ---- Campos extras por categoria ---- */
 const EXTRA_FIELDS = {
   animal: [
-    { id:"raca",        label:"Raça",                  req:true  },
+    { id:"raca",        label:"Raça",                  req:false },
     { id:"sexo",        label:"Sexo",                  req:true,  type:"select", opts:["Macho","Fêmea","Castrado"] },
     { id:"idade",       label:"Idade",                 req:true,  placeholder:"Ex: 5 anos" },
     { id:"registro",    label:"Registro",              req:false },
@@ -231,7 +248,7 @@ const EXTRA_FIELDS = {
   ],
   genetica: [
     { id:"garanhao",    label:"Nome do garanhão",      req:true  },
-    { id:"raca",        label:"Raça",                  req:true  },
+    { id:"raca",        label:"Raça",                  req:false },
     { id:"registro",    label:"Registro",              req:false },
     { id:"genealogia",  label:"Genealogia",            req:false, type:"textarea" },
     { id:"premiacoes",  label:"Premiações",            req:false, type:"textarea" },
@@ -471,6 +488,7 @@ async function buildLotData(status) {
     imageUrls:   allImages,
     videoLinks:  collectVideoLinks(),
     status,
+    orgId:       currentOrgId,
     termsAcceptedAt: (status === "em_analise" || existingLot?.termsAcceptedAt)
       ? (existingLot?.termsAcceptedAt || serverTimestamp()) : null,
     updatedAt:   serverTimestamp(),

@@ -63,6 +63,10 @@
     .carousel-indicators .active{ background:#212529; }
 
     .alert-soft{ background:#fff3cd; border:1px solid #ffe69c; }
+    html,body{height:100%}
+    body{min-height:100dvh;display:flex;flex-direction:column}
+    main{flex:1 0 auto}
+    footer{flex-shrink:0}
   </style>
 </head>
 <body>
@@ -75,14 +79,14 @@
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item d-none" id="adminBtn"><a class="btn btn-warning text-dark ms-4" href="admin.html">Painel Admin</a></li>
+        <li class="nav-item d-none mt-2 mt-lg-0" id="adminBtn"><a class="btn btn-warning text-dark ms-lg-3 w-100 w-lg-auto" href="admin.html">Painel Admin</a></li>
       </ul>
     </div>
   </div>
@@ -112,13 +116,11 @@
 
 <!-- ===== SUB NAV (atalhos) ===== -->
 <div class="subnav">
-  <div class="container py-2 d-flex align-items-center gap-2" style="overflow-x:auto">
-    <span class="small text-secondary text-nowrap">Exclusivos:</span>
-    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html">Produtos</a>
-    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html">Serviços</a>
-    <a class="btn btn-sm btn-outline-primary" href="classificados.html">Classificados</a>
-    <a class="btn btn-sm btn-outline-primary" href="meus_lotes.html">Meus Lotes</a>
-    <a class="btn btn-sm btn-outline-primary" href="leiloes.html">Leilões</a>
+  <div class="container py-2 d-flex align-items-center flex-nowrap gap-2" style="overflow-x:auto">
+    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html" data-module="produtos">Produtos</a>
+    <a class="btn btn-sm btn-outline-primary" href="leiloes.html" data-module="leiloes">Leilões</a>
+    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html" data-module="servicos">Serviços</a>
+    <a class="btn btn-sm btn-outline-primary" href="classificados.html" data-module="classificados">Classificados</a>
   </div>
 </div>
 
@@ -176,7 +178,7 @@
 
 <!-- ===== APP SCRIPT ===== -->
 <script type="module">
-  import { auth, db, getUserProfile, getUserStatus, uploadImageFile } from "./firebase.js";
+  import { auth, db, getUserProfile, getUserStatus, uploadImageFile, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
   import {
     onAuthStateChanged, signOut,
     reauthenticateWithCredential, updatePassword, EmailAuthProvider
@@ -231,8 +233,6 @@
   // Perfil do usuário logado — preenchido no onAuthStateChanged e usado no handler de senha
   let userProfile = null;
 
-  const PAYMENT_URL = "https://mpago.la/1mJpCsd";
-
   const fmtDate = (ts)=> {
     if (!ts) return "—";
     try { const d = ts?.toDate ? ts.toDate() : new Date(ts);
@@ -249,6 +249,11 @@
   }
 
   const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
+
+  let _financeiroOk = true;
+  let _classificadosOk = true;
+
+  applyModuleVisibility();
 
   function applySummaryToUI(summary){
     const planType = String(summary?.planType || "").toLowerCase();
@@ -267,7 +272,7 @@
         setPayStatusBadge("Em dia");
         btnRenewPlan.classList.add("d-none");
         alertFinance.classList.add("d-none");
-        btnNewClassified?.classList.remove("d-none");
+        if (_classificadosOk) btnNewClassified?.classList.remove("d-none");
       } else {
         btnRenewPlan.classList.remove("d-none");
         alertFinance.classList.remove("d-none");
@@ -320,6 +325,11 @@
     const role = String(p.role||"").toLowerCase();
     if (/(admin|master)/.test(role)) adminBtn.classList.remove("d-none");
 
+    [_financeiroOk, _classificadosOk] = await Promise.all([
+      checkModuleEnabled("financeiro"),
+      checkModuleEnabled("classificados")
+    ]);
+
     // Primeiro acesso: abre modal de troca de senha obrigatória
     if (p.primeiroAcesso) {
       const pwModalEl = document.getElementById('pwModal');
@@ -340,36 +350,40 @@
       new bootstrap.Modal(pwModalEl, { backdrop: 'static', keyboard: false }).show();
     }
 
-    const st = await getUserStatus(user.uid);
-    let planName = p.planName || p.plano || (p.finance?.summary?.planName) || "—";
-    let nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || (p.finance?.summary?.nextDue);
+    if (_financeiroOk) {
+      const st = await getUserStatus(user.uid);
+      let planName = p.planName || p.plano || (p.finance?.summary?.planName) || "—";
+      let nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || (p.finance?.summary?.nextDue);
 
-    if (planName && planName!=="—"){ chipPlanText.textContent = planName; chipPlan.classList.remove("d-none"); }
-    if (nextDue){ chipNextDueText.textContent = fmtDate(nextDue); chipNextDue.classList.remove("d-none"); }
+      if (planName && planName!=="—"){ chipPlanText.textContent = planName; chipPlan.classList.remove("d-none"); }
+      if (nextDue){ chipNextDueText.textContent = fmtDate(nextDue); chipNextDue.classList.remove("d-none"); }
 
-    if (!st || st.active){ setPayStatusBadge("Em dia"); }
-    else if (st.pending){ setPayStatusBadge("Atrasada"); }
-    else { setPayStatusBadge("Vencida"); }
-    if (!st?.active){ btnRenewPlan.classList.remove("d-none"); }
+      if (!st || st.active){ setPayStatusBadge("Em dia"); }
+      else if (st.pending){ setPayStatusBadge("Atrasada"); }
+      else { setPayStatusBadge("Vencida"); }
+      if (!st?.active){ btnRenewPlan.classList.remove("d-none"); }
 
-    if (st?.active) {
+      if (st?.active && _classificadosOk) {
+        btnNewClassified?.classList.remove("d-none");
+      } else {
+        btnNewClassified?.classList.add("d-none");
+      }
+
+      applyRenewRules(nextDue);
+
+      try {
+        const sumRef = doc(db, "users", user.uid, "finance", "summary");
+        onSnapshot(sumRef, (snap) => {
+          if (!snap.exists()) return;
+          const summary = snap.data() || {};
+          applySummaryToUI(summary);
+          const duePref = summary?.nextDue || summary?.activeUntil || null;
+          applyRenewRules(duePref);
+        });
+      } catch(err) { /* opcional */ }
+    } else if (_classificadosOk) {
       btnNewClassified?.classList.remove("d-none");
-    } else {
-      btnNewClassified?.classList.add("d-none");
     }
-
-    applyRenewRules(nextDue);
-
-    try {
-      const sumRef = doc(db, "users", user.uid, "finance", "summary");
-      onSnapshot(sumRef, (snap) => {
-        if (!snap.exists()) return;
-        const summary = snap.data() || {};
-        applySummaryToUI(summary);
-        const duePref = summary?.nextDue || summary?.activeUntil || null;
-        applyRenewRules(duePref);
-      });
-    } catch(err) { /* opcional */ }
 
     // Carregar destaques (banner)
     loadHighlights();
@@ -431,7 +445,7 @@
   }
 
   async function fetchCollection(colName, typeLabel){
-    const snap = await getDocs(collection(db, colName));
+    const snap = await getDocs(query(collection(db, colName), where("orgId","==",currentOrgId)));
     const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
       .filter(r => pickActiveFlag(r) && pickFeaturedFlag(r))
       .map(r => ({ ...r,
@@ -449,7 +463,7 @@
     const candidates = ["classificados","classifieds","memberClassifieds"];
     for (const col of candidates){
       try{
-        const snap = await getDocs(collection(db,col));
+        const snap = await getDocs(query(collection(db,col), where("orgId","==",currentOrgId)));
         if (!snap.empty){
           const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
             .filter(r => pickActiveFlag(r) && pickFeaturedFlag(r))
@@ -630,7 +644,6 @@
         imageUrls: [],
         active: false, approved: false,
         paymentStatus: "pending",
-        paymentUrl: PAYMENT_URL,
         pricePerDay: 1.00,
         minDays: 30,
         plannedActiveDays: 30,
@@ -666,8 +679,7 @@
       clsFeedback.innerHTML = `
         <strong>Classificado enviado!</strong><br>
         ${urls.length ? `${urls.length} foto(s) anexada(s).<br>` : ""}
-        Ele ficará ativo por <strong>30 dias</strong> após a confirmação do pagamento.<br>
-        <a href="${PAYMENT_URL}" target="_blank" rel="noopener">Concluir pagamento</a>.
+        Seu anúncio será analisado e ativado pela secretaria em breve.
       `;
       clsFeedback.classList.remove("d-none"); clsFeedback.classList.add("alert","alert-success");
 
@@ -676,8 +688,7 @@
       setTimeout(()=>{
         const modal = bootstrap.Modal.getInstance(classifiedModalEl);
         modal?.hide();
-        window.location.href = PAYMENT_URL;
-      }, 1200);
+      }, 2000);
 
     }catch(err){
       console.error(err);

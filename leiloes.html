@@ -17,9 +17,8 @@
 
     .page-hero{
       background: linear-gradient(135deg, var(--brand) 0%, #1a1a8c 100%);
-      color:#fff; padding:2.5rem 0 2rem;
+      color:#fff; padding:.75rem 0 .6rem;
     }
-    @media (max-width:575.98px){ .page-hero{ padding:1.5rem 0 1.25rem; } }
 
     .lot-card{
       border:1px solid #e9ecef; border-radius:12px; overflow:hidden;
@@ -40,13 +39,27 @@
     .countdown.urgent{ color:#dc3545; }
     .countdown.ended { color:#6c757d; }
 
-    /* Filter pills */
-    .filter-btn.active{ background-color:var(--brand)!important; color:#fff!important; border-color:var(--brand)!important; }
+    /* Status badges */
+    .badge-live{ background-color:#198754; }
+    .live-dot{
+      display:inline-block; width:.45rem; height:.45rem; border-radius:50%;
+      background:#fff; margin-right:.3rem; vertical-align:middle;
+      animation:livePulse 1.2s ease-in-out infinite;
+    }
+    @keyframes livePulse{
+      0%,100%{ opacity:1; transform:scale(1); }
+      50%{ opacity:.35; transform:scale(.65); }
+    }
+    .badge-soon{ background-color:#ffc107; color:#212529; }
+    .status-filter-btn.active{ background-color:var(--brand)!important; color:#fff!important; border-color:var(--brand)!important; }
 
     @media (max-width:575.98px){
       .display-5{ font-size:1.5rem!important; line-height:1.2; }
       .lead{ font-size:1rem!important; }
     }
+    .subnav{ position:sticky; top:56px; z-index:1020; background:#fff; border-top:1px solid #e9ecef; border-bottom:1px solid #e9ecef; }
+    @media (min-width:992px){ .subnav{ top:64px; } }
+    .subnav .btn{ border-radius:999px; }
     html,body{height:100%}
   body{min-height:100dvh;display:flex;flex-direction:column}
   main{flex:1 0 auto}
@@ -67,17 +80,14 @@
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item d-none" id="adminBtnArea">
-          <a href="admin_leiloes.html" class="btn btn-warning text-dark ms-lg-2">Gestão de Leilões</a>
-        </li>
-        <li class="nav-item mt-2 mt-lg-0">
-          <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
+        <li class="nav-item d-none mt-2 mt-lg-0" id="adminBtnArea">
+          <a href="admin.html" class="btn btn-warning text-dark ms-lg-3 w-100 w-lg-auto">Painel Admin</a>
         </li>
       </ul>
     </div>
@@ -85,25 +95,37 @@
 </nav>
 
 <section class="page-hero">
-  <div class="container text-center">
-    <h1 class="display-5 fw-bold mb-2">Leilões Online</h1>
-    <p class="lead mb-3 opacity-90">Arrematações de cavalos, genética e equipamentos equestres</p>
-    <div id="heroActions" class="d-flex justify-content-center gap-2 flex-wrap">
-      <!-- Botão "Novo Lote" aparece via JS para associados logados -->
-    </div>
+  <div class="container d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h1 class="h4 fw-bold mb-0">Leilões Online</h1>
+    <div id="heroActions" class="d-flex gap-2 flex-wrap"></div>
   </div>
 </section>
 
+<div class="subnav">
+  <div class="container py-2 d-flex gap-2 flex-nowrap" style="overflow:auto">
+    <a class="btn btn-sm btn-outline-primary" href="produtos_associado.html" data-module="produtos">Produtos</a>
+    <a class="btn btn-sm btn-primary">Leilões</a>
+    <a class="btn btn-sm btn-outline-primary" href="servicos_associado.html" data-module="servicos">Serviços</a>
+    <a class="btn btn-sm btn-outline-primary" href="classificados.html" data-module="classificados">Classificados</a>
+  </div>
+</div>
+
 <main class="container py-4">
 
-  <!-- Filtros -->
+  <!-- Filtros: status (pills) + categoria (select) + busca -->
   <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-    <button class="btn btn-sm btn-outline-secondary filter-btn active" data-cat="">Todos</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="animal">Animais</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="genetica">Genética</button>
-    <button class="btn btn-sm btn-outline-secondary filter-btn" data-cat="produto">Produtos</button>
-    <div class="ms-auto">
-      <input id="searchInput" class="form-control form-control-sm" style="min-width:180px"
+    <button class="btn btn-sm btn-outline-secondary status-filter-btn active" data-status="">Todos</button>
+    <button class="btn btn-sm btn-outline-secondary status-filter-btn" data-status="ao_vivo">Ao Vivo</button>
+    <button class="btn btn-sm btn-outline-secondary status-filter-btn" data-status="agendado">Agendados</button>
+    <button class="btn btn-sm btn-outline-secondary status-filter-btn" data-status="encerrado">Encerrados</button>
+    <div class="ms-auto d-flex gap-2">
+      <select id="catSelect" class="form-select form-select-sm" style="min-width:130px">
+        <option value="">Todas categorias</option>
+        <option value="animal">Animais</option>
+        <option value="genetica">Genética</option>
+        <option value="produto">Produtos</option>
+      </select>
+      <input id="searchInput" class="form-control form-control-sm" style="min-width:160px"
              placeholder="Buscar lote...">
     </div>
   </div>
@@ -148,21 +170,19 @@ import { getAuth, onAuthStateChanged }
 import { getFirestore, collection, query, where, orderBy, onSnapshot }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import "./firebase.js";
-import { setupAdminButton, getCurrentRole } from "./firebase.js";
+import { setupAdminButton, getCurrentRole, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
 
 const db   = getFirestore(getApp());
 const auth = getAuth(getApp());
 
 /* ---- Hero actions + btnAssociado dinâmico ---- */
 onAuthStateChanged(auth, async user => {
-  const heroArea   = document.getElementById("heroActions");
-  const btnAssoc   = document.getElementById("btnAssociado");
+  const heroArea = document.getElementById("heroActions");
 
   if (!user) {
     heroArea.innerHTML = `
       <a href="login.html" class="btn btn-warning fw-semibold">Entrar para dar lances</a>
       <a href="signup.html" class="btn btn-outline-light">Cadastrar-se</a>`;
-    if (btnAssoc) { btnAssoc.href = "login.html"; btnAssoc.textContent = "Área do Associado"; }
     return;
   }
 
@@ -173,65 +193,69 @@ onAuthStateChanged(auth, async user => {
     heroArea.innerHTML = `
       <a href="lote_form.html" class="btn btn-warning fw-semibold">+ Cadastrar novo lote</a>
       <a href="meus_lotes.html" class="btn btn-outline-light">Meus lotes</a>`;
-    if (btnAssoc) { btnAssoc.href = "pg_associado.html"; btnAssoc.textContent = "Área do Associado"; }
-  } else {
-    // participanteLeilao ou outro: não mostra "Minha conta" → pg_associado.html (causaria redirect)
-    heroArea.innerHTML = "";
-    if (btnAssoc) { btnAssoc.href = "pg_associado.html"; btnAssoc.textContent = "Área do Associado"; }
   }
 
-  setupAdminButton("#adminBtnArea", { href:"admin_leiloes.html", label:"Gestão de Leilões" });
+  setupAdminButton("#adminBtnArea", { href:"admin.html", label:"Painel Admin" });
 });
 
 /* ---- Dados ---- */
-let ativos   = [];
-let encerrados = [];
-let catFilter = "";
-let searchQ   = "";
+let ativos      = [];
+let encerrados  = [];
+let catFilter   = "";
+let searchQ     = "";
+let statusFilter = "";
+
+applyModuleVisibility();
+
+/* Verificação de módulo */
+checkModuleEnabled("leiloes").then(ok => {
+  if (!ok) {
+    document.querySelector("main").innerHTML =
+      '<div class="container my-5"><div class="alert alert-warning">O módulo de Leilões não está disponível para esta associação.</div></div>';
+  }
+});
 
 /* Lotes publicados */
 onSnapshot(
-  query(collection(db,"auctionLots"), where("status","==","publicado"), orderBy("endTime","asc")),
+  query(collection(db,"auctionLots"), where("orgId","==",currentOrgId), where("status","==","publicado"), orderBy("endTime","asc")),
   snap => {
     ativos = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("gridLoading").style.display = "none";
-    renderAtivos();
-    startCountdowns();
+    renderAll();
+    if (!window._startFilterInterval) {
+      window._startFilterInterval = setInterval(() => renderAll(), 30000);
+    }
   },
   () => { document.getElementById("gridLoading").style.display = "none"; }
 );
 
 /* Lotes encerrados (últimos 30) */
 onSnapshot(
-  query(collection(db,"auctionLots"), where("status","in",["encerrado","pago","concluido"]),
+  query(collection(db,"auctionLots"), where("orgId","==",currentOrgId), where("status","in",["encerrado","pago","concluido"]),
         orderBy("endTime","desc")),
   snap => {
     encerrados = snap.docs.map(d => ({ id:d.id, ...d.data() })).slice(0,12);
-    renderEncerrados();
+    renderAll();
   }
 );
 
 /* ---- Filtros ---- */
-document.querySelectorAll(".filter-btn").forEach(btn => {
+document.getElementById("catSelect").addEventListener("change", e => {
+  catFilter = e.target.value;
+  renderAll();
+});
+document.querySelectorAll(".status-filter-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".status-filter-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
-    catFilter = btn.dataset.cat;
-    renderAtivos();
+    statusFilter = btn.dataset.status;
+    renderAll();
   });
 });
 document.getElementById("searchInput").addEventListener("input", e => {
   searchQ = e.target.value.trim().toLowerCase();
-  renderAtivos();
+  renderAll();
 });
-
-/* ---- Render ---- */
-function filterLots(lots) {
-  let r = lots;
-  if (catFilter) r = r.filter(l => l.category === catFilter);
-  if (searchQ)   r = r.filter(l => (l.title||"").toLowerCase().includes(searchQ));
-  return r;
-}
 
 const CAT_LABELS = { animal:"Animais", genetica:"Genética", produto:"Produtos" };
 
@@ -239,14 +263,58 @@ function fmtBRL(v) {
   return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 }
 
+function fmtDateTime(d) {
+  return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}) + " " +
+         d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+}
+
 function cardHtml(lot, ended = false) {
   const img = lot.imageUrls?.[0]
     ? `<img src="${escHtml(lot.imageUrls[0])}" alt="${escHtml(lot.title)}" loading="lazy">`
     : `<div class="img-placeholder">🐴</div>`;
 
-  const badge = ended
-    ? `<span class="badge bg-secondary">Encerrado</span>`
-    : `<span class="badge bg-success">Ao vivo</span>`;
+  const now     = Date.now();
+  const startMs = lot.startTime?.toMillis?.() ?? Number(lot.startTime ?? 0);
+  const endMs   = lot.endTime?.toMillis?.()   ?? Number(lot.endTime   ?? 0);
+  const isStarted = !startMs || startMs <= now;
+  const isEnded   = ended
+    || ["encerrado","pago","concluido","cancelado"].includes(lot.status)
+    || (endMs > 0 && endMs <= now);
+
+  let badge;
+  if (isEnded)        badge = `<span class="badge bg-secondary">Encerrado</span>`;
+  else if (!isStarted) badge = `<span class="badge badge-soon">Agendado</span>`;
+  else                 badge = `<span class="badge badge-live"><span class="live-dot"></span>Ao Vivo</span>`;
+
+  const startStr = startMs ? fmtDateTime(new Date(startMs)) : null;
+  const endStr   = endMs   ? fmtDateTime(new Date(endMs))   : null;
+
+  let timeInfo = "";
+  if (!isEnded) {
+    if (!isStarted && startStr) {
+      timeInfo = `<div class="d-flex gap-2 small mb-2" style="font-size:.72rem;color:#6c757d">
+        <span><strong style="color:#856404">Início:</strong> ${escHtml(startStr)}</span>
+        ${endStr ? `<span>·</span><span>Fim: ${escHtml(endStr)}</span>` : ""}
+      </div>`;
+    } else if (endStr) {
+      timeInfo = `<div class="small mb-2" style="font-size:.72rem;color:#6c757d">Término: ${escHtml(endStr)}</div>`;
+    }
+  }
+
+  let countdownSection;
+  if (isEnded) {
+    countdownSection = `<div class="small text-muted">Encerrado</div>`;
+  } else if (!isStarted) {
+    countdownSection = `<div class="text-end">
+      <div class="small text-muted" style="font-size:.72rem">Inicia em:</div>
+      <div class="countdown" data-end="${startMs}" data-type="start" id="cd-${lot.id}">...</div>
+    </div>`;
+  } else {
+    countdownSection = `<div class="text-end">
+      <div class="small text-muted" style="font-size:.72rem">Termina em:</div>
+      <div class="countdown" data-end="${endMs}" id="cd-${lot.id}">...</div>
+    </div>`;
+  }
 
   return `
     <div class="col">
@@ -260,25 +328,57 @@ function cardHtml(lot, ended = false) {
           <div class="small text-muted mb-1">${escHtml(CAT_LABELS[lot.category]||lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
           <h3 class="h6 fw-bold mb-1 text-truncate">${escHtml(lot.title||"")}</h3>
           <p class="small text-muted mb-2 text-truncate">${escHtml(lot.description||"")}</p>
+          ${timeInfo}
           <div class="d-flex justify-content-between align-items-center">
             <div>
               <div class="small text-muted">${lot.lastBid > 0 ? "Maior lance" : "Lance inicial"}</div>
               <div class="fw-bold text-primary">${fmtBRL(lot.lastBid || lot.initialBid)}</div>
             </div>
-            ${ended
-              ? `<div class="small text-muted">Encerrado</div>`
-              : `<div class="countdown" data-end="${lot.endTime?.toMillis?.() || 0}" id="cd-${lot.id}">...</div>`
-            }
+            ${countdownSection}
           </div>
         </div>
       </div>
     </div>`;
 }
 
-function renderAtivos() {
-  const grid  = document.getElementById("lotsGrid");
-  const empty = document.getElementById("lotsEmpty");
-  const filtered = filterLots(ativos);
+function renderAll() {
+  const grid    = document.getElementById("lotsGrid");
+  const empty   = document.getElementById("lotsEmpty");
+  const encSec  = document.getElementById("encerradosSection");
+  const encGrid = document.getElementById("encerradosGrid");
+
+  if (statusFilter === "encerrado") {
+    const filtered = encerrados
+      .filter(l => !catFilter || l.category === catFilter)
+      .filter(l => !searchQ   || (l.title||"").toLowerCase().includes(searchQ));
+    encSec.style.display = "none";
+    if (!filtered.length) {
+      grid.style.display = "none"; empty.style.display = "";
+    } else {
+      empty.style.display = "none";
+      grid.innerHTML = filtered.map(l => cardHtml(l, true)).join("");
+      grid.style.display = "";
+    }
+    startCountdowns();
+    return;
+  }
+
+  const now = Date.now();
+  let filtered = [...ativos];
+  if (statusFilter === "ao_vivo") {
+    filtered = filtered.filter(l => {
+      const sMs = l.startTime?.toMillis?.() ?? Number(l.startTime ?? 0);
+      return !sMs || sMs <= now;
+    });
+  } else if (statusFilter === "agendado") {
+    filtered = filtered.filter(l => {
+      const sMs = l.startTime?.toMillis?.() ?? Number(l.startTime ?? 0);
+      return sMs > now;
+    });
+  }
+  if (catFilter) filtered = filtered.filter(l => l.category === catFilter);
+  if (searchQ)   filtered = filtered.filter(l => (l.title||"").toLowerCase().includes(searchQ));
+
   if (!filtered.length) {
     grid.style.display = "none"; empty.style.display = "";
   } else {
@@ -286,14 +386,19 @@ function renderAtivos() {
     grid.innerHTML = filtered.map(l => cardHtml(l)).join("");
     grid.style.display = "";
   }
-}
 
-function renderEncerrados() {
-  const sec  = document.getElementById("encerradosSection");
-  const grid = document.getElementById("encerradosGrid");
-  if (!encerrados.length) { sec.style.display = "none"; return; }
-  grid.innerHTML = encerrados.map(l => cardHtml(l, true)).join("");
-  sec.style.display = "";
+  if (!statusFilter) {
+    if (encerrados.length) {
+      encGrid.innerHTML = encerrados.map(l => cardHtml(l, true)).join("");
+      encSec.style.display = "";
+    } else {
+      encSec.style.display = "none";
+    }
+  } else {
+    encSec.style.display = "none";
+  }
+
+  startCountdowns();
 }
 
 /* ---- Countdowns ---- */
@@ -308,15 +413,19 @@ function tickCountdowns() {
   document.querySelectorAll(".countdown[data-end]").forEach(el => {
     const diff = parseInt(el.dataset.end) - now;
     if (diff <= 0) {
-      el.textContent = "Encerrado";
-      el.classList.add("ended");
+      if (el.dataset.type === "start") {
+        el.textContent = "Iniciando...";
+      } else {
+        el.textContent = "Encerrado";
+        el.classList.add("ended");
+      }
       return;
     }
     const d = Math.floor(diff / 86400000);
     const h = Math.floor((diff % 86400000) / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
     const s = Math.floor((diff % 60000) / 1000);
-    el.classList.toggle("urgent", diff < 7200000); // < 2h
+    el.classList.toggle("urgent", diff < 7200000 && el.dataset.type !== "start");
     if (d > 0) el.textContent = `${d}d ${h}h ${m}m`;
     else if (h > 0) el.textContent = `${h}h ${m}m ${s}s`;
     else el.textContent = `${m}m ${s}s`;

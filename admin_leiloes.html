@@ -7,11 +7,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <style>
-    :root{ --brand:#111279; }
+    :root{ --brand:#111279; --accent:#2a9d8f; }
     .bg-primary{ background-color:var(--brand)!important; }
     .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
     .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
     .text-primary{ color:var(--brand)!important; }
+    .badge-role{ background:var(--accent); }
     .brand-logo{ height:36px; width:auto; margin-right:.5rem; filter:brightness(0) invert(1); }
     @media (min-width:992px){ .brand-logo{ height:42px; } }
 
@@ -20,7 +21,7 @@
     /* Lista de lotes */
     .lot-row{
       display:grid;
-      grid-template-columns: 1fr 110px 130px 130px 90px;
+      grid-template-columns: 1fr 110px 110px 115px 115px 90px;
       gap:10px; align-items:center;
       padding:.55rem .75rem; border-bottom:1px solid #f0f0f0;
     }
@@ -33,7 +34,7 @@
                     border-radius:0 0 8px 8px; padding:.85rem 1rem; }
     @media (max-width:767.98px){
       .lot-row{ grid-template-columns: 1fr auto; }
-      .lot-col-seller,.lot-col-bid,.lot-col-end{ display:none; }
+      .lot-col-seller,.lot-col-start,.lot-col-bid,.lot-col-end{ display:none; }
     }
 
     /* Lista de vendas / repasses */
@@ -75,21 +76,27 @@
   </div>
 </nav>
 
-<header class="bg-light border-bottom py-3">
-  <div class="container d-flex align-items-center justify-content-between gap-2">
-    <h1 class="h4 mb-0">Gestão de Leilões</h1>
-    <a href="admin.html" class="btn btn-outline-secondary btn-sm">Voltar ao Admin</a>
+<header class="bg-light border-bottom">
+  <div class="container py-3 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 mb-1">Gestão de Leilões</h1>
+      <p class="text-secondary mb-0">Aprovação de lotes, vendas e participantes.</p>
+    </div>
+    <div class="text-md-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
   </div>
 </header>
 
 <div class="subnav" style="position:sticky;top:56px;z-index:1020;background:#fff;border-bottom:1px solid #e9ecef">
   <div class="container">
-    <div class="d-flex flex-wrap gap-2 py-2">
-      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html">Associados</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html">Produtos</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html">Serviços</a>
-      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html">Classificados</a>
+    <div class="d-flex flex-nowrap gap-2 py-2" style="overflow-x:auto">
+      <a class="btn btn-sm btn-outline-primary" href="admin_associados.html" data-module="associados">Associados</a>
       <a class="btn btn-sm btn-primary disabled" aria-disabled="true">Leilões</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_produtos.html" data-module="produtos">Produtos</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_servicos.html" data-module="servicos">Serviços</a>
+      <a class="btn btn-sm btn-outline-primary" href="admin_classificados.html" data-module="classificados">Classificados</a>
     </div>
   </div>
 </div>
@@ -97,7 +104,7 @@
 <main class="container py-3">
 
   <!-- Abas principais -->
-  <ul class="nav nav-tabs mb-0" id="adminTabs">
+  <ul class="nav nav-tabs mb-0" id="adminTabs" style="flex-wrap:nowrap; overflow-x:auto">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabAprovacao">
       Aprovação <span class="badge bg-warning text-dark ms-1" id="badgeAnalise">0</span>
     </button></li>
@@ -121,6 +128,7 @@
         <div class="lot-row lot-header">
           <div>Lote</div>
           <div>Vendedor</div>
+          <div class="lot-col-start">Início</div>
           <div class="lot-col-bid">Valor inicial</div>
           <div class="lot-col-end">Encerramento</div>
           <div>Ações</div>
@@ -156,6 +164,7 @@
       <div class="lot-row lot-header">
         <div>Lote</div>
         <div class="lot-col-seller">Vendedor</div>
+        <div class="lot-col-start">Início</div>
         <div class="lot-col-bid">Maior lance</div>
         <div class="lot-col-end">Encerramento</div>
         <div>Status</div>
@@ -303,7 +312,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script type="module">
-import { requireAuth, doLogout } from "./firebase.js";
+import { requireAuth, doLogout, currentOrgId, checkModuleEnabled, logAction } from "./firebase.js";
 import { getFirestore, collection, query, where, orderBy, onSnapshot,
          doc, updateDoc, getDocs, serverTimestamp, getDoc }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -318,7 +327,27 @@ const functions = getFunctions(getApp(), "us-central1");
 
 requireAuth({ requiredRole: ["admin", "master"] });
 
+checkModuleEnabled("leiloes").then(ok => {
+  if (!ok) document.querySelector("main, .container").innerHTML =
+    '<div class="alert alert-warning m-4">O módulo de Leilões não está habilitado para esta associação.</div>';
+});
+
 document.getElementById("btnLogout")?.addEventListener("click", () => doLogout());
+
+auth.onAuthStateChanged(async (user) => {
+  if (!user) return;
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const d = snap.data() || {};
+    const opNameEl = document.getElementById("opName");
+    const opRoleEl = document.getElementById("opRole");
+    if (opNameEl) opNameEl.textContent = d.nome || "Operador(a)";
+    if (opRoleEl) {
+      opRoleEl.textContent = String(d.role || "admin").toUpperCase();
+      opRoleEl.classList.remove("d-none");
+    }
+  } catch(e) { console.warn("opName load:", e); }
+});
 
 /* ---- helpers ---- */
 function fmtBRL(v) {
@@ -336,6 +365,26 @@ function fmtVendedor(lot) {
   if (name)         return escHtml(name);
   if (cpf)          return cpf;
   return escHtml(lot.sellerEmail || lot.sellerUid || "—");
+}
+
+const sellerNameCache = {};
+async function enrichWithSellerNames(lots) {
+  const missing = [...new Set(
+    lots.filter(l => !l.sellerName && l.sellerUid)
+        .map(l => l.sellerUid)
+        .filter(uid => !(uid in sellerNameCache))
+  )];
+  if (missing.length) {
+    await Promise.all(missing.map(async uid => {
+      try {
+        const snap = await getDoc(doc(db, "users", uid));
+        sellerNameCache[uid] = snap.data()?.nome || "";
+      } catch(_) { sellerNameCache[uid] = ""; }
+    }));
+  }
+  lots.forEach(l => {
+    if (!l.sellerName && l.sellerUid) l.sellerName = sellerNameCache[l.sellerUid] || "";
+  });
 }
 function fmtDate(ts) {
   if (!ts) return "—";
@@ -356,7 +405,7 @@ const STATUS_CFG = {
   aprovado:   { label:"Aprovado",   cls:"bg-info text-dark" },
   rejeitado:  { label:"Rejeitado",  cls:"bg-danger" },
   publicado:  { label:"Publicado",  cls:"bg-success" },
-  encerrado:  { label:"Encerrado",  cls:"bg-primary" },
+  encerrado:  { label:"Encerrado",  cls:"bg-secondary" },
   pago:       { label:"Pago",       cls:"bg-success" },
   concluido:  { label:"Concluído",  cls:"bg-success" },
   cancelado:  { label:"Cancelado",  cls:"bg-danger" },
@@ -368,11 +417,12 @@ const STATUS_CFG = {
 let analiseRows = [];
 
 onSnapshot(
-  query(collection(db,"auctionLots"), where("status","==","em_analise"), orderBy("createdAt","asc")),
-  snap => {
+  query(collection(db,"auctionLots"), where("orgId","==",currentOrgId), where("status","==","em_analise"), orderBy("createdAt","asc")),
+  async snap => {
     analiseRows = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("badgeAnalise").textContent = analiseRows.length || "0";
     document.getElementById("analiseLoading").style.display = "none";
+    await enrichWithSellerNames(analiseRows);
     renderAnalise();
   },
   err => {
@@ -396,6 +446,7 @@ function renderAnalise() {
           <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
         </div>
         <div class="small">${fmtVendedor(lot)}</div>
+        <div class="lot-col-start small text-muted">${fmtDate(lot.startTime)}</div>
         <div class="lot-col-bid small">${fmtBRL(lot.initialBid)}</div>
         <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
         <div class="d-flex gap-1 flex-wrap">
@@ -436,10 +487,11 @@ let allLots = [];
 let lotsFilter = { search:"", status:"" };
 
 onSnapshot(
-  query(collection(db,"auctionLots"), orderBy("createdAt","desc")),
-  snap => {
+  query(collection(db,"auctionLots"), where("orgId","==",currentOrgId), orderBy("createdAt","desc")),
+  async snap => {
     allLots = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("allLotsLoading").style.display = "none";
+    await enrichWithSellerNames(allLots);
     renderAllLots();
   }
 );
@@ -463,6 +515,7 @@ function renderAllLots() {
           <div class="small text-muted">${escHtml(lot.category||"")} ${lot.subcategory?"· "+escHtml(lot.subcategory):""}</div>
         </div>
         <div class="lot-col-seller small">${fmtVendedor(lot)}</div>
+        <div class="lot-col-start small text-muted">${fmtDate(lot.startTime)}</div>
         <div class="lot-col-bid small">${lot.lastBid > 0 ? fmtBRL(lot.lastBid) : "—"}</div>
         <div class="lot-col-end small text-muted">${fmtDate(lot.endTime)}</div>
         <div><span class="badge ${st.cls}" style="font-size:.7rem">${st.label}</span></div>
@@ -493,6 +546,7 @@ function renderAllLots() {
       await updateDoc(doc(db,"auctionLots",btn.dataset.id), {
         status:"cancelado", rejectionReason: motivo, updatedAt: serverTimestamp()
       });
+      await logAction("lote_cancelado", { id: btn.dataset.id, motivo });
     });
   });
 
@@ -548,7 +602,7 @@ document.getElementById("filterLoteStatus").addEventListener("change", e => {
 let allVendas = [];
 
 onSnapshot(
-  query(collection(db,"auctionSales"), orderBy("createdAt","desc")),
+  query(collection(db,"auctionSales"), where("orgId","==",currentOrgId), orderBy("createdAt","desc")),
   snap => {
     allVendas = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("vendasLoading").style.display = "none";
@@ -614,7 +668,7 @@ document.getElementById("filterVendaStatus").addEventListener("change", renderVe
 let participantes = [];
 
 onSnapshot(
-  query(collection(db,"users"), where("role","==","participanteLeilao")),
+  query(collection(db,"users"), where("orgId","==",currentOrgId), where("role","==","participanteLeilao")),
   snap => {
     participantes = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     participantes.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
@@ -717,6 +771,7 @@ document.getElementById("btnConfirmAprovar").addEventListener("click", async () 
       approvedAt:  serverTimestamp(),
       updatedAt:   serverTimestamp()
     });
+    await logAction("lote_aprovado", { lotId, startTime: start, endTime: end });
     bootstrap.Modal.getInstance(document.getElementById("modalAprovar")).hide();
   } catch (e) {
     msgEl.textContent = "Erro: " + e.message;
@@ -743,6 +798,7 @@ document.getElementById("btnConfirmRejeitar").addEventListener("click", async ()
       status: "rejeitado", rejectionReason: motivo,
       reviewedBy: auth.currentUser?.uid, updatedAt: serverTimestamp()
     });
+    await logAction("lote_rejeitado", { lotId, motivo });
     bootstrap.Modal.getInstance(document.getElementById("modalRejeitar")).hide();
   } catch (e) {
     msgEl.textContent = "Erro: " + e.message;

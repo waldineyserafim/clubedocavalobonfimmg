@@ -107,13 +107,13 @@
 
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item"><a class="nav-link" href="leiloes.html">Leilões</a></li>
+        <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
         <!-- Classificados: público -->
-        <li class="nav-item"><a class="nav-link" href="classificados.html">Classificados</a></li>
-        <li class="nav-item"><a class="nav-link" href="events.html">Eventos</a></li>
-        <li class="nav-item"><a class="nav-link" href="partners.html">Parcerias</a></li>
-        <li class="nav-item"><a class="nav-link" href="gallery.html">Fotos</a></li>
-        <li class="nav-item"><a class="nav-link" href="board.html">Diretoria</a></li>
+        <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
+        <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
+        <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
         <li class="nav-item mt-2 mt-lg-0">
           <a id="btnAssociado" class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="./login.html">Área do Associado</a>
@@ -167,7 +167,7 @@
   </div>
 
   <div class="hero-cta">
-    <a href="events.html" class="btn btn-primary btn-lg">Próximos eventos</a>
+    <a href="events.html" class="btn btn-primary btn-lg" data-module="eventos">Próximos eventos</a>
     <a href="signup.html" class="btn btn-outline-primary btn-lg bg-white">Associe-se</a>
   </div>
 </section>
@@ -176,18 +176,18 @@
 <section class="container py-5">
   <div class="row g-4">
     <!-- 1) Leilões Online -->
-    <div class="col-sm-6 col-lg-3">
-      <div class="card h-100 shadow-sm border-primary">
+    <div class="col-sm-6 col-lg-3" data-module="leiloes">
+      <div class="card h-100 shadow-sm">
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Leilões Online</h5>
           <p class="card-text flex-grow-1">Arrematações de cavalos, genética e equipamentos equestres — ao vivo e em tempo real.</p>
-          <a href="leiloes.html" class="btn btn-primary w-100 mt-auto">Ver leilões</a>
+          <a href="leiloes.html" class="btn btn-outline-primary w-100 mt-auto">Ver leilões</a>
         </div>
       </div>
     </div>
 
     <!-- 2) Classificados do Clube (público) -->
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-sm-6 col-lg-3" data-module="classificados">
       <div class="card h-100 shadow-sm">
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Classificados do Clube</h5>
@@ -198,7 +198,7 @@
     </div>
 
     <!-- 3) Calendário de Eventos -->
-    <div class="col-sm-6 col-lg-3">
+    <div class="col-sm-6 col-lg-3" data-module="eventos">
       <div class="card h-100 shadow-sm">
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">Calendário de Eventos</h5>
@@ -308,9 +308,11 @@
 </script>
 
 <script type="module">
-  import { auth, db } from "./firebase.js";
+  import { auth, db, applyModuleVisibility } from "./firebase.js";
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  applyModuleVisibility();
 
   const dashboardBtn = document.getElementById("dashboardBtn");
   const hideDashboard = () => { if (dashboardBtn) dashboardBtn.classList.add("d-none"); };
