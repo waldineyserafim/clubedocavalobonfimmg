@@ -218,7 +218,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
 <script type="module">
-  import { requireAuth, currentOrgId, checkModuleEnabled, logAction } from "./firebase.js";
+  import { requireAuth, currentOrgId, checkModuleEnabled, logAction, applyModuleVisibility } from "./firebase.js";
   import { auth, db } from "./firebase.js";
 
   import {
@@ -234,6 +234,7 @@
   /* ========= Requer admin/master logado (mesma regra da operação) ========= */
   const storage = getStorage();
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  applyModuleVisibility();
   checkModuleEnabled("classificados").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="alert alert-warning m-4">O módulo de Classificados não está habilitado para esta associação.</div>';

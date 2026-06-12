@@ -314,7 +314,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script type="module">
-import { requireAuth, doLogout, currentOrgId, checkModuleEnabled, logAction } from "./firebase.js";
+import { requireAuth, doLogout, currentOrgId, checkModuleEnabled, logAction, applyModuleVisibility } from "./firebase.js";
 import { getFirestore, collection, query, where, orderBy, onSnapshot,
          doc, updateDoc, getDocs, serverTimestamp, getDoc }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -328,6 +328,7 @@ const auth      = getAuth(getApp());
 const functions = getFunctions(getApp(), "us-central1");
 
 requireAuth({ requiredRole: ["admin", "master"] });
+applyModuleVisibility();
 
 checkModuleEnabled("leiloes").then(ok => {
   if (!ok) document.querySelector("main, .container").innerHTML =

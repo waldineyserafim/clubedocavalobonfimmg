@@ -179,7 +179,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script type="module">
-  import { requireAuth, addMemberProduct, updateMemberProduct, currentOrgId, checkModuleEnabled } from "./firebase.js";
+  import { requireAuth, addMemberProduct, updateMemberProduct, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
   import { auth, db } from "./firebase.js";
   import { collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { getStorage, ref as sref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
@@ -189,6 +189,7 @@
   /* ===== Permissão ===== */
   const storage = getStorage();
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  applyModuleVisibility();
   checkModuleEnabled("produtos").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="alert alert-warning m-4">O módulo de Produtos não está habilitado para esta associação.</div>';

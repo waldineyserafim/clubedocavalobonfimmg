@@ -252,7 +252,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script type="module">
-  import { requireAuth, cpfToEmail, currentOrgId, logAction, checkModuleEnabled } from "./firebase.js";
+  import { requireAuth, cpfToEmail, currentOrgId, logAction, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
   import { auth, db } from "./firebase.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
   import {
@@ -273,6 +273,7 @@
   }
 
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  applyModuleVisibility();
   checkModuleEnabled("associados").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =
       '<div class="alert alert-warning m-4">O módulo de Associados não está habilitado para esta associação.</div>';
