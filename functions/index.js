@@ -2017,3 +2017,4 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
 
 // ─── SAAS MULTI-TENANT ────────────────────────────────────────────────────────
 
+

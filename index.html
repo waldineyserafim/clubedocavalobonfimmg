@@ -50,20 +50,11 @@
     .header-logo-lg{ max-width:160px; height:auto; }
     @media (max-width:575.98px){ .header-logo-lg{ max-width:110px; } }
 
-    .hero-carousel{ height: clamp(260px, 55vh, 520px); overflow:hidden; }
-    .hero-carousel .carousel-item{ height:100%; }
+    .hero-carousel{ overflow:hidden; }
     .hero-carousel .carousel-item img{
-      width:100%; height:100%; object-fit:cover; display:block;
+      width:100%; height:auto; display:block;
     }
     #bannerCarousel{ margin-bottom:0 !important; }
-
-    @media (max-width:575.98px){
-      .hero-carousel{ height:300px; }
-      #bannerCarousel .carousel-item{ height:100%; }
-      #bannerCarousel .carousel-item img{
-        height:100%; width:100%; object-fit:cover; display:block;
-      }
-    }
 
     .hero-cta{
       position:absolute; left:50%; bottom:clamp(1rem, 2.5vh, 2.5rem);
