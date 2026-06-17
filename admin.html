@@ -9,25 +9,20 @@
   <title>Painel — Hub | Clube do Cavalo - Bonfim MG</title>
   <meta name="description" content="Hub do painel de administração.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="assets/css/custom.css?v=op-2025-09-25-hub">
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/css/custom.css?v=op-2025-09-25-hub">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
   <style>
-    :root{ --brand:#111279; --accent:#2a9d8f; }
-    .bg-primary{ background-color:var(--brand)!important; }
-    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
-    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
-    .text-primary{ color:var(--brand)!important; }
-    .navbar .container{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
-    .navbar-brand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* :root, Bootstrap overrides e brand-logo movidos para design-system.css */
     header { background:#f8f9fa; border-bottom:1px solid #e9ecef; }
     header .container{ padding-top:1rem; padding-bottom:1rem; }
     @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
     .badge-role{ background:var(--accent); }
     main.container{ padding-top:1.25rem; padding-bottom:2rem; max-width:680px; }
-    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
-    @media (min-width: 992px){ .brand-logo{ height:42px; } }
     .mod-card{ border:0; box-shadow:0 1px 8px rgba(0,0,0,.08); border-radius:12px; padding:14px 16px; display:flex; align-items:center; gap:14px; text-decoration:none; color:inherit; background:#fff; transition:transform .15s,box-shadow .15s; }
     .mod-card:hover{ transform:translateY(-2px); box-shadow:0 4px 16px rgba(17,18,121,.1); }
     .mod-icon{ width:48px; height:48px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0; }
@@ -39,18 +34,15 @@
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-25" alt="Logo Clube do Cavalo">
-    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
-        <li class="nav-item me-2" data-module="leiloes"><a class="nav-link" href="admin_leiloes.html">Leilões</a></li>
-        <li class="nav-item me-2"><a class="nav-link" href="pg_associado.html">Área do Associado</a></li>
-        <li class="nav-item"><button id="btnLogout" class="btn btn-sm btn-outline-light">Sair</button></li>
-      </ul>
+  <div class="container d-flex align-items-center flex-nowrap gap-2">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-25" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <a class="nav-link text-white small" href="admin_leiloes.html" data-module="leiloes">Leilões</a>
+      <a class="nav-link text-white small" href="pg_associado.html"><i class="bi bi-person-circle me-1"></i>Área Associado</a>
+      <button id="btnLogout" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-right me-1"></i>Sair</button>
     </div>
   </div>
 </nav>
@@ -73,74 +65,77 @@
   <p class="sec-title">Gestão Geral da Associação</p>
   <div class="d-flex flex-column gap-2">
     <a class="mod-card" href="admin_associados.html" data-module="associados">
-      <div class="mod-icon" style="background:#e8f0fe">👤</div>
+      <div class="mod-icon" style="background:#e8f0fe"><i class="bi bi-people-fill" style="color:#1565c0;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Associados</p><p class="mod-sub">Cadastro, busca e financeiro.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_produtos.html" data-module="produtos">
-      <div class="mod-icon" style="background:#fff3e0">📦</div>
+      <div class="mod-icon" style="background:#fff3e0"><i class="bi bi-box-seam-fill" style="color:#e65100;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Produtos</p><p class="mod-sub">Benefícios e ofertas para associados.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_servicos.html" data-module="servicos">
-      <div class="mod-icon" style="background:#e8f5e9">⚙️</div>
+      <div class="mod-icon" style="background:#e8f5e9"><i class="bi bi-tools" style="color:#2e7d32;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Serviços</p><p class="mod-sub">Provedores, descrições e imagens.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_classificados.html" data-module="classificados">
-      <div class="mod-icon" style="background:#fce4ec">🏷️</div>
+      <div class="mod-icon" style="background:#fce4ec"><i class="bi bi-megaphone-fill" style="color:#c62828;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Classificados</p><p class="mod-sub">Moderação, status e pagamentos.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_leiloes.html" data-module="leiloes">
-      <div class="mod-icon" style="background:#f3e5f5">🔨</div>
+      <div class="mod-icon" style="background:#f3e5f5"><i class="bi bi-hammer" style="color:#6a1b9a;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Leilões</p><p class="mod-sub">Aprovação de lotes, vendas e repasses.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
   </div>
 
   <p class="sec-title">Conteúdo do Site</p>
   <div class="d-flex flex-column gap-2">
     <a class="mod-card" href="admin_banners.html">
-      <div class="mod-icon" style="background:#e8f4fd">🖼️</div>
+      <div class="mod-icon" style="background:#e8f4fd"><i class="bi bi-image-fill" style="color:#0277bd;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Banners</p><p class="mod-sub">Imagens em destaque na página inicial.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_eventos.html" data-module="eventos">
-      <div class="mod-icon" style="background:#fff8e1">📅</div>
+      <div class="mod-icon" style="background:#fff8e1"><i class="bi bi-calendar-event-fill" style="color:#f57f17;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Eventos</p><p class="mod-sub">Calendário e divulgação de eventos.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_parceiros.html" data-module="parcerias">
-      <div class="mod-icon" style="background:#fce4ec">🤝</div>
+      <div class="mod-icon" style="background:#fce4ec"><i class="bi bi-handshake-fill" style="color:#ad1457;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Parceiros</p><p class="mod-sub">Empresas e criatórios parceiros.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_diretoria.html" data-module="diretoria">
-      <div class="mod-icon" style="background:#f0f9f0">👥</div>
+      <div class="mod-icon" style="background:#f0f9f0"><i class="bi bi-person-badge-fill" style="color:#1b5e20;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Diretoria</p><p class="mod-sub">Membros e cargos da diretoria.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_galeria.html" data-module="galeria">
-      <div class="mod-icon" style="background:#ede7f6">📷</div>
+      <div class="mod-icon" style="background:#ede7f6"><i class="bi bi-camera-fill" style="color:#4527a0;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Galeria</p><p class="mod-sub">Álbuns e fotos do clube.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
     <a class="mod-card" href="admin_sobre.html">
-      <div class="mod-icon" style="background:#e0f2f1">ℹ️</div>
+      <div class="mod-icon" style="background:#e0f2f1"><i class="bi bi-info-circle-fill" style="color:#00695c;font-size:1.4rem;"></i></div>
       <div><p class="mod-label">Sobre o Clube</p><p class="mod-sub">Texto e informações institucionais.</p></div>
-      <span class="mod-arrow">›</span>
+      <i class="bi bi-chevron-right mod-arrow"></i>
     </a>
   </div>
 
 </main>
 
-<footer class="mt-4 py-4 bg-body-tertiary border-top">
+<footer class="mt-4 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Painel de Administração.</div>
-    <div class="text-secondary small text-center">
-      © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
-      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    <div class="d-flex align-items-center gap-2">
+      <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-25" alt="Logo CCBMG" style="height:28px;width:auto;filter:brightness(0) invert(1);" loading="lazy">
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+    </div>
+    <div class="text-white text-center" style="font-size:var(--text-xs);opacity:.65;">
+      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
 </footer>

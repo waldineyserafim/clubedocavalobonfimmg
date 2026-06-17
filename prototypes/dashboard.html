@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Associado — CCBMG (Protótipo)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #111279; --brand-dark: #0a0c55; --brand-light: #e8e9f8;
+      --accent: #2a9d8f; --accent-light: #e0f2f1;
+      --radius-sm: 6px; --radius-md: 12px; --radius-lg: 16px; --radius-full: 999px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,0.08); --shadow-md: 0 4px 12px rgba(0,0,0,0.10);
+      --text-xs: 0.70rem; --text-sm: 0.80rem; --text-base: 1rem; --text-md: 1.125rem;
+      --transition-base: 0.20s ease;
+      --bottom-nav-h: 64px;
+    }
+    body {
+      background: #f4f5fb; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+    }
+    .bg-primary  { background-color: var(--brand) !important; }
+    .btn-primary { background-color: var(--brand) !important; border-color: var(--brand) !important; border-radius: var(--radius-sm) !important; font-weight: 500; }
+    .btn-primary:hover { background-color: var(--brand-dark) !important; }
+    .btn-outline-primary { color: var(--brand) !important; border-color: var(--brand) !important; border-radius: var(--radius-sm) !important; }
+
+    /* Navbar */
+    .cc-navbar {
+      background: var(--brand); padding: .75rem 1rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(17,18,121,0.2);
+    }
+    .brand-logo-wrap { display: flex; align-items: center; gap: .5rem; }
+    .brand-name { color: #fff; font-weight: 700; font-size: .9rem; }
+    .nav-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4);
+      display: flex; align-items: center; justify-content: center; color: #fff;
+      font-weight: 700; font-size: .85rem; cursor: pointer; flex-shrink: 0;
+    }
+
+    /* Welcome header */
+    .welcome-header {
+      background: var(--brand);
+      padding: 1rem 1rem 1.5rem;
+      margin-top: -1px;
+    }
+    .welcome-name { color: #fff; font-size: 1.3rem; font-weight: 700; margin-bottom: .75rem; }
+    .welcome-name span { opacity: .85; font-weight: 400; font-size: 1rem; }
+
+    /* Status chips row */
+    .chips-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .ds-chip {
+      display: inline-flex; align-items: center; gap: .35rem;
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius-full); padding: .35rem .75rem;
+      font-size: var(--text-xs); font-weight: 600; color: #fff; white-space: nowrap;
+    }
+    .ds-chip-ok   { background: rgba(25,135,84,0.25); border-color: rgba(25,135,84,0.5); }
+    .ds-chip-warn { background: rgba(255,193,7,0.2); border-color: rgba(255,193,7,0.5); color: #ffe08a; }
+    .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* Alert financeiro */
+    .finance-alert {
+      margin: -1rem 1rem .875rem;
+      background: #fff3cd; border: 1px solid #ffe69c;
+      border-radius: var(--radius-md); padding: .75rem 1rem;
+      font-size: var(--text-sm); color: #664d03;
+      display: flex; align-items: flex-start; gap: .5rem;
+    }
+
+    /* Section */
+    .cc-section { padding: .875rem 1rem; }
+    .cc-section-title {
+      font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #6c757d; margin-bottom: .75rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .cc-section-title a { font-size: var(--text-xs); color: var(--brand); font-weight: 700; text-decoration: none; }
+
+    /* Banner mosaic */
+    .banner-mosaic {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: .5rem;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      aspect-ratio: 3/1.4;
+    }
+    .banner-tile {
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+    .banner-tile:first-child { grid-row: 1 / 3; border-radius: var(--radius-md) 0 0 var(--radius-md); }
+    .banner-tile-bg {
+      width: 100%; height: 100%;
+      background-size: cover; background-position: center;
+    }
+    .banner-overlay {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: .5rem .625rem;
+      background: linear-gradient(transparent, rgba(0,0,0,0.55));
+      color: #fff;
+    }
+    .banner-overlay .title { font-size: var(--text-xs); font-weight: 700; line-height: 1.2; }
+    .banner-overlay .price { font-size: .65rem; opacity: .85; }
+
+    /* Classified Cards */
+    .cls-card {
+      background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      overflow: hidden; border: 1px solid rgba(0,0,0,0.04);
+      transition: box-shadow var(--transition-base), transform var(--transition-base);
+      text-decoration: none; color: inherit; display: flex; flex-direction: column;
+    }
+    .cls-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); color: inherit; }
+    .cls-img {
+      width: 100%; aspect-ratio: 4/3;
+      background: #e9ecef; display: flex; align-items: center; justify-content: center;
+      color: #adb5bd; font-size: var(--text-xs); overflow: hidden;
+    }
+    .cls-body { padding: .625rem .75rem; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+    .cls-title { font-weight: 600; font-size: var(--text-sm); color: #1a1a2e; }
+    .cls-price { font-size: var(--text-md); font-weight: 700; color: var(--brand); }
+    .cls-meta  { font-size: var(--text-xs); color: #6c757d; }
+    .cls-approved { font-size: .65rem; font-weight: 700; color: #198754; }
+
+    /* Add classified card */
+    .cls-add {
+      background: var(--brand-light); border: 2px dashed rgba(17,18,121,0.25);
+      border-radius: var(--radius-md); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: .4rem;
+      padding: 1.25rem .75rem; cursor: pointer; text-decoration: none;
+      transition: background var(--transition-base), border-color var(--transition-base);
+      min-height: 140px;
+    }
+    .cls-add:hover { background: #d8dafc; border-color: rgba(17,18,121,0.4); }
+    .cls-add-icon {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--brand);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cls-add span { font-size: var(--text-xs); font-weight: 700; color: var(--brand); text-align: center; }
+
+    /* Account actions */
+    .action-row {
+      display: flex; gap: .625rem; padding: .875rem 1rem 0;
+    }
+    .action-btn {
+      flex: 1; background: #fff; border: 1px solid #e9ecef;
+      border-radius: var(--radius-md); padding: .75rem .5rem;
+      display: flex; flex-direction: column; align-items: center; gap: .3rem;
+      cursor: pointer; font-size: var(--text-xs); color: #374151; font-weight: 600;
+      text-decoration: none; box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--transition-base);
+    }
+    .action-btn:hover { box-shadow: var(--shadow-md); color: #374151; }
+    .action-btn.danger { color: #dc3545; border-color: #fca5a5; }
+    .action-btn svg { width: 20px; height: 20px; }
+
+    /* Bottom Navigation */
+    .ds-bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      height: var(--bottom-nav-h); background: #fff;
+      border-top: 1px solid #e9ecef; box-shadow: 0 -2px 12px rgba(0,0,0,0.07);
+      display: flex; align-items: stretch; z-index: 200;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .bnav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2px;
+      cursor: pointer; text-decoration: none; color: #9ca3af;
+      font-size: .62rem; font-weight: 600; transition: color var(--transition-base);
+      padding: 0 .25rem;
+    }
+    .bnav-item.active { color: var(--brand); }
+    .bnav-item svg { width: 22px; height: 22px; }
+    .bnav-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--brand); margin: 0 auto; }
+
+    /* Prototype badge */
+    .proto-badge {
+      position: fixed; top: 5rem; right: .75rem; background: #ff6b35; color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; letter-spacing: .05em; text-transform: uppercase;
+    }
+    .proto-nav {
+      position: fixed; top: 5rem; left: .75rem; background: rgba(0,0,0,0.6); color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; text-decoration: none;
+    }
+
+    @media (min-width: 768px) {
+      body { padding-bottom: 0; }
+      .ds-bottom-nav { display: none; }
+      .cc-section, .action-row { max-width: 720px; margin-left: auto; margin-right: auto; }
+      .welcome-header { padding: 1.5rem 2rem 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="cc-navbar">
+  <div class="brand-logo-wrap">
+    <div style="width:32px;height:32px;background:rgba(255,255,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </div>
+    <span class="brand-name">Clube do Cavalo</span>
+  </div>
+  <div class="nav-avatar">JS</div>
+</nav>
+
+<!-- Welcome header com status -->
+<div class="welcome-header">
+  <div class="welcome-name">Olá, <strong>João Silva</strong> 👋</div>
+  <div class="chips-row">
+    <span class="ds-chip ds-chip-ok"><span class="chip-dot" style="background:#6ee7b7;"></span>Em dia</span>
+    <span class="ds-chip"><span class="chip-dot" style="background:rgba(255,255,255,0.6);"></span>Mensal · R$ 30</span>
+    <span class="ds-chip"><span class="chip-dot" style="background:rgba(255,255,255,0.6);"></span>Vence 12/2025</span>
+  </div>
+</div>
+
+<!-- Alerta financeiro (exemplo de pendência) — hidden por padrão, exemplo visual -->
+<!--
+<div class="finance-alert">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Sua associação venceu em 05/05/2025. Regularize para continuar com acesso aos benefícios.
+  <a href="financeiro.html" style="white-space:nowrap;color:#664d03;font-weight:700;">Renovar →</a>
+</div>
+-->
+
+<!-- Destaques (Banner Mosaic) -->
+<div class="cc-section">
+  <div class="cc-section-title">
+    Destaques
+    <a href="#">Ver mais</a>
+  </div>
+  <div class="banner-mosaic">
+    <!-- Principal -->
+    <div class="banner-tile">
+      <div class="banner-tile-bg" style="background:linear-gradient(135deg,var(--brand) 0%,var(--accent) 100%);height:100%;"></div>
+      <div class="banner-overlay">
+        <div class="title">Cavalo Quarto de Milha</div>
+        <div class="price">R$ 45.000</div>
+      </div>
+    </div>
+    <!-- Secundário 1 -->
+    <div class="banner-tile">
+      <div class="banner-tile-bg" style="background:linear-gradient(135deg,#3a5f3a 0%,#5a9a5a 100%);height:100%;"></div>
+      <div class="banner-overlay">
+        <div class="title">Sela de Couro</div>
+        <div class="price">R$ 2.800</div>
+      </div>
+    </div>
+    <!-- Secundário 2 -->
+    <div class="banner-tile">
+      <div class="banner-tile-bg" style="background:linear-gradient(135deg,#5a3a1a 0%,#9a6a3a 100%);height:100%;"></div>
+      <div class="banner-overlay">
+        <div class="title">Égua Mangalarga</div>
+        <div class="price">R$ 28.000</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Meus Classificados -->
+<div class="cc-section">
+  <div class="cc-section-title">
+    Meus Classificados
+    <a href="#">Gerenciar</a>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.625rem;">
+    <!-- Classificado 1 -->
+    <a href="#" class="cls-card">
+      <div class="cls-img" style="background:linear-gradient(135deg,#5a3a1a,#9a6a3a);">
+        <span style="color:rgba(255,255,255,0.7);font-size:.7rem;">Foto</span>
+      </div>
+      <div class="cls-body">
+        <div class="cls-title">Sela de Couro</div>
+        <div class="cls-price">R$ 2.800</div>
+        <div class="cls-approved">✓ Aprovado</div>
+      </div>
+    </a>
+    <!-- Classificado 2 -->
+    <a href="#" class="cls-card">
+      <div class="cls-img" style="background:linear-gradient(135deg,#1a3a5a,#3a6a9a);">
+        <span style="color:rgba(255,255,255,0.7);font-size:.7rem;">Foto</span>
+      </div>
+      <div class="cls-body">
+        <div class="cls-title">Cabresto de Couro</div>
+        <div class="cls-price">R$ 320</div>
+        <div class="cls-meta">Em análise</div>
+      </div>
+    </a>
+    <!-- Adicionar novo -->
+    <a href="#" class="cls-add">
+      <div class="cls-add-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </div>
+      <span>Publicar<br>Anúncio</span>
+    </a>
+  </div>
+</div>
+
+<!-- Ações da conta -->
+<div class="action-row">
+  <a href="financeiro.html" class="action-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    Financeiro
+  </a>
+  <a href="#" class="action-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+    Trocar Senha
+  </a>
+  <a href="#" class="action-btn danger">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Sair
+  </a>
+</div>
+
+<!-- Spacer -->
+<div style="height:1.25rem;"></div>
+
+<!-- Bottom Navigation -->
+<nav class="ds-bottom-nav">
+  <a href="dashboard.html" class="bnav-item active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Início
+    <div class="bnav-dot"></div>
+  </a>
+  <a href="#" class="bnav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+    Leilões
+  </a>
+  <a href="#" class="bnav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    Classificados
+  </a>
+  <a href="#" class="bnav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+    Serviços
+  </a>
+  <a href="#" class="bnav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Perfil
+  </a>
+</nav>
+
+<div class="proto-badge">Protótipo</div>
+<a href="home.html" class="proto-nav">← Home</a>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

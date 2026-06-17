@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Hub — CCBMG (Protótipo)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #111279; --brand-dark: #0a0c55; --brand-light: #e8e9f8;
+      --accent: #2a9d8f; --accent-light: #e0f2f1;
+      --sidebar-w: 220px;
+      --radius-sm: 6px; --radius-md: 12px; --radius-lg: 16px; --radius-full: 999px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,0.08); --shadow-md: 0 4px 12px rgba(0,0,0,0.10);
+      --text-xs: 0.70rem; --text-sm: 0.80rem; --text-base: 1rem; --text-md: 1.125rem;
+      --transition-base: 0.20s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: #f0f1f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .btn-primary { background-color: var(--brand) !important; border-color: var(--brand) !important; border-radius: var(--radius-sm) !important; font-weight: 500; }
+
+    /* ── Sidebar ── */
+    .ds-sidebar {
+      width: var(--sidebar-w);
+      position: fixed; left: 0; top: 0; bottom: 0;
+      background: var(--brand);
+      display: flex; flex-direction: column;
+      z-index: 200;
+      transition: transform var(--transition-base);
+      overflow-y: auto;
+    }
+    .ds-sidebar-logo {
+      padding: 1.125rem 1.125rem .875rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; gap: .625rem;
+    }
+    .ds-sidebar-logo-icon {
+      width: 32px; height: 32px; background: rgba(255,255,255,0.15);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .ds-sidebar-logo-name { color: #fff; font-weight: 700; font-size: .875rem; line-height: 1.2; }
+    .ds-sidebar-logo-sub  { color: rgba(255,255,255,0.6); font-size: .65rem; }
+
+    .ds-sidebar-section {
+      font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+      color: rgba(255,255,255,0.4); padding: 1rem 1rem .375rem;
+    }
+
+    .ds-sidebar-item {
+      display: flex; align-items: center; gap: .625rem;
+      padding: .575rem 1rem; font-size: var(--text-sm); font-weight: 500;
+      color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: none;
+      border-radius: 0; transition: background var(--transition-base), color var(--transition-base);
+      position: relative;
+    }
+    .ds-sidebar-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .ds-sidebar-item.active {
+      background: rgba(255,255,255,0.12); color: #fff;
+    }
+    .ds-sidebar-item.active::before {
+      content: ''; position: absolute; left: 0; top: 6px; bottom: 6px;
+      width: 3px; background: rgba(255,255,255,0.8); border-radius: 0 3px 3px 0;
+    }
+    .ds-sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
+    .ds-sidebar-item.active svg { opacity: 1; }
+    .ds-sidebar-badge {
+      margin-left: auto; background: rgba(255,255,255,0.15);
+      color: #fff; font-size: .6rem; font-weight: 700;
+      padding: 1px 7px; border-radius: var(--radius-full);
+    }
+    .ds-sidebar-badge.warn { background: #ffc107; color: #000; }
+
+    .ds-sidebar-footer {
+      margin-top: auto; padding: .875rem 1rem;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .ds-sidebar-user {
+      display: flex; align-items: center; gap: .625rem;
+      font-size: var(--text-xs); color: rgba(255,255,255,0.75);
+    }
+    .ds-sidebar-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: rgba(255,255,255,0.2); border: 1.5px solid rgba(255,255,255,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .7rem; color: #fff; flex-shrink: 0;
+    }
+
+    /* ── Main content ── */
+    .ds-main {
+      margin-left: var(--sidebar-w);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    /* ── Top bar ── */
+    .ds-topbar {
+      background: #fff; border-bottom: 1px solid #e9ecef;
+      padding: .75rem 1.5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+    .ds-topbar-title { font-weight: 700; font-size: 1.1rem; color: #1a1a2e; }
+    .ds-topbar-sub   { font-size: var(--text-xs); color: #6c757d; }
+    .ds-topbar-user  { display: flex; align-items: center; gap: .75rem; }
+    .ds-topbar-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--brand-light); border: 2px solid var(--brand-light);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: .85rem; color: var(--brand); cursor: pointer;
+    }
+    .ds-topbar-name { font-size: var(--text-sm); font-weight: 600; color: #374151; }
+    .ds-topbar-role {
+      font-size: .6rem; font-weight: 700; background: var(--accent);
+      color: #fff; padding: 2px 7px; border-radius: var(--radius-full);
+    }
+
+    /* ── Content area ── */
+    .ds-content { padding: 1.5rem; flex: 1; }
+    .ds-page-title { font-size: 1.25rem; font-weight: 800; color: #1a1a2e; margin-bottom: .25rem; }
+    .ds-page-sub   { font-size: var(--text-sm); color: #6c757d; margin-bottom: 1.5rem; }
+
+    /* ── Stat grid ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card {
+      background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      padding: 1.125rem 1.25rem; border: 1px solid rgba(0,0,0,0.04);
+      transition: box-shadow var(--transition-base);
+    }
+    .stat-card:hover { box-shadow: var(--shadow-md); }
+    .stat-label { font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; margin-bottom: .35rem; display: flex; align-items: center; gap: .4rem; }
+    .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .stat-number { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat-trend  { font-size: var(--text-xs); color: #6c757d; margin-top: .25rem; }
+
+    /* ── Module cards ── */
+    .mod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .mod-card {
+      background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      padding: 1.125rem; cursor: pointer; text-decoration: none;
+      transition: box-shadow var(--transition-base), transform var(--transition-base);
+      display: flex; flex-direction: column; gap: .625rem;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .mod-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+    .mod-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mod-icon svg { width: 22px; height: 22px; }
+    .mod-name  { font-weight: 700; font-size: var(--text-base); color: #1a1a2e; }
+    .mod-count { font-size: var(--text-xs); color: #6c757d; }
+    .mod-badge {
+      display: inline-block; font-size: .6rem; font-weight: 700;
+      padding: 2px 8px; border-radius: var(--radius-full);
+      align-self: flex-start;
+    }
+    .mod-badge.ok   { background: #d1fae5; color: #065f46; }
+    .mod-badge.warn { background: #fef3c7; color: #92400e; }
+    .mod-badge.bad  { background: #fee2e2; color: #991b1b; }
+
+    /* ── Mobile navbar ── */
+    .mobile-topbar {
+      display: none; background: var(--brand); padding: .75rem 1rem;
+      align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 8px rgba(17,18,121,0.2);
+    }
+    .mobile-topbar-title { color: #fff; font-weight: 700; font-size: .95rem; }
+
+    /* Mobile overlay */
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 199;
+    }
+
+    @media (max-width: 991.98px) {
+      .ds-sidebar { transform: translateX(-100%); }
+      .ds-sidebar.open { transform: translateX(0); }
+      .ds-main { margin-left: 0; }
+      .ds-topbar { display: none; }
+      .mobile-topbar { display: flex; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .mod-grid  { grid-template-columns: 1fr 1fr; }
+      .ds-content { padding: 1rem; }
+      .sidebar-overlay.open { display: block; }
+    }
+    @media (max-width: 575.98px) {
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .mod-grid  { grid-template-columns: 1fr 1fr; }
+    }
+
+    .proto-badge {
+      position: fixed; bottom: 1rem; right: 1rem; background: #ff6b35; color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .proto-nav {
+      position: fixed; bottom: 1rem; left: 1rem; background: rgba(0,0,0,0.6); color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Mobile overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="ds-sidebar" id="sidebar">
+  <div class="ds-sidebar-logo">
+    <div class="ds-sidebar-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+    </div>
+    <div>
+      <div class="ds-sidebar-logo-name">CCBMG Admin</div>
+      <div class="ds-sidebar-logo-sub">Clube do Cavalo</div>
+    </div>
+  </div>
+
+  <div class="ds-sidebar-section">Gestão</div>
+  <a href="admin-hub.html" class="ds-sidebar-item active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Painel
+  </a>
+  <a href="admin-associados.html" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Associados
+    <span class="ds-sidebar-badge">148</span>
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    Financeiro
+    <span class="ds-sidebar-badge warn">8</span>
+  </a>
+
+  <div class="ds-sidebar-section">Conteúdo</div>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    Classificados
+    <span class="ds-sidebar-badge warn">3</span>
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Eventos
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    Galeria
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+    CMS / Banners
+  </a>
+
+  <div class="ds-sidebar-section">Módulos</div>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+    Produtos
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+    Serviços
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+    Leilões
+    <span class="ds-sidebar-badge warn">2</span>
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+    Diretoria
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+    Parceiros
+  </a>
+
+  <div class="ds-sidebar-footer">
+    <div class="ds-sidebar-user">
+      <div class="ds-sidebar-avatar">WS</div>
+      <div>
+        <div style="color:#fff;font-weight:600;font-size:.75rem;">Waldiney Serafim</div>
+        <div>master</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="ds-main">
+
+  <!-- Mobile topbar -->
+  <div class="mobile-topbar">
+    <button onclick="openSidebar()" style="background:none;border:none;cursor:pointer;padding:.25rem;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div class="mobile-topbar-title">CCBMG Admin</div>
+    <div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.8rem;">WS</div>
+  </div>
+
+  <!-- Desktop topbar -->
+  <div class="ds-topbar">
+    <div>
+      <div class="ds-topbar-title">Painel Administrativo</div>
+      <div class="ds-topbar-sub">Clube do Cavalo de Bonfim MG</div>
+    </div>
+    <div class="ds-topbar-user">
+      <div style="text-align:right;">
+        <div class="ds-topbar-name">Waldiney Serafim</div>
+        <div style="margin-top:2px;"><span class="ds-topbar-role">master</span></div>
+      </div>
+      <div class="ds-topbar-avatar">WS</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="ds-content">
+    <div class="ds-page-title">Bom dia, Waldiney!</div>
+    <div class="ds-page-sub">Terça-feira, 17 de junho de 2025</div>
+
+    <!-- Stat grid -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label"><div class="stat-dot" style="background:var(--accent);"></div>Total</div>
+        <div class="stat-number">148</div>
+        <div class="stat-trend">↑ 3 este mês</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label"><div class="stat-dot" style="background:#198754;"></div>Em dia</div>
+        <div class="stat-number" style="color:#198754;">121</div>
+        <div class="stat-trend" style="color:#198754;">82% do total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label"><div class="stat-dot" style="background:#ffc107;"></div>Pendentes</div>
+        <div class="stat-number" style="color:#cc8800;">18</div>
+        <div class="stat-trend" style="color:#cc8800;">↑ 2 novos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label"><div class="stat-dot" style="background:#dc3545;"></div>Vencidos</div>
+        <div class="stat-number" style="color:#dc3545;">9</div>
+        <div class="stat-trend">Ação necessária</div>
+      </div>
+    </div>
+
+    <!-- Module cards -->
+    <div style="font-size:var(--text-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#6c757d;margin-bottom:.875rem;">
+      Módulos do Sistema
+    </div>
+    <div class="mod-grid">
+      <a href="admin-associados.html" class="mod-card">
+        <div class="mod-icon" style="background:#e8e9f8;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Associados</div>
+          <div class="mod-count">148 cadastrados</div>
+        </div>
+        <span class="mod-badge warn">18 pendentes</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#e0f2f1;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Financeiro</div>
+          <div class="mod-count">Asaas integrado</div>
+        </div>
+        <span class="mod-badge warn">8 faturas</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#fce4ec;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#c62828" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Classificados</div>
+          <div class="mod-count">28 anúncios ativos</div>
+        </div>
+        <span class="mod-badge warn">3 em análise</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#f3e5f5;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#7b1fa2" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Leilões</div>
+          <div class="mod-count">3 leilões ativos</div>
+        </div>
+        <span class="mod-badge warn">2 novos lotes</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#fff3e0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#e65100" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Eventos</div>
+          <div class="mod-count">4 próximos</div>
+        </div>
+        <span class="mod-badge ok">Atualizado</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#e8f5e9;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Produtos</div>
+          <div class="mod-count">12 ativos</div>
+        </div>
+        <span class="mod-badge ok">Atualizado</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#e8f4fd;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#1565c0" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">CMS / Banners</div>
+          <div class="mod-count">3 banners ativos</div>
+        </div>
+        <span class="mod-badge ok">Publicado</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#f0f9f0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#33691e" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Galeria</div>
+          <div class="mod-count">3 álbuns</div>
+        </div>
+        <span class="mod-badge ok">Atualizado</span>
+      </a>
+      <a href="#" class="mod-card">
+        <div class="mod-icon" style="background:#ede7f6;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4a148c" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div>
+          <div class="mod-name">Diretoria</div>
+          <div class="mod-count">12 membros</div>
+        </div>
+        <span class="mod-badge ok">Atualizado</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="proto-badge">Protótipo</div>
+<a href="financeiro.html" class="proto-nav">← Financeiro</a>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+</script>
+</body>
+</html>

@@ -7,142 +7,140 @@
   <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
   
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="assets/css/custom.css">
+  <!-- Favicon -->
+  <link rel=”icon” type=”image/png” href=”assets/img/logo_CCBMG.png”>
+  <link rel=”shortcut icon” href=”assets/img/logo_CCBMG.png” type=”image/png”>
 
-    <!-- Favicon -->
-  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
-  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <link href=”https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css” rel=”stylesheet” integrity=”sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH” crossorigin=”anonymous”>
+  <link rel=”stylesheet” href=”https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css”>
+  <link rel=”stylesheet” href=”assets/css/design-system.css?v=ccbmg-2026-01”>
+  <link rel=”stylesheet” href=”assets/css/custom.css”>
 
   <style>
-    :root{ --brand:#111279; }
-
-    .bg-primary{ background-color:var(--brand)!important; }
-    .btn-primary{ background-color:var(--brand)!important; border-color:var(--brand)!important; }
-    .btn-outline-primary{ color:var(--brand)!important; border-color:var(--brand)!important; }
-    .text-primary{ color:var(--brand)!important; }
-
-    /* === Sem corte: imagens sempre inteiras e legíveis ===
-       - Contêiner com altura responsiva (clamp)
-       - Imagem centralizada, sem distorção (contain)
-       - Mantém cards alinhados com a mesma altura do topo
-    */
-    .event-media{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      width:100%;
-      /* Altura mínima no mobile, cresce com a largura da tela, e tem limite no desktop */
-      height: clamp(220px, 30vw, 460px);
-      background:#f8f9fa;
-      overflow:hidden;
-      border-top-left-radius:.5rem;
-      border-top-right-radius:.5rem;
+    /* :root e overrides Bootstrap movidos para design-system.css */
+    .event-media {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: clamp(200px, 28vw, 420px);
+      background: #f8f9fa;
+      overflow: hidden;
+      border-top-left-radius: var(--radius-md);
+      border-top-right-radius: var(--radius-md);
     }
-    /* Fallback suave caso o browser não suporte clamp */
     @supports not (height: clamp(1px, 2vw, 3px)) {
-      .event-media{ min-height:220px; height:35vw; max-height:460px; }
+      .event-media { min-height: 200px; height: 32vw; max-height: 420px; }
     }
-
-    .event-media > img{
-      max-width:100%;
-      max-height:100%;
-      width:auto;
-      height:auto;
-      object-fit:contain;     /* SEM cortes */
-      object-position:center;
-      display:block;
+    .event-media > img {
+      max-width: 100%; max-height: 100%;
+      width: auto; height: auto;
+      object-fit: contain; object-position: center;
+      display: block;
     }
-
-    /* Estrutura do card para não “pular” */
-    .card.h-100{ display:flex; flex-direction:column; }
-    .card-body{ flex:1 1 auto; }
-    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
-    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+    .card.h-100 { display: flex; flex-direction: column; }
+    .card-body  { flex: 1 1 auto; }
   </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
-    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+  <div class="container d-flex align-items-center justify-content-between flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         <li class="nav-item" data-module="leiloes"><a class="nav-link" href="leiloes.html">Leilões</a></li>
         <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
+        <li class="nav-item" data-module="eventos"><a class="nav-link active-page" href="events.html">Eventos</a></li>
         <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
         <li class="nav-item" data-module="galeria"><a class="nav-link" href="gallery.html">Fotos</a></li>
         <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html">Área do Associado</a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
 
-<main class="container py-5">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">Eventos</h1>
-    <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
+<!-- PAGE HERO -->
+<header class="py-3" style="background:linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);">
+  <div class="container">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-calendar-event text-white" style="font-size:1.25rem; opacity:.85;"></i>
+      <div>
+        <h1 class="fw-bold text-white mb-0" style="font-size:var(--text-lg);">Agenda de Eventos</h1>
+        <p class="mb-0 text-white" style="font-size:var(--text-xs); opacity:.75;">Competições, cavalgadas e atividades do Clube</p>
+      </div>
+    </div>
   </div>
+</header>
+
+<main class="container py-4 py-md-5">
 
   <div class="row row-cols-1 row-cols-md-2 g-4" id="eventsRow">
 
     <!-- Evento 1 -->
     <div class="col">
-      <div class="card h-100 shadow-sm">
+      <div class="card h-100 shadow-sm ds-card">
         <div class="event-media">
-          <img
-            src="assets/img/inauguracao.jpg"
-            alt="Inauguração do Clube do Cavalo Bonfim-MG"
-            loading="lazy"
-            decoding="async">
+          <img src="assets/img/inauguracao.jpg"
+               alt="Inauguração do Clube do Cavalo Bonfim-MG"
+               loading="lazy" decoding="async">
         </div>
         <div class="card-body">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="ds-badge ds-badge-info">
+              <i class="bi bi-calendar-event"></i> 06/12/2025
+            </span>
+            <span class="text-muted" style="font-size:var(--text-xs);">Cantinho do Vale</span>
+          </div>
           <h5 class="card-title">Inauguração do Clube do Cavalo Bonfim-MG</h5>
-          <p class="card-text text-secondary mb-1">Data: 06/12/2025 — Local: Cantinho do Vale</p>
-          <p class="card-text">Entrada gratuita</p>
-          <!-- <a href="#" class="btn btn-primary">Inscrever-se</a> -->
+          <p class="card-text text-success fw-semibold mb-0" style="font-size:var(--text-sm);">Entrada gratuita</p>
         </div>
       </div>
     </div>
 
     <!-- Evento 2 -->
     <div class="col">
-      <div class="card h-100 shadow-sm">
+      <div class="card h-100 shadow-sm ds-card">
         <div class="event-media">
-          <img
-            src="assets/img/cavalgada.jpeg.jpeg"
-            alt="Cavalgada"
-            loading="lazy"
-            decoding="async">
+          <img src="assets/img/cavalgada.jpeg.jpeg"
+               alt="1ª Cavalgada do Clube do Cavalo"
+               loading="lazy" decoding="async">
         </div>
         <div class="card-body">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="ds-badge ds-badge-info">
+              <i class="bi bi-calendar-event"></i> 24/01/2026
+            </span>
+            <span class="text-muted" style="font-size:var(--text-xs);">Saída: 11h — Clube Beriso</span>
+          </div>
           <h5 class="card-title">1ª Cavalgada do Clube do Cavalo</h5>
-          <p class="card-text text-secondary mb-1">Data: 24/01/2026 — Saída: 11h</p>
-          <p class="card-text text-secondary mb-1">Ponto de Encontro: Clube Beriso</p>
-          <p class="card-text">Percurso de 15 km com apoio veterinário e pontos de hidratação.</p>
-          <!-- <a href="#" class="btn btn-primary">Confirmar presença</a> -->
+          <p class="card-text" style="font-size:var(--text-sm);">Percurso de 15 km com apoio veterinário e pontos de hidratação.</p>
         </div>
       </div>
     </div>
 
-    <!-- (Duple as colunas para novos eventos) -->
-
   </div>
 </main>
 
-<footer class="mt-5 py-4 bg-body-tertiary border-top">
+<footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div>
-      <strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.
+    <div class="d-flex align-items-center gap-2">
+      <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
+           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy">
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
     </div>
-    <div class="text-secondary small text-center">
-      © 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
-      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    <div class="text-white text-center" style="font-size:var(--text-xs); opacity:.65;">
+      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
 </footer>
@@ -180,14 +178,18 @@
       if (!row) return;
       row.innerHTML = eventos.map(ev => `
         <div class="col">
-          <div class="card h-100 shadow-sm">
+          <div class="card h-100 shadow-sm ds-card">
             ${ev.imagem ? `<div class="event-media"><img src="${esc(ev.imagem)}" alt="${esc(ev.titulo||'Evento')}" loading="lazy" decoding="async"></div>` : ''}
             <div class="card-body">
-              <h5 class="card-title">${esc(ev.titulo||'Evento')}${ev.eventoDestaque?' <span class="badge bg-warning text-dark ms-1 small">Destaque</span>':''}</h5>
-              ${ev.data ? `<p class="card-text text-secondary mb-1">📅 ${fmtDate(ev.data)}${ev.hora?' — '+esc(ev.hora):''}${ev.local?' — '+esc(ev.local):''}</p>` : ''}
-              ${ev.descricao ? `<p class="card-text">${esc(ev.descricao)}</p>` : ''}
-              <p class="card-text text-primary fw-semibold">${fmtCurrency(ev.valor||0)}</p>
-              ${ev.linkInscricao ? `<a href="${esc(ev.linkInscricao)}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Inscrever-se</a>` : ''}
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                ${ev.data ? `<span class="ds-badge ds-badge-info"><i class="bi bi-calendar-event"></i> ${fmtDate(ev.data)}${ev.hora?' &bull; '+esc(ev.hora):''}</span>` : ''}
+                ${ev.local ? `<span class="text-muted" style="font-size:var(--text-xs);">${esc(ev.local)}</span>` : ''}
+                ${ev.eventoDestaque ? '<span class="ds-badge ds-badge-warn"><i class="bi bi-star-fill"></i> Destaque</span>' : ''}
+              </div>
+              <h5 class="card-title">${esc(ev.titulo||'Evento')}</h5>
+              ${ev.descricao ? `<p class="card-text" style="font-size:var(--text-sm);">${esc(ev.descricao)}</p>` : ''}
+              <p class="fw-semibold mb-0" style="color:var(--accent); font-size:var(--text-sm);">${fmtCurrency(ev.valor||0)}</p>
+              ${ev.linkInscricao ? `<a href="${esc(ev.linkInscricao)}" class="btn btn-primary btn-sm mt-2" target="_blank" rel="noopener"><i class="bi bi-person-check me-1"></i>Inscrever-se</a>` : ''}
             </div>
           </div>
         </div>`).join("");

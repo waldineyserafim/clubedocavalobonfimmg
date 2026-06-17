@@ -6,36 +6,46 @@
   <title>Cadastro — Clube do Cavalo - Bonfim MG</title>
   <meta name="description" content="Crie sua conta no Clube do Cavalo de Bonfim MG.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="assets/css/custom.css">
+  <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
-  <style>
-    :root{ --brand:#111279; }
-    .bg-primary { background-color: var(--brand) !important; }
-    .btn-primary { background-color: var(--brand) !important; border-color: var(--brand) !important; }
-    .btn-outline-primary { color: var(--brand) !important; border-color: var(--brand) !important; }
-    .text-primary { color: var(--brand) !important; }
-    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
-    @media (min-width:992px){ .brand-logo{ height:42px; } }
 
-    .type-card{
-      border: 2px solid #dee2e6; border-radius: 12px;
-      padding: 1rem 1.25rem; cursor: pointer; transition: border-color .15s, background .15s;
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <link rel="stylesheet" href="assets/css/custom.css">
+
+  <style>
+    /* :root, Bootstrap overrides e brand-logo movidos para design-system.css */
+    .type-card {
+      border: 2px solid #dee2e6;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
     }
-    .type-card:has(input:checked){
-      border-color: var(--brand); background: #f0f1fb;
+    .type-card:has(input:checked) {
+      border-color: var(--brand); background: var(--brand-light);
     }
-    .type-card input{ accent-color: var(--brand); }
+    .type-card input { accent-color: var(--brand); }
+    .type-card .type-icon {
+      font-size: 1.5rem;
+      color: var(--brand);
+      opacity: .65;
+      flex-shrink: 0;
+    }
+    .type-card:has(input:checked) .type-icon { opacity: 1; }
   </style>
 </head>
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
-    <a class="navbar-brand fw-bold text-truncate" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
+  <div class="container d-flex align-items-center justify-content-between flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav"
             aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -45,7 +55,9 @@
         <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
         <li class="nav-item mt-2 mt-lg-0">
-          <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html">Entrar</a>
+          <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html">
+            <i class="bi bi-box-arrow-in-right me-1"></i>Entrar
+          </a>
         </li>
       </ul>
     </div>
@@ -54,23 +66,29 @@
 
 <main class="container" style="max-width:560px; padding-top:2rem; padding-bottom:2rem;">
 
-  <h1 class="h4 mb-1">Criar conta</h1>
-  <p class="text-muted mb-4">Escolha como deseja participar:</p>
+  <div class="text-center mb-4">
+    <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
+         style="height:44px; width:auto; margin-bottom:.5rem; display:block; margin-left:auto; margin-right:auto;">
+    <h1 class="h5 fw-bold mb-0" style="color:var(--brand);">Criar conta</h1>
+    <p class="text-muted mb-0" style="font-size:var(--text-sm);">Escolha como deseja participar:</p>
+  </div>
 
   <!-- Seleção de tipo -->
   <div class="d-flex flex-column flex-sm-row gap-3 mb-4" id="typeSelector">
     <label class="type-card flex-fill d-flex align-items-start gap-2">
       <input type="radio" name="tipoUsuario" value="associado" id="tipoAssociado" checked>
+      <i class="bi bi-person-badge type-icon mt-1"></i>
       <div>
-        <div class="fw-semibold">Quero me tornar Associado</div>
-        <div class="small text-muted">Acesso completo: área do associado, produtos, serviços, classificados e leilões.</div>
+        <div class="fw-semibold" style="font-size:var(--text-sm);">Quero me tornar Associado</div>
+        <div class="text-muted" style="font-size:var(--text-xs);">Acesso completo: área do associado, produtos, serviços, classificados e leilões.</div>
       </div>
     </label>
     <label class="type-card flex-fill d-flex align-items-start gap-2" data-module="leiloes">
       <input type="radio" name="tipoUsuario" value="participante" id="tipoParticipante">
+      <i class="bi bi-hammer type-icon mt-1"></i>
       <div>
-        <div class="fw-semibold">Quero participar dos Leilões</div>
-        <div class="small text-muted">Conta gratuita para dar lances. Cadastro rápido com e-mail.</div>
+        <div class="fw-semibold" style="font-size:var(--text-sm);">Quero participar dos Leilões</div>
+        <div class="text-muted" style="font-size:var(--text-xs);">Conta gratuita para dar lances. Cadastro rápido com e-mail.</div>
       </div>
     </label>
   </div>
@@ -99,8 +117,12 @@
           <label class="form-label" for="a_senha">Senha</label>
           <input id="a_senha" type="password" class="form-control" placeholder="Crie sua senha (mín. 6 caracteres)">
         </div>
-        <button id="btnAssociado" class="btn btn-primary w-100">Cadastrar como Associado</button>
-        <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
+        <button id="btnAssociado" class="btn btn-primary w-100 fw-semibold">
+          <i class="bi bi-person-check me-1"></i>Cadastrar como Associado
+        </button>
+        <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">
+          <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
         <p id="msgAssociado" class="text-center text-muted mt-3 small"></p>
       </div>
     </div>
@@ -161,8 +183,12 @@
           </label>
         </div>
 
-        <button id="btnParticipante" class="btn btn-primary w-100">Criar conta gratuita</button>
-        <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">Voltar</a>
+        <button id="btnParticipante" class="btn btn-primary w-100 fw-semibold">
+          <i class="bi bi-hammer me-1"></i>Criar conta gratuita
+        </button>
+        <a href="index.html" class="btn btn-outline-secondary mt-2 w-100">
+          <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
         <p id="msgParticipante" class="text-center text-muted mt-3 small"></p>
       </div>
     </div>
@@ -206,11 +232,16 @@
   </div>
 </div>
 
-<footer class="mt-5 py-4 bg-body-tertiary border-top">
+<footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
-    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
-      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    <div class="d-flex align-items-center gap-2">
+      <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
+           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy">
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+    </div>
+    <div class="text-white text-center" style="font-size:var(--text-xs); opacity:.65;">
+      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
 </footer>

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Associados — CCBMG (Protótipo)</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #111279; --brand-dark: #0a0c55; --brand-light: #e8e9f8;
+      --accent: #2a9d8f; --accent-light: #e0f2f1;
+      --sidebar-w: 220px;
+      --radius-sm: 6px; --radius-md: 12px; --radius-lg: 16px; --radius-full: 999px;
+      --shadow-sm: 0 1px 4px rgba(0,0,0,0.08); --shadow-md: 0 4px 12px rgba(0,0,0,0.10);
+      --text-xs: 0.70rem; --text-sm: 0.80rem; --text-base: 1rem; --text-md: 1.125rem;
+      --transition-base: 0.20s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: #f0f1f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .btn-primary { background-color: var(--brand) !important; border-color: var(--brand) !important; border-radius: var(--radius-sm) !important; font-weight: 500; }
+    .btn-primary:hover { background-color: var(--brand-dark) !important; }
+    .btn-outline-primary { color: var(--brand) !important; border-color: var(--brand) !important; border-radius: var(--radius-sm) !important; }
+
+    /* ── Sidebar (same as hub) ── */
+    .ds-sidebar {
+      width: var(--sidebar-w); position: fixed; left: 0; top: 0; bottom: 0;
+      background: var(--brand); display: flex; flex-direction: column;
+      z-index: 200; transition: transform var(--transition-base); overflow-y: auto;
+    }
+    .ds-sidebar-logo { padding: 1.125rem 1.125rem .875rem; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: .625rem; }
+    .ds-sidebar-logo-icon { width: 32px; height: 32px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ds-sidebar-logo-name { color: #fff; font-weight: 700; font-size: .875rem; line-height: 1.2; }
+    .ds-sidebar-logo-sub  { color: rgba(255,255,255,0.6); font-size: .65rem; }
+    .ds-sidebar-section { font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,0.4); padding: 1rem 1rem .375rem; }
+    .ds-sidebar-item { display: flex; align-items: center; gap: .625rem; padding: .575rem 1rem; font-size: var(--text-sm); font-weight: 500; color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: none; transition: background var(--transition-base), color var(--transition-base); position: relative; }
+    .ds-sidebar-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+    .ds-sidebar-item.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .ds-sidebar-item.active::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; background: rgba(255,255,255,0.8); border-radius: 0 3px 3px 0; }
+    .ds-sidebar-item svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .8; }
+    .ds-sidebar-badge { margin-left: auto; background: rgba(255,255,255,0.15); color: #fff; font-size: .6rem; font-weight: 700; padding: 1px 7px; border-radius: var(--radius-full); }
+    .ds-sidebar-badge.warn { background: #ffc107; color: #000; }
+    .ds-sidebar-footer { margin-top: auto; padding: .875rem 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
+    .ds-sidebar-user { display: flex; align-items: center; gap: .625rem; font-size: var(--text-xs); color: rgba(255,255,255,0.75); }
+    .ds-sidebar-avatar { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 1.5px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .7rem; color: #fff; flex-shrink: 0; }
+
+    /* ── Main ── */
+    .ds-main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
+    .ds-topbar { background: #fff; border-bottom: 1px solid #e9ecef; padding: .75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow-sm); }
+    .ds-topbar-left { display: flex; align-items: center; gap: 1rem; }
+    .ds-topbar-back { width: 32px; height: 32px; border-radius: var(--radius-sm); background: #f3f4f6; display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none; color: #374151; border: none; }
+    .ds-topbar-title { font-weight: 700; font-size: 1.1rem; color: #1a1a2e; }
+    .ds-topbar-sub   { font-size: var(--text-xs); color: #6c757d; }
+    .ds-topbar-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--brand-light); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; color: var(--brand); }
+
+    /* Mobile */
+    .mobile-topbar { display: none; background: var(--brand); padding: .75rem 1rem; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 8px rgba(17,18,121,0.2); }
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 199; }
+
+    /* ── Content ── */
+    .ds-content { padding: 1.5rem; flex: 1; }
+
+    /* ── Stat row ── */
+    .stat-row { display: flex; gap: .875rem; margin-bottom: 1.25rem; overflow-x: auto; padding-bottom: .25rem; }
+    .stat-pill {
+      background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      padding: .75rem 1.125rem; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.04);
+      display: flex; flex-direction: column; gap: 2px; min-width: 110px;
+    }
+    .stat-pill-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: .35rem; }
+    .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .stat-pill-number { font-size: 1.75rem; font-weight: 800; line-height: 1; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex; gap: .625rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;
+    }
+    .search-wrap { position: relative; flex: 1; min-width: 180px; }
+    .search-wrap input { padding-left: 2.25rem; border-radius: var(--radius-sm) !important; border-color: #dee2e6; font-size: var(--text-sm); }
+    .search-wrap input:focus { border-color: var(--brand) !important; box-shadow: 0 0 0 3px rgba(17,18,121,0.1) !important; outline: none; }
+    .search-icon { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: #9ca3af; }
+    .filter-pills { display: flex; gap: .375rem; flex-wrap: wrap; }
+    .filter-pill {
+      padding: .35rem .875rem; border-radius: var(--radius-full);
+      font-size: var(--text-xs); font-weight: 600; cursor: pointer; border: none;
+      background: #f3f4f6; color: #374151; transition: background var(--transition-base), color var(--transition-base);
+    }
+    .filter-pill.active { background: var(--brand); color: #fff; }
+    .filter-pill.warn-pill { }
+    .filter-pill.warn-pill.active { background: #92400e; color: #fff; }
+
+    /* ── User list ── */
+    /* Desktop table */
+    .user-table { background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm); overflow: hidden; border: 1px solid rgba(0,0,0,0.04); }
+    .user-table-head {
+      display: grid;
+      grid-template-columns: 2.5fr 1fr 1.2fr 1.2fr 1fr 80px;
+      padding: .625rem 1rem; background: #f8f9fa; border-bottom: 1px solid #e9ecef;
+      font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6c757d;
+      gap: 1rem;
+    }
+    .user-row {
+      display: grid;
+      grid-template-columns: 2.5fr 1fr 1.2fr 1.2fr 1fr 80px;
+      padding: .75rem 1rem; border-bottom: 1px solid #f0f0f4;
+      align-items: center; gap: 1rem; font-size: var(--text-sm);
+      cursor: pointer; transition: background var(--transition-base);
+    }
+    .user-row:hover { background: #f8f9fa; }
+    .user-row:last-child { border-bottom: none; }
+    .user-name { font-weight: 600; color: #1a1a2e; }
+    .user-cpf  { color: #6c757d; font-size: var(--text-xs); }
+    .user-actions { display: flex; gap: .375rem; }
+
+    /* Mobile card view */
+    .user-card {
+      background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
+      border: 1px solid rgba(0,0,0,0.04); padding: .875rem 1rem;
+      margin-bottom: .625rem; cursor: pointer;
+      transition: box-shadow var(--transition-base);
+    }
+    .user-card:hover { box-shadow: var(--shadow-md); }
+    .user-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .user-card-name { font-weight: 700; font-size: var(--text-base); color: #1a1a2e; }
+    .user-card-meta { font-size: var(--text-xs); color: #6c757d; margin-top: 2px; }
+    .user-card-row  { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
+    /* Badge */
+    .ds-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: 600; }
+    .ds-badge-ok      { background: #d1fae5; color: #065f46; }
+    .ds-badge-warn    { background: #fef3c7; color: #92400e; }
+    .ds-badge-bad     { background: #fee2e2; color: #991b1b; }
+    .ds-badge-pending { background: #f3f4f6; color: #374151; }
+
+    /* Detail drawer (desktop) */
+    .user-detail {
+      background: #f8f9fa; border-top: 1px solid #e9ecef;
+      padding: 1rem 1.25rem; display: none;
+    }
+    .user-detail.open { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+    .detail-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; margin-bottom: 3px; }
+    .detail-value { font-size: var(--text-sm); font-weight: 600; color: #1a1a2e; }
+
+    /* Add button */
+    .add-btn {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--brand); color: #fff; border: none;
+      border-radius: var(--radius-sm); padding: .5rem 1rem;
+      font-weight: 600; font-size: var(--text-sm); cursor: pointer;
+      transition: background var(--transition-base);
+      white-space: nowrap;
+    }
+    .add-btn:hover { background: var(--brand-dark); }
+    .add-btn svg { width: 16px; height: 16px; }
+
+    @media (max-width: 991.98px) {
+      .ds-sidebar { transform: translateX(-100%); }
+      .ds-sidebar.open { transform: translateX(0); }
+      .ds-main { margin-left: 0; }
+      .ds-topbar { display: none; }
+      .mobile-topbar { display: flex; }
+      .sidebar-overlay.open { display: block; }
+      .user-table { display: none; }
+      .ds-content { padding: 1rem; }
+    }
+    @media (min-width: 992px) {
+      .user-cards-view { display: none; }
+    }
+
+    .proto-badge {
+      position: fixed; bottom: 1rem; right: 1rem; background: #ff6b35; color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .proto-nav {
+      position: fixed; bottom: 1rem; left: 1rem; background: rgba(0,0,0,0.6); color: #fff;
+      font-size: .6rem; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-full);
+      z-index: 9999; text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="ds-sidebar" id="sidebar">
+  <div class="ds-sidebar-logo">
+    <div class="ds-sidebar-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+    </div>
+    <div>
+      <div class="ds-sidebar-logo-name">CCBMG Admin</div>
+      <div class="ds-sidebar-logo-sub">Clube do Cavalo</div>
+    </div>
+  </div>
+  <div class="ds-sidebar-section">Gestão</div>
+  <a href="admin-hub.html" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Painel
+  </a>
+  <a href="admin-associados.html" class="ds-sidebar-item active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    Associados
+    <span class="ds-sidebar-badge">148</span>
+  </a>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    Financeiro
+    <span class="ds-sidebar-badge warn">8</span>
+  </a>
+  <div class="ds-sidebar-section">Conteúdo</div>
+  <a href="#" class="ds-sidebar-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+    Classificados
+    <span class="ds-sidebar-badge warn">3</span>
+  </a>
+  <a href="#" class="ds-sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Eventos</a>
+  <a href="#" class="ds-sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Galeria</a>
+  <div class="ds-sidebar-section">Módulos</div>
+  <a href="#" class="ds-sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>Leilões<span class="ds-sidebar-badge warn">2</span></a>
+  <a href="#" class="ds-sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>Produtos</a>
+  <a href="#" class="ds-sidebar-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>Serviços</a>
+  <div class="ds-sidebar-footer">
+    <div class="ds-sidebar-user">
+      <div class="ds-sidebar-avatar">WS</div>
+      <div><div style="color:#fff;font-weight:600;font-size:.75rem;">Waldiney Serafim</div><div>master</div></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="ds-main">
+
+  <!-- Mobile topbar -->
+  <div class="mobile-topbar">
+    <button onclick="openSidebar()" style="background:none;border:none;cursor:pointer;padding:.25rem;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <div style="color:#fff;font-weight:700;font-size:.95rem;">Associados</div>
+    <button class="add-btn" style="padding:.4rem .75rem;font-size:.7rem;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px;height:14px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Novo
+    </button>
+  </div>
+
+  <!-- Desktop topbar -->
+  <div class="ds-topbar">
+    <div class="ds-topbar-left">
+      <a href="admin-hub.html" class="ds-topbar-back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+      </a>
+      <div>
+        <div class="ds-topbar-title">Associados</div>
+        <div class="ds-topbar-sub">Gestão de membros e financeiro</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.875rem;">
+      <button class="add-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Novo Associado
+      </button>
+      <div class="ds-topbar-avatar">WS</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="ds-content">
+
+    <!-- Stat pills -->
+    <div class="stat-row">
+      <div class="stat-pill">
+        <div class="stat-pill-label"><div class="stat-dot" style="background:var(--accent);"></div>Total</div>
+        <div class="stat-pill-number">148</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label"><div class="stat-dot" style="background:#198754;"></div>Em dia</div>
+        <div class="stat-pill-number" style="color:#198754;">121</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label"><div class="stat-dot" style="background:#ffc107;"></div>Pendente</div>
+        <div class="stat-pill-number" style="color:#cc8800;">18</div>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-pill-label"><div class="stat-dot" style="background:#dc3545;"></div>Vencido</div>
+        <div class="stat-pill-number" style="color:#dc3545;">9</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <div class="search-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <input type="text" class="form-control" placeholder="Buscar por nome ou CPF...">
+      </div>
+      <div class="filter-pills">
+        <button class="filter-pill active" onclick="setFilter(this,'todos')">Todos</button>
+        <button class="filter-pill" onclick="setFilter(this,'em_dia')">Em dia</button>
+        <button class="filter-pill warn-pill" onclick="setFilter(this,'pendente')">Pendente</button>
+        <button class="filter-pill" onclick="setFilter(this,'inativo')">Inativo</button>
+      </div>
+    </div>
+
+    <!-- Desktop table -->
+    <div class="user-table">
+      <div class="user-table-head">
+        <span>Nome / CPF</span>
+        <span>Plano</span>
+        <span>Último pag.</span>
+        <span>Vencimento</span>
+        <span>Status</span>
+        <span>Ações</span>
+      </div>
+      <!-- Row 1 -->
+      <div>
+        <div class="user-row" onclick="toggleDetail('d1')">
+          <div><div class="user-name">João Silva</div><div class="user-cpf">123.456.789-00</div></div>
+          <div>Mensal</div>
+          <div>R$ 30 em 15/05</div>
+          <div>15/06/2025</div>
+          <div><span class="ds-badge ds-badge-ok">Em dia</span></div>
+          <div class="user-actions">
+            <button class="btn btn-outline-primary btn-sm" style="padding:.25rem .5rem;font-size:.65rem;">Editar</button>
+          </div>
+        </div>
+        <div class="user-detail open" id="d1">
+          <div><div class="detail-label">Telefone</div><div class="detail-value">(38) 99999-0000</div></div>
+          <div><div class="detail-label">Endereço</div><div class="detail-value">Rua das Flores, 123 — Bonfim MG</div></div>
+          <div><div class="detail-label">Cadastrado em</div><div class="detail-value">12/01/2024</div></div>
+          <div><div class="detail-label">Asaas ID</div><div class="detail-value" style="font-family:monospace;font-size:.7rem;">cus_abc123xyz</div></div>
+          <div><div class="detail-label">Role</div><div class="detail-value">associado</div></div>
+          <div style="display:flex;gap:.375rem;align-items:center;">
+            <button class="btn btn-primary btn-sm" style="font-size:.7rem;">+ Fatura</button>
+            <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;">Histórico</button>
+          </div>
+        </div>
+      </div>
+      <!-- Row 2 -->
+      <div>
+        <div class="user-row" onclick="toggleDetail('d2')">
+          <div><div class="user-name">Maria Souza</div><div class="user-cpf">987.654.321-00</div></div>
+          <div>Trimestral</div>
+          <div>R$ 85 em 10/03</div>
+          <div style="color:#dc3545;font-weight:600;">10/06/2025</div>
+          <div><span class="ds-badge ds-badge-warn">Pendente</span></div>
+          <div class="user-actions">
+            <button class="btn btn-outline-primary btn-sm" style="padding:.25rem .5rem;font-size:.65rem;">Editar</button>
+          </div>
+        </div>
+        <div class="user-detail" id="d2">
+          <div><div class="detail-label">Telefone</div><div class="detail-value">(38) 98888-1111</div></div>
+          <div><div class="detail-label">Endereço</div><div class="detail-value">Av. Central, 456 — Bonfim MG</div></div>
+          <div><div class="detail-label">Cadastrado em</div><div class="detail-value">05/03/2023</div></div>
+          <div><div class="detail-label">Asaas ID</div><div class="detail-value" style="font-family:monospace;font-size:.7rem;">cus_def456uvw</div></div>
+          <div><div class="detail-label">Role</div><div class="detail-value">associado</div></div>
+          <div style="display:flex;gap:.375rem;align-items:center;">
+            <button class="btn btn-primary btn-sm" style="font-size:.7rem;">Marcar pago</button>
+            <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;">Histórico</button>
+          </div>
+        </div>
+      </div>
+      <!-- Row 3 -->
+      <div>
+        <div class="user-row" onclick="toggleDetail('d3')">
+          <div><div class="user-name">Pedro Costa</div><div class="user-cpf">111.222.333-44</div></div>
+          <div>Semestral</div>
+          <div>R$ 170 em 01/12/24</div>
+          <div style="color:#dc3545;font-weight:600;">01/06/2025</div>
+          <div><span class="ds-badge ds-badge-bad">Vencido</span></div>
+          <div class="user-actions">
+            <button class="btn btn-outline-primary btn-sm" style="padding:.25rem .5rem;font-size:.65rem;">Editar</button>
+          </div>
+        </div>
+        <div class="user-detail" id="d3">
+          <div><div class="detail-label">Telefone</div><div class="detail-value">(38) 97777-2222</div></div>
+          <div><div class="detail-label">Endereço</div><div class="detail-value">Fazenda Bela Vista — Bonfim MG</div></div>
+          <div><div class="detail-label">Vencido há</div><div class="detail-value" style="color:#dc3545;">16 dias</div></div>
+          <div><div class="detail-label">Asaas ID</div><div class="detail-value" style="font-family:monospace;font-size:.7rem;">cus_ghi789rst</div></div>
+          <div><div class="detail-label">Role</div><div class="detail-value">associado</div></div>
+          <div style="display:flex;gap:.375rem;align-items:center;">
+            <button class="btn btn-danger btn-sm" style="font-size:.7rem;">Marcar pago</button>
+            <button class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;">Isenção</button>
+          </div>
+        </div>
+      </div>
+      <!-- Row 4 -->
+      <div>
+        <div class="user-row" onclick="toggleDetail('d4')">
+          <div><div class="user-name">Ana Lima</div><div class="user-cpf">555.666.777-88</div></div>
+          <div>Mensal</div>
+          <div>R$ 30 em 20/05</div>
+          <div>20/07/2025</div>
+          <div><span class="ds-badge ds-badge-ok">Em dia</span></div>
+          <div class="user-actions">
+            <button class="btn btn-outline-primary btn-sm" style="padding:.25rem .5rem;font-size:.65rem;">Editar</button>
+          </div>
+        </div>
+        <div class="user-detail" id="d4"></div>
+      </div>
+      <!-- Row 5 -->
+      <div>
+        <div class="user-row" onclick="toggleDetail('d5')">
+          <div><div class="user-name">Carlos Mendes</div><div class="user-cpf">222.333.444-55</div></div>
+          <div>—</div>
+          <div>—</div>
+          <div>—</div>
+          <div><span class="ds-badge ds-badge-pending">Inativo</span></div>
+          <div class="user-actions">
+            <button class="btn btn-outline-primary btn-sm" style="padding:.25rem .5rem;font-size:.65rem;">Editar</button>
+          </div>
+        </div>
+        <div class="user-detail" id="d5"></div>
+      </div>
+    </div>
+
+    <!-- Mobile card view -->
+    <div class="user-cards-view">
+      <div class="user-card">
+        <div class="user-card-top">
+          <div><div class="user-card-name">João Silva</div><div class="user-card-meta">CPF 123.456.789-00 · Mensal</div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="user-card-row">
+          <span class="ds-badge ds-badge-ok">Em dia</span>
+          <span style="font-size:var(--text-xs);color:#6c757d;">Vence 15/06/2025</span>
+        </div>
+      </div>
+      <div class="user-card">
+        <div class="user-card-top">
+          <div><div class="user-card-name">Maria Souza</div><div class="user-card-meta">CPF 987.654.321-00 · Trimestral</div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="user-card-row">
+          <span class="ds-badge ds-badge-warn">Pendente</span>
+          <span style="font-size:var(--text-xs);color:#dc3545;font-weight:600;">Venceu 10/06/2025</span>
+        </div>
+      </div>
+      <div class="user-card">
+        <div class="user-card-top">
+          <div><div class="user-card-name">Pedro Costa</div><div class="user-card-meta">CPF 111.222.333-44 · Semestral</div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="user-card-row">
+          <span class="ds-badge ds-badge-bad">Vencido</span>
+          <span style="font-size:var(--text-xs);color:#dc3545;font-weight:600;">Há 16 dias</span>
+        </div>
+      </div>
+      <div class="user-card">
+        <div class="user-card-top">
+          <div><div class="user-card-name">Ana Lima</div><div class="user-card-meta">CPF 555.666.777-88 · Mensal</div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="user-card-row">
+          <span class="ds-badge ds-badge-ok">Em dia</span>
+          <span style="font-size:var(--text-xs);color:#6c757d;">Vence 20/07/2025</span>
+        </div>
+      </div>
+      <div class="user-card">
+        <div class="user-card-top">
+          <div><div class="user-card-name">Carlos Mendes</div><div class="user-card-meta">CPF 222.333.444-55</div></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="user-card-row">
+          <span class="ds-badge ds-badge-pending">Inativo</span>
+          <span style="font-size:var(--text-xs);color:#6c757d;">Sem plano ativo</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="proto-badge">Protótipo</div>
+<a href="admin-hub.html" class="proto-nav">← Admin Hub</a>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function openSidebar()  { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('open'); }
+function toggleDetail(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+function setFilter(btn, filter) {
+  document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

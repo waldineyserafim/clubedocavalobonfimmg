@@ -7,38 +7,27 @@
   <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
   
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-  <link rel="stylesheet" href="assets/css/custom.css">
-
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <link rel="stylesheet" href="assets/css/custom.css">
+
   <style>
-    .bg-primary {
-      background-color: #111279 !important; /* Exemplo: roxo escuro */
-    }
-    .btn-primary {
-      background-color: #111279 !important;
-      border-color: #111279 !important;
-    }
-    .btn-outline-primary {
-      color: #111279 !important;
-      border-color: #111279 !important;
-    }
-    .text-primary {
-      color: #111279 !important;
-    }
-    .brand-logo{ height:36px; width:auto; margin-right:.5rem; object-fit:contain; filter:brightness(0) invert(1); }
-    @media (min-width: 992px){ .brand-logo{ height:42px; } }
+    /* :root e overrides Bootstrap movidos para design-system.css */
   </style>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-  <div class="container">
-    <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
-    <a class="navbar-brand fw-bold" href="index.html">Clube do Cavalo - Bonfim MG</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
+  <div class="container d-flex align-items-center justify-content-between flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo Clube do Cavalo">
+      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Alternar navegação">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="nav">
@@ -47,30 +36,64 @@
         <li class="nav-item" data-module="classificados"><a class="nav-link" href="classificados.html">Classificados</a></li>
         <li class="nav-item" data-module="eventos"><a class="nav-link" href="events.html">Eventos</a></li>
         <li class="nav-item" data-module="parcerias"><a class="nav-link" href="partners.html">Parcerias</a></li>
+        <li class="nav-item" data-module="galeria"><a class="nav-link active-page" href="gallery.html">Fotos</a></li>
         <li class="nav-item" data-module="diretoria"><a class="nav-link" href="board.html">Diretoria</a></li>
         <li class="nav-item"><a class="nav-link" href="sobre.html">Sobre o Clube</a></li>
-        <li class="nav-item"><a class="btn btn-light text-primary ms-lg-3" href="login.html">Área do Associado</a></li>
+        <li class="nav-item mt-2 mt-lg-0">
+          <a class="btn btn-light text-primary ms-lg-3 w-100 w-lg-auto" href="login.html">Área do Associado</a>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
-<main class="container py-5">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3">Galeria de Fotos</h1>
-    <a href="index.html" class="btn btn-outline-secondary">Voltar</a>
+
+<!-- PAGE HERO -->
+<header class="py-3" style="background:linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);">
+  <div class="container">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-images text-white" style="font-size:1.25rem; opacity:.85;"></i>
+      <div>
+        <h1 class="fw-bold text-white mb-0" style="font-size:var(--text-lg);">Galeria de Fotos</h1>
+        <p class="mb-0 text-white" style="font-size:var(--text-xs); opacity:.75;">Momentos e memórias do Clube do Cavalo de Bonfim MG</p>
+      </div>
+    </div>
   </div>
+</header>
+
+<main class="container py-4 py-md-5">
   <div class="row g-3" id="galleryRow">
-    <div class="col-12 col-sm-6 col-lg-7"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto1.jpg" alt="Primeiras reuniões do CCBMG"></div>
-    <div class="col-6 col-sm-6 col-lg-5"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto2.jpg" alt="Reunião com prefeito de Bonfim-MG"></div>
-    <div class="col-6 col-sm-4 col-lg-4"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto3.jpg" alt="Reunião com presidente da câmara de vereadores de Bonfim-MG"></div>
-    <div class="col-6 col-sm-4 col-lg-4"><img class="img-fluid rounded shadow-sm w-100" src="assets/fotos/foto4.jpg" alt="Reunião com fundadores do Clube do Cavalo"></div>
+    <div class="col-12 col-sm-6 col-lg-7">
+      <div class="gallery-thumb-wrap shadow-sm">
+        <img class="img-fluid w-100" src="assets/fotos/foto1.jpg" alt="Primeiras reuniões do CCBMG" loading="lazy">
+      </div>
+    </div>
+    <div class="col-6 col-sm-6 col-lg-5">
+      <div class="gallery-thumb-wrap shadow-sm">
+        <img class="img-fluid w-100" src="assets/fotos/foto2.jpg" alt="Reunião com prefeito de Bonfim-MG" loading="lazy">
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-4">
+      <div class="gallery-thumb-wrap shadow-sm">
+        <img class="img-fluid w-100" src="assets/fotos/foto3.jpg" alt="Reunião com presidente da câmara de vereadores de Bonfim-MG" loading="lazy">
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-lg-4">
+      <div class="gallery-thumb-wrap shadow-sm">
+        <img class="img-fluid w-100" src="assets/fotos/foto4.jpg" alt="Reunião com fundadores do Clube do Cavalo" loading="lazy">
+      </div>
+    </div>
   </div>
 </main>
-<footer class="mt-5 py-4 bg-body-tertiary border-top">
+<footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-    <div><strong>Clube do Cavalo - Bonfim MG</strong> — Promovendo a cultura equestre.</div>
-    <div class="text-secondary small text-center">© 2025 Clube do Cavalo - Bonfim MG. Todos os direitos reservados.<br>
-      <span>Sistema de Gestão de Clubes e Associações Desenvolvido por <u>Serafim Technologies</u></span>
+    <div class="d-flex align-items-center gap-2">
+      <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
+           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy">
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+    </div>
+    <div class="text-white text-center" style="font-size:var(--text-xs); opacity:.65;">
+      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
 </footer>
