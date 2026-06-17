@@ -291,9 +291,16 @@
       if (user) { await routeAuthenticatedUser(user); }
       else { msg.textContent = "Autenticado. Redirecionando..."; }
     } catch(e){
-      msg.textContent = "";
-      if ((e?.code||"") === "auth/user-not-found"){ goTo("./signup.html"); return; }
-      alert("Erro no login: " + (e?.message || e));
+      const code = e?.code || "";
+      const erros = {
+        "auth/invalid-credential": 'CPF ou senha incorretos. <a href="reset_senha.html">Esqueceu a senha?</a>',
+        "auth/user-not-found":     'CPF ou senha incorretos. <a href="reset_senha.html">Esqueceu a senha?</a>',
+        "auth/wrong-password":     'CPF ou senha incorretos. <a href="reset_senha.html">Esqueceu a senha?</a>',
+        "auth/too-many-requests":  "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+        "auth/user-disabled":      "Conta desativada. Entre em contato com o clube.",
+        "auth/network-request-failed": "Sem conexão. Verifique sua internet e tente novamente.",
+      };
+      msg.innerHTML = '<span class="text-danger">' + (erros[code] || "Erro ao fazer login. Tente novamente.") + '</span>';
     } finally{ btn.disabled = false; }
   });
 
