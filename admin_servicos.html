@@ -20,8 +20,18 @@
     .items4-header, .item4-row{ grid-template-columns: 1fr 160px 140px 180px; }
     @media (max-width:991.98px){ .items4-header, .item4-row{ grid-template-columns: 1fr 120px 110px 170px; } }
     @media (max-width:575.98px){
-      .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-      .items4-header, .item4-row{ min-width:480px; }
+      /* Modo card: abandona scroll horizontal, transforma cada linha num card */
+      .list-scroll-wrap{ overflow-x:visible; }
+      .items4-header{ display:none !important; }
+      .item4-row{
+        display:flex !important; flex-direction:column; gap:.4rem;
+        min-width:auto !important;
+        background:#fff; border:1px solid rgba(0,0,0,.08) !important;
+        border-radius:10px; padding:.75rem;
+        margin-bottom:.5rem; box-shadow:0 1px 4px rgba(0,0,0,.06);
+      }
+      .item4-row > .d-flex{ flex-direction:row !important; }
+      .item4-row .btn{ flex:1 1 auto; font-size:.8rem; }
       #svcSearch, #svcStatusFilter{ max-width:100% !important; width:100%; }
       .card-body .d-flex.gap-2.flex-wrap{ flex-direction:column; }
     }

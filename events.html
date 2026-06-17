@@ -18,6 +18,9 @@
 
   <style>
     /* :root e overrides Bootstrap movidos para design-system.css */
+    /* Fallback robusto caso design-system.css não carregue imediatamente */
+    .brand-logo { height: 36px; width: auto; object-fit: contain; filter: brightness(0) invert(1); }
+    @media (min-width: 992px) { .brand-logo { height: 42px; } }
     .event-media {
       display: flex;
       align-items: center;

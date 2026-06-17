@@ -19,7 +19,10 @@
   <link rel=”stylesheet” href=”assets/css/custom.css?v=ccbmg-2025-09-10d”>
 
   <style>
-    /* :root, overrides Bootstrap, brand-logo e sticky-footer movidos para design-system.css/custom.css */
+    /* :root, overrides Bootstrap e sticky-footer movidos para design-system.css/custom.css */
+    /* Fallback robusto caso design-system.css não carregue imediatamente */
+    .brand-logo { height: 36px; width: auto; object-fit: contain; filter: brightness(0) invert(1); }
+    @media (min-width: 992px) { .brand-logo { height: 42px; } }
     .section-title { margin-bottom: .5rem; }
     .lead-small { font-size: 1.05rem; }
     @media (max-width: 575.98px) { .lead-small { font-size: .95rem; } }

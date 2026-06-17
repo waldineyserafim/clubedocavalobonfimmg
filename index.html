@@ -34,12 +34,10 @@
     #bannerCarousel { margin-bottom: 0 !important; }
 
     .hero-cta {
-      position: absolute; left: 50%; bottom: clamp(1rem, 2.5vh, 2.5rem);
-      transform: translateX(-50%); z-index: 5; display: flex; gap: .75rem; flex-wrap: wrap;
-      justify-content: center; width: min(92%, 780px); padding: 0 .5rem;
-      pointer-events: none;
+      display: flex; gap: .75rem; flex-wrap: wrap;
+      justify-content: center; padding: .875rem 1rem;
     }
-    .hero-cta .btn { box-shadow: 0 .5rem 1rem rgba(0,0,0,.25); pointer-events: auto; }
+    .hero-cta .btn { box-shadow: 0 .25rem .75rem rgba(0,0,0,.15); }
     @media (max-width: 575.98px) { .hero-cta .btn { width: 100%; } }
 
     .partner-logo {
@@ -85,6 +83,9 @@
   </div>
 </nav>
 
+<!-- CONTEÚDO PRINCIPAL -->
+<main>
+
 <!-- HERO / BEM-VINDO -->
 <header class="py-3" style="background:linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);">
   <div class="container">
@@ -101,7 +102,7 @@
 </header>
 
 <!-- CARROSSEL -->
-<section class="position-relative mb-0">
+<section class="mb-0">
   <div id="bannerCarousel" class="carousel slide hero-carousel" data-bs-ride="carousel" data-bs-interval="6000">
     <div class="carousel-indicators" id="carouselIndicators">
       <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
@@ -126,12 +127,17 @@
       <span class="carousel-control-next-icon" aria-hidden="true"></span>
     </button>
   </div>
-
-  <div class="hero-cta">
-    <a href="events.html" class="btn btn-primary btn-lg" data-module="eventos">Próximos eventos</a>
-    <a href="signup.html" class="btn btn-outline-primary btn-lg bg-white">Associe-se</a>
-  </div>
 </section>
+
+<!-- CTAs abaixo do carrossel -->
+<div style="background:var(--brand-light);">
+  <div class="hero-cta">
+    <a href="events.html" class="btn btn-primary btn-lg" data-module="eventos">
+      <i class="bi bi-calendar-event me-1"></i>Próximos eventos
+    </a>
+    <a href="signup.html" class="btn btn-outline-primary btn-lg" style="background:#fff;">Associe-se</a>
+  </div>
+</div>
 
 <!-- ATALHOS RÁPIDOS -->
 <section class="container py-5">
@@ -253,6 +259,8 @@
     </div>
   </div>
 </section>
+
+</main><!-- fim do conteúdo principal -->
 
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">

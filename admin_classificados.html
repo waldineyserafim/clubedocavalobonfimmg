@@ -46,8 +46,17 @@
       .details{ margin-left:0; border-left:0; border-top:1px solid #e9ecef; padding:.75rem 0 0; }
     }
     @media (max-width:575.98px){
-      .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-      .items5-header, .item5-row{ min-width:580px; }
+      /* Modo card: abandona scroll horizontal, transforma cada linha num card */
+      .list-scroll-wrap{ overflow-x:visible; }
+      .items5-header{ display:none !important; }
+      .item5-row{
+        display:flex !important; flex-direction:column; gap:.4rem;
+        min-width:auto !important;
+        background:#fff; border:1px solid rgba(0,0,0,.08) !important;
+        border-radius:10px; padding:.75rem;
+        margin-bottom:.5rem; box-shadow:0 1px 4px rgba(0,0,0,.06);
+      }
+      .item5-row .row-badges{ display:inline-flex; gap:.25rem; }
       #clsSearch, #clsStatusFilter, #clsReviewFilter{ max-width:100% !important; width:100%; }
       .toolbar-wrap .d-flex.gap-2.flex-wrap{ flex-direction:column; }
     }
