@@ -2034,6 +2034,74 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
     return null;
   });
 
+// ─── AUDITORIA ASAAS ─────────────────────────────────────────────────────────
+
+// Callable: retorna diagnóstico de sincronização entre Firestore e Asaas.
+// Verifica quais usuários ativos estão sem asaasId ou sem asaasSubscriptionId.
+// Requer role admin ou master.
+exports.auditAsaasSync = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const usersSnap = await db.collection('users').get();
+    const semAsaasId      = [];
+    const semSubscription = [];
+    let completos   = 0;
+    let inativos    = 0;
+    let semCpf      = 0;
+    let naoAssociado = 0;
+
+    for (const doc of usersSnap.docs) {
+      const u = { uid: doc.id, ...doc.data() };
+
+      if (u.ativo === false) { inativos++; continue; }
+
+      const role = mapRoleServer(u.role);
+      if (!['associado'].includes(role)) { naoAssociado++; continue; }
+
+      if (!u.cpf) { semCpf++; continue; }
+
+      const info = {
+        uid:    u.uid,
+        nome:   u.nome   || '—',
+        cpf:    u.cpf,
+        planType: u.planType || '—',
+        asaasId:           u.asaasId           || null,
+        asaasSubscriptionId: u.asaasSubscriptionId || null,
+      };
+
+      if (!u.asaasId) {
+        semAsaasId.push(info);
+      } else if (!u.asaasSubscriptionId) {
+        semSubscription.push(info);
+      } else {
+        completos++;
+      }
+    }
+
+    return {
+      geradoEm:   new Date().toISOString(),
+      totais: {
+        inativos,
+        semCpf,
+        naoAssociado,
+        semAsaasId:      semAsaasId.length,
+        semSubscription: semSubscription.length,
+        completos,
+      },
+      semAsaasId,
+      semSubscription,
+    };
+  });
+
 // ─── SAAS MULTI-TENANT ────────────────────────────────────────────────────────
 
 

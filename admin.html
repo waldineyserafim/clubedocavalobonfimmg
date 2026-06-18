@@ -124,7 +124,48 @@
     </a>
   </div>
 
+  <p class="sec-title">Integrações</p>
+  <div class="d-flex flex-column gap-2">
+    <div class="mod-card" style="cursor:default">
+      <div class="mod-icon" style="background:#e8f5e9"><i class="bi bi-arrow-left-right" style="color:#2e7d32;font-size:1.4rem;"></i></div>
+      <div class="flex-grow-1">
+        <p class="mod-label mb-1">Asaas — Diagnóstico de Sincronização</p>
+        <p class="mod-sub mb-2">Verifica associados sem cliente ou sem assinatura no Asaas.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="btnAuditAsaas" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-search me-1"></i>Auditar
+          </button>
+          <button id="btnSyncClientes" class="btn btn-sm btn-outline-warning">
+            <i class="bi bi-person-plus me-1"></i>Criar clientes ausentes
+          </button>
+          <button id="btnSyncSubscriptions" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-repeat me-1"></i>Criar assinaturas ausentes
+          </button>
+        </div>
+        <div id="asaasAuditResult" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
 </main>
+
+<!-- Modal Auditoria Asaas -->
+<div class="modal fade" id="modalAuditAsaas" tabindex="-1" aria-labelledby="modalAuditAsaasLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalAuditAsaasLabel"><i class="bi bi-arrow-left-right me-2"></i>Diagnóstico Asaas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body" id="modalAuditBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Consultando...</p></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <footer class="mt-4 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
@@ -145,6 +186,7 @@
   import { auth, db } from "./firebase.js";
   import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
 
   requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
   applyModuleVisibility();
@@ -169,6 +211,74 @@
     try{ await signOut(auth); location.href = "login.html"; }
     catch(e){ alert("Não foi possível sair: " + e.message); }
   });
+
+  // ── Integrações Asaas ──────────────────────────────────────────────────────
+  const fns = getFunctions(undefined, "us-central1");
+  const auditFn      = httpsCallable(fns, "auditAsaasSync");
+  const syncClientsFn = httpsCallable(fns, "syncAllAssociadosToAsaas");
+  const syncSubsFn    = httpsCallable(fns, "createAsaasSubscriptions");
+  const modalEl      = document.getElementById("modalAuditAsaas");
+  const modalBody    = document.getElementById("modalAuditBody");
+  const modalBs      = new bootstrap.Modal(modalEl);
+
+  function renderAuditReport(r) {
+    const t = r.totais;
+    const pct = (n, tot) => tot > 0 ? ` (${Math.round(n/tot*100)}%)` : "";
+    const totalAtivos = t.completos + t.semAsaasId + t.semSubscription + t.semCpf;
+
+    const rowList = (arr) => arr.length === 0
+      ? `<p class="text-muted small mb-0">Nenhum.</p>`
+      : `<table class="table table-sm table-bordered mb-0"><thead><tr><th>Nome</th><th>CPF</th><th>Plano</th></tr></thead><tbody>
+          ${arr.map(u=>`<tr><td>${u.nome}</td><td>${u.cpf}</td><td>${u.planType}</td></tr>`).join("")}
+         </tbody></table>`;
+
+    return `
+      <div class="mb-3 p-3 rounded" style="background:#f8f9fa">
+        <div class="row row-cols-2 row-cols-md-3 g-2 text-center">
+          <div class="col"><div class="fw-bold text-success fs-4">${t.completos}</div><div class="small text-muted">Completos ✅</div></div>
+          <div class="col"><div class="fw-bold text-danger fs-4">${t.semAsaasId}</div><div class="small text-muted">Sem cliente Asaas ❌</div></div>
+          <div class="col"><div class="fw-bold text-warning fs-4">${t.semSubscription}</div><div class="small text-muted">Sem assinatura ⚠️</div></div>
+          <div class="col"><div class="fw-bold text-secondary fs-4">${t.inativos}</div><div class="small text-muted">Inativos</div></div>
+          <div class="col"><div class="fw-bold text-secondary fs-4">${t.semCpf}</div><div class="small text-muted">Sem CPF</div></div>
+          <div class="col"><div class="fw-bold text-secondary fs-4">${t.naoAssociado}</div><div class="small text-muted">Outros roles</div></div>
+        </div>
+        <div class="text-muted small mt-2 text-center">Total associados ativos: <strong>${totalAtivos}</strong> · Gerado: ${new Date(r.geradoEm).toLocaleString("pt-BR")}</div>
+      </div>
+      ${t.semAsaasId > 0 ? `<h6 class="text-danger"><i class="bi bi-x-circle me-1"></i>Sem cliente no Asaas (${t.semAsaasId})</h6>${rowList(r.semAsaasId)}` : ""}
+      ${t.semSubscription > 0 ? `<h6 class="text-warning mt-3"><i class="bi bi-exclamation-triangle me-1"></i>Com cliente, sem assinatura (${t.semSubscription})</h6>${rowList(r.semSubscription)}` : ""}
+      ${t.semAsaasId === 0 && t.semSubscription === 0 ? `<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>Todos os associados ativos com CPF estão sincronizados com o Asaas.</div>` : ""}
+    `;
+  }
+
+  document.getElementById("btnAuditAsaas")?.addEventListener("click", async () => {
+    modalBody.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Consultando Firestore...</p></div>`;
+    modalBs.show();
+    try {
+      const res = await auditFn();
+      modalBody.innerHTML = renderAuditReport(res.data);
+    } catch(e) {
+      modalBody.innerHTML = `<div class="alert alert-danger">Erro: ${e.message}</div>`;
+    }
+  });
+
+  async function runSyncFn(fn, label) {
+    const btn = document.querySelector(`[data-sync="${label}"]`);
+    if (!confirm(`Confirma execução de "${label}"? Isso pode demorar alguns minutos.`)) return;
+    try {
+      const el = document.getElementById("asaasAuditResult");
+      el.style.display = "block";
+      el.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${label}...`;
+      const res = await fn();
+      const d = res.data;
+      const errs = d.errors?.length ? `<br><span class="text-danger">${d.errors.length} erro(s): ${d.errors.map(e=>e.nome+": "+e.error).join("; ")}</span>` : "";
+      el.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${label} concluído. Synced/Created: ${d.synced ?? d.created ?? "—"} | Skipped: ${d.skipped ?? "—"}${errs}</span>`;
+    } catch(e) {
+      document.getElementById("asaasAuditResult").innerHTML = `<span class="text-danger">${e.message}</span>`;
+    }
+  }
+
+  document.getElementById("btnSyncClientes")?.addEventListener("click", () => runSyncFn(syncClientsFn, "Sincronizar clientes Asaas"));
+  document.getElementById("btnSyncSubscriptions")?.addEventListener("click", () => runSyncFn(syncSubsFn, "Criar assinaturas Asaas"));
 </script>
 </body>
 </html>
