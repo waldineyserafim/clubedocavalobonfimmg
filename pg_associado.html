@@ -98,6 +98,7 @@
           <i class="bi bi-credit-card me-1"></i>Renovar plano
         </a>
       </div>
+      <div id="financeSummaryLine" class="mt-1 small text-secondary d-none" style="line-height:1.4;"></div>
     </div>
 
     <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0 justify-content-md-end">
@@ -214,6 +215,7 @@
   const logoutBtn = document.getElementById("logoutBtn");
   const alertFinance = document.getElementById("alertFinance");
   const btnNewClassified = document.getElementById("btnNewClassified");
+  const financeSummaryLine = document.getElementById("financeSummaryLine");
 
   const deckLoading = document.getElementById("deckLoading");
   const deckEmpty = document.getElementById("deckEmpty");
@@ -294,6 +296,22 @@
         btnNewClassified?.classList.add("d-none");
       }
     } catch(_) {}
+
+    // Resumo financeiro
+    if (financeSummaryLine) {
+      const parts = [];
+      if (summary?.lastAmount) {
+        const amt = Number(summary.lastAmount).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+        parts.push('Último pag.: R$ ' + amt + (summary.lastPayment ? ' em ' + fmtDate(summary.lastPayment) : ''));
+      }
+      if (summary?.nextDue) {
+        parts.push('Próx. venc.: ' + fmtDate(summary.nextDue));
+      }
+      if (parts.length) {
+        financeSummaryLine.innerHTML = '<i class="bi bi-receipt me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
+        financeSummaryLine.classList.remove('d-none');
+      }
+    }
   }
 
   const RENEW_SOON_DAYS = 5;
