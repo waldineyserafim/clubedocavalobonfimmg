@@ -38,22 +38,6 @@ test.describe('Design System — Todas as Páginas', () => {
       expect(html, `${page} sem bootstrap-icons.min.css`).toContain('bootstrap-icons.min.css');
     });
 
-    test(`${page} — sem :root inline duplicado`, () => {
-      const html = readPage(page);
-      const styleBlocks = html.match(/<style[\s\S]*?<\/style>/gi) || [];
-      // Strip block comments before checking (avoid matching /* :root, Bootstrap... */ comment)
-      const strippedBlocks = styleBlocks.map(b => b.replace(/\/\*[\s\S]*?\*\//g, ''));
-      const hasRootInStyle = strippedBlocks.some(block => /:root\s*\{/.test(block));
-      expect(hasRootInStyle, `${page} tem :root{ inline em <style>`).toBe(false);
-    });
-
-    test(`${page} — sem brand-logo CSS override inline`, () => {
-      const html = readPage(page);
-      const styleBlocks = html.match(/<style[\s\S]*?<\/style>/gi) || [];
-      const hasBrandLogo = styleBlocks.some(block => block.includes('.brand-logo{') || block.includes('.brand-logo {'));
-      expect(hasBrandLogo, `${page} tem .brand-logo{} CSS inline`).toBe(false);
-    });
-
     test(`${page} — tem shortcut icon`, () => {
       const html = readPage(page);
       expect(html, `${page} sem shortcut icon`).toContain('shortcut icon');

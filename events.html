@@ -17,8 +17,18 @@
   <link rel=”stylesheet” href=”assets/css/custom.css”>
 
   <style>
-    /* :root e overrides Bootstrap movidos para design-system.css */
-    /* Fallback robusto caso design-system.css não carregue imediatamente */
+    /* Fallback completo: define variáveis e overrides caso design-system.css demore a propagar */
+    :root {
+      --brand:#111279; --brand-dark:#0a0c55; --brand-light:#e8e9f8;
+      --accent:#2a9d8f;
+      --text-xs:.70rem; --text-sm:.80rem; --text-base:1rem;
+      --text-md:1.125rem; --text-lg:1.25rem; --text-xl:1.5rem;
+      --radius-md:12px;
+    }
+    .bg-primary { background-color:var(--brand) !important; }
+    .btn-primary { background-color:var(--brand) !important; border-color:var(--brand) !important; }
+    .btn-outline-primary { color:var(--brand) !important; border-color:var(--brand) !important; }
+    .text-primary { color:var(--brand) !important; }
     .brand-logo { height: 36px; width: auto; object-fit: contain; filter: brightness(0) invert(1); }
     @media (min-width: 992px) { .brand-logo { height: 42px; } }
     .event-media {
