@@ -323,7 +323,7 @@ const db        = getFirestore(getApp());
 const auth      = getAuth(getApp());
 const functions = getFunctions(getApp(), "us-central1");
 
-requireAuth({ requiredRole: ["admin", "master"] });
+requireAuth({ requiredRole: ["admin", "master", "Admin View", "adminView"] });
 applyModuleVisibility();
 
 checkModuleEnabled("leiloes").then(ok => {

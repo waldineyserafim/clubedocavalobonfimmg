@@ -79,10 +79,11 @@ const norm = (s) =>
 
 const mapRole = (r) => {
   const n = norm(r || "");
-  if (n.includes("master"))       return "master";
-  if (n.includes("admin"))        return "admin";
-  if (n.includes("operador"))     return "operador";
-  if (n.includes("participante")) return "participanteLeilao";
+  if (n.includes("master"))                          return "master";
+  if (n.includes("admin") && n.includes("view"))     return "adminView";
+  if (n.includes("admin"))                           return "admin";
+  if (n.includes("operador"))                        return "operador";
+  if (n.includes("participante"))                    return "participanteLeilao";
   return "associado";
 };
 
@@ -234,6 +235,17 @@ export function requireAuth(options = {}) {
     window.__userRole = mapRole(role);
     window.__userEmail = user.email || "";
     window.__userUid  = user.uid;
+
+    if (mapRole(role) === "adminView") {
+      document.body.classList.add("admin-view-mode");
+      if (!document.getElementById("__adminViewBanner")) {
+        const b = document.createElement("div");
+        b.id = "__adminViewBanner";
+        b.style.cssText = "background:#fff3cd;color:#664d03;text-align:center;padding:.3rem;font-size:.78rem;font-weight:600;border-bottom:1px solid #ffda6a;position:sticky;top:0;z-index:1030;letter-spacing:.03em;";
+        b.textContent = "Acesso somente leitura — Admin View";
+        document.body.prepend(b);
+      }
+    }
   });
 }
 
@@ -447,7 +459,7 @@ export function setupAdminButton(target, { href = 'admin.html', label = 'Adminis
     if (!user) return;
     try {
       const role = await getCurrentRole();
-      if (role === 'admin' || role === 'master') {
+      if (role === 'admin' || role === 'master' || role === 'adminView') {
         ensureAnchor();
         show();
       }
@@ -460,7 +472,7 @@ export function setupAdminButton(target, { href = 'admin.html', label = 'Adminis
   window.addEventListener('pageshow', () => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {
-        if (r === 'admin' || r === 'master') { ensureAnchor(); show(); } else { hide(); }
+        if (r === 'admin' || r === 'master' || r === 'adminView') { ensureAnchor(); show(); } else { hide(); }
       }).catch(() => hide());
     } else {
       hide();
@@ -470,7 +482,7 @@ export function setupAdminButton(target, { href = 'admin.html', label = 'Adminis
   setTimeout(() => {
     if (auth.currentUser) {
       getCurrentRole().then(r => {
-        if (r === 'admin' || r === 'master') { ensureAnchor(); show(); } else { hide(); }
+        if (r === 'admin' || r === 'master' || r === 'adminView') { ensureAnchor(); show(); } else { hide(); }
       }).catch(() => hide());
     }
   }, 800);

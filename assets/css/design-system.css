@@ -572,3 +572,38 @@
 .ds-text-md  { font-size: var(--text-md)  !important; }
 .ds-text-lg  { font-size: var(--text-lg)  !important; }
 .ds-text-xl  { font-size: var(--text-xl)  !important; }
+
+/* ── ADMIN VIEW MODE (somente leitura) ───────────────────── */
+body.admin-view-mode #btnNewAssocModal,
+body.admin-view-mode #prdNewBtn,
+body.admin-view-mode #prdCollapse,
+body.admin-view-mode #svcNewBtn,
+body.admin-view-mode #svcCollapse,
+body.admin-view-mode #btnNew,
+body.admin-view-mode #formCollapse,
+body.admin-view-mode #btnNewAlbum,
+body.admin-view-mode #albumCollapse,
+body.admin-view-mode #uploadZone,
+body.admin-view-mode #btnSalvar,
+body.admin-view-mode #btnSalvarAlbum,
+body.admin-view-mode #btnSyncClientes,
+body.admin-view-mode #btnSyncSubscriptions,
+body.admin-view-mode #btnConfirmAprovar,
+body.admin-view-mode #btnConfirmRejeitar,
+body.admin-view-mode #btnConfirmRepasse,
+body.admin-view-mode .btn-edit-product,
+body.admin-view-mode .btn-toggle-product,
+body.admin-view-mode .btn-edit-service,
+body.admin-view-mode .btn-toggle-service,
+body.admin-view-mode .btn-del-img,
+body.admin-view-mode .btn-edit-classif,
+body.admin-view-mode .btn-toggle-classif,
+body.admin-view-mode .btn-approve-classif,
+body.admin-view-mode .btn-del-photo,
+body.admin-view-mode [data-action="new-payment"],
+body.admin-view-mode [data-action="send-link"],
+body.admin-view-mode [data-action="edit-invoice"],
+body.admin-view-mode [data-action="set-exempt"],
+body.admin-view-mode .btn-reset-pw {
+  display: none !important;
+}

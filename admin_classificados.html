@@ -231,7 +231,7 @@
 
   /* ========= Requer admin/master logado (mesma regra da operação) ========= */
   const storage = getStorage();
-  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  requireAuth({ requiredRole: ["Admin","Master","admin","master","Admin View","adminView"] });
   applyModuleVisibility();
   checkModuleEnabled("classificados").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =

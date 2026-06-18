@@ -199,7 +199,7 @@
 
   /* ===== Permissão ===== */
   const storage = getStorage();
-  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  requireAuth({ requiredRole: ["Admin","Master","admin","master","Admin View","adminView"] });
   applyModuleVisibility();
   checkModuleEnabled("produtos").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =

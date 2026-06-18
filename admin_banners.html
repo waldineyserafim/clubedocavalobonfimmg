@@ -174,7 +174,7 @@
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
-  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  requireAuth({ requiredRole: ["Admin","Master","admin","master","Admin View","adminView"] });
 
   auth.onAuthStateChanged(async (user) => {
     if (!user) return;

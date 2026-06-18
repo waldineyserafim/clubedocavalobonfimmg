@@ -268,7 +268,7 @@
     return d.innerHTML;
   }
 
-  requireAuth({ requiredRole: ["Admin","Master","admin","master"] });
+  requireAuth({ requiredRole: ["Admin","Master","admin","master","Admin View","adminView"] });
   applyModuleVisibility();
   checkModuleEnabled("associados").then(ok => {
     if (!ok) document.querySelector("main").innerHTML =
@@ -1091,6 +1091,7 @@
             : `<select id="pfRole" class="form-select">
                  <option value="associado" ${userRole==='associado'?'selected':''}>Associado</option>
                  <option value="admin" ${userRole==='admin'?'selected':''}>Admin</option>
+                 <option value="Admin View" ${userRole==='admin view'?'selected':''}>Admin View</option>
                </select>`
           }
         </div>
