@@ -126,6 +126,21 @@
 
   <p class="sec-title">Integrações</p>
   <div class="d-flex flex-column gap-2">
+
+    <div class="mod-card" style="cursor:default">
+      <div class="mod-icon" style="background:#fff3e0"><i class="bi bi-person-vcard-fill" style="color:#e65100;font-size:1.4rem;"></i></div>
+      <div class="flex-grow-1">
+        <p class="mod-label mb-1">Validação de CPFs</p>
+        <p class="mod-sub mb-2">Verifica dígitos verificadores de todos os associados ativos. Execute antes de sincronizar com o Asaas.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button id="btnAuditCpf" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-search me-1"></i>Validar CPFs
+          </button>
+        </div>
+        <div id="cpfAuditResult" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
+
     <div class="mod-card" style="cursor:default">
       <div class="mod-icon" style="background:#e8f5e9"><i class="bi bi-arrow-left-right" style="color:#2e7d32;font-size:1.4rem;"></i></div>
       <div class="flex-grow-1">
@@ -145,9 +160,29 @@
         <div id="asaasAuditResult" class="mt-2" style="display:none"></div>
       </div>
     </div>
+
   </div>
 
 </main>
+
+<!-- Modal Validação CPF -->
+<div class="modal fade" id="modalAuditCpf" tabindex="-1" aria-labelledby="modalAuditCpfLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalAuditCpfLabel"><i class="bi bi-person-vcard-fill me-2"></i>Validação de CPFs</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body" id="modalCpfBody">
+        <div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Consultando...</p></div>
+      </div>
+      <div class="modal-footer">
+        <small class="text-muted me-auto">Corrija os CPFs em <a href="admin_associados.html">Gestão de Associados</a>.</small>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal Auditoria Asaas -->
 <div class="modal fade" id="modalAuditAsaas" tabindex="-1" aria-labelledby="modalAuditAsaasLabel" aria-hidden="true">
@@ -214,12 +249,69 @@
 
   // ── Integrações Asaas ──────────────────────────────────────────────────────
   const fns = getFunctions(undefined, "us-central1");
-  const auditFn      = httpsCallable(fns, "auditAsaasSync");
+  const auditCpfFn    = httpsCallable(fns, "auditCpfs");
+  const auditFn       = httpsCallable(fns, "auditAsaasSync");
   const syncClientsFn = httpsCallable(fns, "syncAllAssociadosToAsaas");
   const syncSubsFn    = httpsCallable(fns, "createAsaasSubscriptions");
+
+  const modalCpfEl   = document.getElementById("modalAuditCpf");
+  const modalCpfBody = document.getElementById("modalCpfBody");
+  const modalCpfBs   = new bootstrap.Modal(modalCpfEl);
+
   const modalEl      = document.getElementById("modalAuditAsaas");
   const modalBody    = document.getElementById("modalAuditBody");
   const modalBs      = new bootstrap.Modal(modalEl);
+
+  // ── CPF Audit ─────────────────────────────────────────────────────────────
+  function fmtCpf(d) {
+    return d && d.length === 11
+      ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+      : d;
+  }
+
+  function renderCpfReport(r) {
+    const t = r.totais;
+    const totalAtivos = t.validos + t.ausentes + t.tamanhoErrado + t.invalidos;
+    const temProblema = t.ausentes + t.tamanhoErrado + t.invalidos > 0;
+
+    const buildTable = (arr, cols) => {
+      if (!arr.length) return `<p class="text-muted small mb-0">Nenhum.</p>`;
+      return `<table class="table table-sm table-bordered mb-0">
+        <thead><tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr></thead>
+        <tbody>${arr.map(u =>
+          `<tr><td>${escHtml(u.nome)}</td><td class="font-monospace">${fmtCpf(u.cpf)}</td>${u.digitos !== undefined ? `<td>${u.digitos} dígitos</td>` : ""}</tr>`
+        ).join("")}</tbody></table>`;
+    };
+
+    const escHtml = s => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    return `
+      <div class="mb-3 p-3 rounded" style="background:#f8f9fa">
+        <div class="row row-cols-2 row-cols-md-4 g-2 text-center">
+          <div class="col"><div class="fw-bold text-success fs-4">${t.validos}</div><div class="small text-muted">Válidos ✅</div></div>
+          <div class="col"><div class="fw-bold text-danger fs-4">${t.invalidos}</div><div class="small text-muted">Dígito inválido ❌</div></div>
+          <div class="col"><div class="fw-bold text-warning fs-4">${t.tamanhoErrado}</div><div class="small text-muted">Tamanho errado ⚠️</div></div>
+          <div class="col"><div class="fw-bold text-secondary fs-4">${t.ausentes}</div><div class="small text-muted">Sem CPF</div></div>
+        </div>
+        <div class="text-muted small mt-2 text-center">Total associados ativos: <strong>${totalAtivos}</strong> · ${new Date(r.geradoEm).toLocaleString("pt-BR")}</div>
+      </div>
+      ${!temProblema ? `<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-2"></i>Todos os CPFs são matematicamente válidos. Pode sincronizar com o Asaas.</div>` : ""}
+      ${t.invalidos > 0 ? `<h6 class="text-danger mt-2"><i class="bi bi-x-circle me-1"></i>Dígito verificador inválido (${t.invalidos})</h6>${buildTable(r.invalido, ["Nome","CPF"])}` : ""}
+      ${t.tamanhoErrado > 0 ? `<h6 class="text-warning mt-3"><i class="bi bi-exclamation-triangle me-1"></i>Tamanho incorreto (${t.tamanhoErrado})</h6>${buildTable(r.tamanhoErrado, ["Nome","CPF","Dígitos"])}` : ""}
+      ${t.ausentes > 0 ? `<h6 class="text-secondary mt-3"><i class="bi bi-dash-circle me-1"></i>Sem CPF cadastrado (${t.ausentes})</h6>${buildTable(r.ausente, ["Nome","CPF"])}` : ""}
+    `;
+  }
+
+  document.getElementById("btnAuditCpf")?.addEventListener("click", async () => {
+    modalCpfBody.innerHTML = `<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Validando CPFs...</p></div>`;
+    modalCpfBs.show();
+    try {
+      const res = await auditCpfFn();
+      modalCpfBody.innerHTML = renderCpfReport(res.data);
+    } catch(e) {
+      modalCpfBody.innerHTML = `<div class="alert alert-danger">Erro: ${e.message}</div>`;
+    }
+  });
 
   function renderAuditReport(r) {
     const t = r.totais;

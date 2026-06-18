@@ -2034,6 +2034,83 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
     return null;
   });
 
+// ─── VALIDAÇÃO DE CPF ─────────────────────────────────────────────────────────
+
+function validateCPF(cpf) {
+  const d = String(cpf || '').replace(/\D/g, '');
+  if (d.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(d)) return false; // todos dígitos iguais
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i);
+  let r1 = (s * 10) % 11;
+  if (r1 === 10 || r1 === 11) r1 = 0;
+  if (r1 !== parseInt(d[9])) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += parseInt(d[i]) * (11 - i);
+  let r2 = (s * 10) % 11;
+  if (r2 === 10 || r2 === 11) r2 = 0;
+  return r2 === parseInt(d[10]);
+}
+
+// Callable: audita CPFs de todos os associados ativos.
+// Retorna listas separadas por tipo de problema.
+// Requer role admin ou master.
+exports.auditCpfs = functions
+  .runWith({ timeoutSeconds: 120, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const usersSnap = await db.collection('users').get();
+    const ausente  = [];   // sem CPF
+    const tamanho  = [];   // CPF tem dígitos mas ≠ 11
+    const invalido = [];   // 11 dígitos mas dígito verificador errado
+    const valido   = [];   // CPF matematicamente correto
+    let inativos = 0;
+    let naoAssociado = 0;
+
+    for (const docSnap of usersSnap.docs) {
+      const u = { uid: docSnap.id, ...docSnap.data() };
+      if (u.ativo === false) { inativos++; continue; }
+      const role = mapRoleServer(u.role);
+      if (role !== 'associado') { naoAssociado++; continue; }
+
+      const cpfRaw = String(u.cpf || '').replace(/\D/g, '');
+      const info = { uid: u.uid, nome: u.nome || '—', cpf: cpfRaw || '(vazio)' };
+
+      if (!cpfRaw) {
+        ausente.push(info);
+      } else if (cpfRaw.length !== 11) {
+        tamanho.push({ ...info, digitos: cpfRaw.length });
+      } else if (!validateCPF(cpfRaw)) {
+        invalido.push(info);
+      } else {
+        valido.push(u.uid);
+      }
+    }
+
+    return {
+      geradoEm: new Date().toISOString(),
+      totais: {
+        validos:     valido.length,
+        ausentes:    ausente.length,
+        tamanhoErrado: tamanho.length,
+        invalidos:   invalido.length,
+        inativos,
+        naoAssociado,
+      },
+      ausente,
+      tamanhoErrado: tamanho,
+      invalido,
+    };
+  });
+
 // ─── AUDITORIA ASAAS ─────────────────────────────────────────────────────────
 
 // Callable: retorna diagnóstico de sincronização entre Firestore e Asaas.
