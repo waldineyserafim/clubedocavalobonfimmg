@@ -13,10 +13,10 @@
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
 
   <!-- Bootstrap + Design System -->
-  <link href=”https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css” rel=”stylesheet” integrity=”sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH” crossorigin=”anonymous”>
-  <link rel=”stylesheet” href=”https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css”>
-  <link rel=”stylesheet” href=”assets/css/design-system.css?v=ccbmg-2026-01”>
-  <link rel=”stylesheet” href=”assets/css/custom.css?v=ccbmg-2025-09-10d”>
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <link rel="stylesheet" href="assets/css/custom.css?v=ccbmg-2025-09-10d">
 
   <style>
     /* Fallback completo: define variáveis e overrides caso design-system.css demore a propagar */
@@ -33,6 +33,11 @@
     .text-primary { color:var(--brand) !important; }
     .brand-logo { height: 36px; width: auto; object-fit: contain; filter: brightness(0) invert(1); }
     @media (min-width: 992px) { .brand-logo { height: 42px; } }
+    /* Sticky footer fallback */
+    html, body { height:100%; }
+    body { min-height:100dvh; display:flex; flex-direction:column; }
+    main { flex:1 0 auto; }
+    footer { flex-shrink:0; }
     .section-title { margin-bottom: .5rem; }
     .lead-small { font-size: 1.05rem; }
     @media (max-width: 575.98px) { .lead-small { font-size: .95rem; } }
@@ -253,7 +258,7 @@
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+<script src="assets/js/bootstrap.bundle.min.js"></script>
 <script type="module">
   import { applyModuleVisibility } from "./firebase.js";
   applyModuleVisibility();
