@@ -383,11 +383,23 @@
 
     if (_financeiroOk) {
       const st = await getUserStatus(user.uid);
-      let planName = p.planName || p.plano || (p.finance?.summary?.planName) || "—";
+      let planName = p.planType || p.planName || p.plano || (p.finance?.summary?.planName) || "—";
       let nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || (p.finance?.summary?.nextDue);
 
       if (planName && planName!=="—"){ if (chipPlanText) chipPlanText.textContent = planName; chipPlan?.classList.remove("d-none"); }
       if (nextDue){ if (chipNextDueText) chipNextDueText.textContent = fmtDate(nextDue); chipNextDue?.classList.remove("d-none"); }
+
+      // Preenche o resumo financeiro imediatamente (não espera onSnapshot)
+      if (financeSummaryLine) {
+        const _parts = [];
+        const _pt = String(planName || '').toLowerCase();
+        if (PLAN_LABEL[_pt]) _parts.push('Plano: ' + PLAN_LABEL[_pt]);
+        if (nextDue) _parts.push('Próx. pag.: ' + fmtDate(nextDue));
+        if (_parts.length) {
+          financeSummaryLine.innerHTML = '<i class="bi bi-calendar2-check me-1"></i>' + _parts.join(' &nbsp;·&nbsp; ');
+          financeSummaryLine.classList.remove('d-none');
+        }
+      }
 
       if (!st || st.active){ setPayStatusBadge("Em dia"); }
       else if (st.pending){ setPayStatusBadge("Atrasada"); }
