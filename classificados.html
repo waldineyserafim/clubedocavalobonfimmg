@@ -69,6 +69,12 @@
     .price { font-weight: 700; font-size: 1.05rem; }
     .no-data { opacity: .8; }
 
+    /* Chips de status financeiro */
+    .chip { border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:999px; padding:.35rem .75rem; font-size:.85rem; display:inline-flex; gap:.5rem; align-items:center; }
+    .chip .dot { width:.5rem; height:.5rem; border-radius:50%; display:inline-block; }
+    .dot-ok { background:#28a745; } .dot-warn { background:#ffc107; } .dot-bad { background:#dc3545; }
+    @media (max-width:575.98px) { .chip { font-size:.78rem; padding:.25rem .6rem; } }
+
     /* === Subnav sticky === */
     .subnav { position: sticky; top: 56px; z-index: var(--z-sticky); background: #fff; border-top: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef; }
     @media (min-width: 992px) { .subnav { top: 64px; } }
@@ -128,6 +134,26 @@
     </div>
   </div>
 </header>
+
+<!-- Strip financeiro — visível apenas quando logado -->
+<div id="memberInfoStrip" class="d-none border-bottom" style="background:var(--brand-light);">
+  <div class="container py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="small text-secondary">Olá, <strong id="memberName">—</strong></span>
+      <span class="text-secondary small" aria-hidden="true">·</span>
+      <span id="infoPlan" class="small text-secondary d-none">
+        <i class="bi bi-calendar2-check me-1"></i>Plano: <span id="infoPlanText">—</span>
+      </span>
+      <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">—</span></span>
+      <span id="infoNextDue" class="small text-secondary d-none">
+        Próx. pag.: <strong id="infoNextDueText">—</strong>
+      </span>
+      <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">
+        <i class="bi bi-credit-card me-1"></i>Renovar plano
+      </a>
+    </div>
+  </div>
+</div>
 
 <div class="subnav">
   <div class="container py-2 ds-pills" style="overflow-x:auto; flex-wrap:nowrap;">
@@ -662,9 +688,9 @@
 
 <!-- Cadastro de classificado: auth check + form submit -->
 <script type="module">
-  import { auth, db, uploadImageFile, currentOrgId } from './firebase.js';
+  import { auth, db, uploadImageFile, currentOrgId, getUserProfile, getUserStatus } from './firebase.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-  import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp }
+  import { collection, addDoc, updateDoc, doc, getDoc, onSnapshot, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
   const btnNew       = document.getElementById("btnNewClassified");
@@ -684,6 +710,52 @@
   let selectedFiles = [];
   let currentUserName = "associado";
   const onlyDigits = (s="") => String(s).replace(/\D+/g, "");
+
+  // ===== Strip financeiro =====
+  const memberInfoStrip = document.getElementById("memberInfoStrip");
+  const memberName      = document.getElementById("memberName");
+  const infoPlan        = document.getElementById("infoPlan");
+  const infoPlanText    = document.getElementById("infoPlanText");
+  const chipPayStatus   = document.getElementById("chipPayStatus");
+  const chipPayText     = document.getElementById("chipPayText");
+  const chipPayDot      = document.getElementById("chipPayDot");
+  const infoNextDue     = document.getElementById("infoNextDue");
+  const infoNextDueText = document.getElementById("infoNextDueText");
+  const btnRenewPlan    = document.getElementById("btnRenewPlan");
+
+  const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
+  const fmtDateFin = (ts) => {
+    if (!ts) return "—";
+    try { const d = ts?.toDate ? ts.toDate() : new Date(ts);
+      return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
+    } catch { return "—"; }
+  };
+  function setPayBadge(status){
+    const s = String(status||"").toLowerCase();
+    chipPayStatus?.classList.remove("d-none");
+    if (s.includes("em dia")) { if(chipPayText) chipPayText.textContent="Em dia"; if(chipPayDot) chipPayDot.className="dot dot-ok"; }
+    else if (s.includes("atras")) { if(chipPayText) chipPayText.textContent="Atrasada"; if(chipPayDot) chipPayDot.className="dot dot-warn"; btnRenewPlan?.classList.remove("d-none"); }
+    else { if(chipPayText) chipPayText.textContent="Vencida"; if(chipPayDot) chipPayDot.className="dot dot-bad"; btnRenewPlan?.classList.remove("d-none"); }
+  }
+  function applyFinanceSummary(summary){
+    const planType = String(summary?.planType || "").toLowerCase();
+    if (planType && PLAN_LABEL[planType]) {
+      if (infoPlanText) infoPlanText.textContent = PLAN_LABEL[planType];
+      infoPlan?.classList.remove("d-none");
+    }
+    const nextDueVal = summary?.nextDue || summary?.activeUntil || null;
+    if (nextDueVal) {
+      if (infoNextDueText) infoNextDueText.textContent = fmtDateFin(nextDueVal);
+      infoNextDue?.classList.remove("d-none");
+    }
+    try {
+      const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
+      const active = !!activeUntil && activeUntil.getTime() > Date.now();
+      if (active) { setPayBadge("Em dia"); btnRenewPlan?.classList.add("d-none"); }
+      else { btnRenewPlan?.classList.remove("d-none"); }
+      return active;
+    } catch(_) { return false; }
+  }
 
   btnPickImgs?.addEventListener("click", () => clsImages.click());
   btnClearImgs?.addEventListener("click", () => {
@@ -790,14 +862,31 @@
   onAuthStateChanged(auth, async (user) => {
     if (!user) { btnNew?.classList.add("d-none"); return; }
     try {
-      const sumSnap = await getDoc(doc(db, "users", user.uid, "finance", "summary"));
-      const summary = sumSnap.exists() ? sumSnap.data() : {};
-      const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : null;
-      if (activeUntil && activeUntil.getTime() > Date.now()) {
-        btnNew?.classList.remove("d-none");
+      const p = await getUserProfile(user.uid) || {};
+      currentUserName = p.nome || "associado";
+      if (memberName) memberName.textContent = p.nome || (user.email?.split("@")[0]) || "associado";
+      memberInfoStrip?.classList.remove("d-none");
+
+      const st = await getUserStatus(user.uid);
+      const _pt = String(p.planType || p.planName || p.plano || "").toLowerCase();
+      if (PLAN_LABEL[_pt]) {
+        if (infoPlanText) infoPlanText.textContent = PLAN_LABEL[_pt];
+        infoPlan?.classList.remove("d-none");
       }
-      const userSnap = await getDoc(doc(db, "users", user.uid));
-      if (userSnap.exists()) currentUserName = userSnap.data().nome || "associado";
+      const nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || null;
+      if (nextDue) {
+        if (infoNextDueText) infoNextDueText.textContent = fmtDateFin(nextDue);
+        infoNextDue?.classList.remove("d-none");
+      }
+      setPayBadge(st?.pending ? "Atrasada" : (st?.active ? "Em dia" : "Vencida"));
+      if (!st?.active) btnRenewPlan?.classList.remove("d-none");
+
+      onSnapshot(doc(db, "users", user.uid, "finance", "summary"), (snap) => {
+        if (!snap.exists()) return;
+        const active = applyFinanceSummary(snap.data() || {});
+        if (active) { btnNew?.classList.remove("d-none"); }
+        else { btnNew?.classList.add("d-none"); }
+      });
     } catch (e) {
       console.warn("Auth check classified:", e);
     }
