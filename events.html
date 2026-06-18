@@ -55,6 +55,7 @@
       width: auto; height: auto;
       object-fit: contain; object-position: center;
       display: block;
+      cursor: zoom-in;
     }
     .card.h-100 { display: flex; flex-direction: column; }
     .card-body  { flex: 1 1 auto; }
@@ -149,6 +150,21 @@
   </div>
 </main>
 
+<!-- LIGHTBOX MODAL -->
+<div class="modal fade" id="imgLightbox" tabindex="-1" aria-label="Imagem em tamanho completo" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content border-0" style="background:rgba(0,0,0,.9);">
+      <div class="d-flex justify-content-end p-2">
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body p-0 text-center pb-3">
+        <img id="lightboxImg" src="" alt="" style="max-width:100%; max-height:80vh; object-fit:contain;">
+        <div id="lightboxCaption" class="text-white mt-2 small px-3" style="opacity:.8;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div class="d-flex align-items-center gap-2">
@@ -164,6 +180,17 @@
 </footer>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Lightbox: abre ao clicar em qualquer imagem de evento
+  document.addEventListener('click', function(e) {
+    const img = e.target.closest('.event-media img');
+    if (!img) return;
+    document.getElementById('lightboxImg').src = img.src;
+    document.getElementById('lightboxImg').alt = img.alt;
+    document.getElementById('lightboxCaption').textContent = img.alt || '';
+    new bootstrap.Modal(document.getElementById('imgLightbox')).show();
+  });
+</script>
 <script src="assets/js/main.js"></script>
 <script type="module">
   import { checkModuleEnabled, applyModuleVisibility } from "./firebase.js";

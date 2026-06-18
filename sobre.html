@@ -38,10 +38,27 @@
     body { min-height:100dvh; display:flex; flex-direction:column; }
     main { flex:1 0 auto; }
     footer { flex-shrink:0; }
-    .section-title { margin-bottom: .5rem; }
-    .lead-small { font-size: 1.05rem; }
+    .section-title {
+      color: var(--brand);
+      font-weight: 700;
+      font-size: 1.2rem;
+      padding-left: .75rem;
+      border-left: 4px solid var(--accent);
+      margin-bottom: 1rem;
+      line-height: 1.3;
+    }
+    .lead-small { font-size: 1.05rem; line-height: 1.7; color: #333; }
     @media (max-width: 575.98px) { .lead-small { font-size: .95rem; } }
-    .icon-bullet { width: 1.25rem; display: inline-block; text-align: center; }
+    .icon-bullet { width: 1.5rem; display: inline-block; text-align: center; }
+    .content-section {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.06);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .content-section li { line-height: 1.65; color: #333; }
+    .content-section li strong { color: #111; }
   </style>
 </head>
 <body>
@@ -97,16 +114,16 @@
     <div id="cmsAboutDynamic"></div>
 
     <!-- Missão -->
-    <section class="mb-5" id="secMissao">
-      <h2 class="h4 section-title">Missão</h2>
+    <section class="content-section" id="secMissao">
+      <h2 class="section-title">Missão</h2>
       <p class="lead-small" id="secMissaoText">
         Promover a cultura equestre, a socialização dos associados e comunidade e o bem-estar dos cavalos.
       </p>
     </section>
 
     <!-- Nossas atividades -->
-    <section class="mb-5">
-      <h2 class="h4 section-title">Nossas atividades</h2>
+    <section class="content-section">
+      <h2 class="section-title">Nossas atividades</h2>
       <div class="row g-4" id="secAtividadesRow">
         <div class="col-md-6">
           <ul class="list-unstyled mb-0">
@@ -126,8 +143,8 @@
     </section>
 
     <!-- Benefícios -->
-    <section class="mb-5" id="secBeneficios">
-      <h2 class="h4 section-title">Benefícios para Associados</h2>
+    <section class="content-section" id="secBeneficios">
+      <h2 class="section-title">Benefícios para Associados</h2>
       <div class="row g-4" id="secBeneficiosContent">
         <div class="col-md-6">
           <ul class="list-unstyled mb-0">
@@ -144,8 +161,8 @@
       </div>
     </section>
 
-<section class="mt-5">
-  <h2 class="h4 mb-3">Planos de Associação</h2>
+<section class="content-section mt-0">
+  <h2 class="section-title">Planos de Associação</h2>
 
   <p id="planosIntroEl">
     Faça parte do <strong>Clube do Cavalo – Bonfim MG</strong> e ajude a fortalecer
@@ -207,8 +224,8 @@
 
 
     <!-- Downloads (Estatuto / Regulamento) -->
-    <section class="mb-5">
-      <h2 class="h4 section-title">Documentos</h2>
+    <section class="content-section">
+      <h2 class="section-title">Documentos</h2>
       <p class="text-muted">Baixe nossos documentos institucionais (PDF):</p>
       <div class="d-flex flex-wrap gap-2" id="secDocumentosLinks">
         <a class="btn btn-outline-primary" href="assets/docs/Estatuto Social Clube do Cavalo Bonfim-MG.pdf" target="_blank" rel="noopener">📄 Baixar Estatuto</a>
@@ -217,8 +234,8 @@
     </section>
 
     <!-- Informações legais -->
-    <section class="mb-4">
-      <h2 class="h4 section-title">Informações Legais</h2>
+    <section class="content-section">
+      <h2 class="section-title">Informações Legais</h2>
       <div class="card border-0 shadow-sm">
         <div class="card-body">
           <p class="mb-2">

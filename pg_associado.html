@@ -89,10 +89,12 @@
       <h1 class="h5 fw-bold mb-1" style="color:var(--brand);">
         <i class="bi bi-person-check me-1"></i>Área do Associado
       </h1>
-      <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">—</strong></div>
-      <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">—</span></span>
+        <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">—</strong></div>
+      </div>
+      <div class="mt-1 d-flex flex-wrap align-items-center gap-2">
         <span id="chipPlan" class="chip d-none">Plano: <strong id="chipPlanText" class="ms-1">—</strong></span>
-        <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">Situação: —</span></span>
         <span id="chipNextDue" class="chip d-none">Vencimento: <strong id="chipNextDueText" class="ms-1">—</strong></span>
         <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">
           <i class="bi bi-credit-card me-1"></i>Renovar plano
@@ -260,9 +262,9 @@
   function setPayStatusBadge(kind){
     const s = String(kind||"").toLowerCase();
     chipPayStatus.classList.remove("d-none");
-    if (s.includes("em dia")) { chipPayText.textContent="Situação: Em dia"; chipPayDot.className="dot dot-ok"; }
-    else if (s.includes("atras")) { chipPayText.textContent="Situação: Atrasada"; chipPayDot.className="dot dot-warn"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
-    else { chipPayText.textContent="Situação: Vencida"; chipPayDot.className="dot dot-bad"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
+    if (s.includes("em dia")) { chipPayText.textContent="Em dia"; chipPayDot.className="dot dot-ok"; }
+    else if (s.includes("atras")) { chipPayText.textContent="Atrasada"; chipPayDot.className="dot dot-warn"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
+    else { chipPayText.textContent="Vencida"; chipPayDot.className="dot dot-bad"; btnRenewPlan.classList.remove("d-none"); alertFinance.classList.remove("d-none"); }
   }
 
   const PLAN_LABEL = { mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral" };
@@ -300,15 +302,15 @@
     // Resumo financeiro
     if (financeSummaryLine) {
       const parts = [];
-      if (summary?.lastAmount) {
-        const amt = Number(summary.lastAmount).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-        parts.push('Último pag.: R$ ' + amt + (summary.lastPayment ? ' em ' + fmtDate(summary.lastPayment) : ''));
+      const pt = String(summary?.planType || '').toLowerCase();
+      if (pt && PLAN_LABEL[pt]) {
+        parts.push('Plano: ' + PLAN_LABEL[pt]);
       }
       if (summary?.nextDue) {
-        parts.push('Próx. venc.: ' + fmtDate(summary.nextDue));
+        parts.push('Próx. pag.: ' + fmtDate(summary.nextDue));
       }
       if (parts.length) {
-        financeSummaryLine.innerHTML = '<i class="bi bi-receipt me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
+        financeSummaryLine.innerHTML = '<i class="bi bi-calendar2-check me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
         financeSummaryLine.classList.remove('d-none');
       }
     }

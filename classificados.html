@@ -26,9 +26,12 @@
     /* :root e overrides Bootstrap movidos para design-system.css */
 
     /* === Carrossel dos cards de lista === */
+    .cls-carousel .carousel-item {
+      background: #f8f9fa;
+    }
     .cls-carousel .carousel-item img {
       width: 100%; height: clamp(160px, 45vw, 260px);
-      object-fit: cover; display: block; border-radius: var(--radius-sm);
+      object-fit: contain; display: block; border-radius: var(--radius-sm);
     }
     .cls-carousel .carousel-indicators [data-bs-target] { width: 8px; height: 8px; border-radius: 50%; }
 
