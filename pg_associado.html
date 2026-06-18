@@ -94,7 +94,7 @@
       <!-- Linha 2: Plano | Situação | Próx. pag. -->
       <div class="d-flex flex-wrap align-items-center gap-2">
         <span id="infoPlan" class="small text-secondary d-none">
-          <i class="bi bi-calendar2-check me-1"></i><span id="infoPlanText">—</span>
+          <i class="bi bi-calendar2-check me-1"></i>Plano: <span id="infoPlanText">—</span>
         </span>
         <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">—</span></span>
         <span id="infoNextDue" class="small text-secondary d-none">
@@ -262,7 +262,7 @@
   const fmtDate = (ts)=> {
     if (!ts) return "—";
     try { const d = ts?.toDate ? ts.toDate() : new Date(ts);
-      return new Intl.DateTimeFormat('pt-BR',{dateStyle:'medium'}).format(d);
+      return new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(d);
     } catch { return "—"; }
   };
 
