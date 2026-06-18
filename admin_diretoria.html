@@ -19,11 +19,11 @@
     .member-avatar{ width:52px; height:52px; object-fit:cover; border-radius:50%; border:2px solid #e9ecef; }
     .member-avatar-ph{ width:52px;height:52px;border-radius:50%;background:#e9ecef;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#6c757d; }
     .list-header,.list-row{ display:grid; gap:10px; align-items:center; }
-    .dir-cols{ grid-template-columns:52px 1fr 140px 100px 90px 160px; }
-    @media(max-width:991.98px){ .dir-cols{ grid-template-columns:48px 1fr 120px 90px 80px 140px; } }
+    .dir-cols{ grid-template-columns:52px 1fr 140px 90px 160px; }
+    @media(max-width:991.98px){ .dir-cols{ grid-template-columns:48px 1fr 120px 80px 140px; } }
     @media(max-width:575.98px){
       .list-scroll-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
-      .dir-cols{ min-width:600px; }
+      .dir-cols{ min-width:500px; }
     }
     .fab{ position:fixed;bottom:1.5rem;right:1.5rem;width:56px;height:56px;border-radius:50%;font-size:1.6rem;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:1000;display:flex;align-items:center;justify-content:center;border:0;background:var(--brand);color:#fff; }
     @media(min-width:576px){ .fab{ display:none; } }
@@ -146,14 +146,6 @@
     <div class="card-body">
       <div class="d-flex gap-2 flex-wrap align-items-center mb-2">
         <input type="search" class="form-control" id="srch" placeholder="Buscar membro…" style="max-width:260px">
-        <select id="catFilter" class="form-select" style="max-width:220px">
-          <option value="all">Todas as categorias</option>
-          <option value="Diretoria Executiva">Diretoria Executiva</option>
-          <option value="Conselho Fiscal">Conselho Fiscal</option>
-          <option value="Conselho Fundador">Conselho Fundador</option>
-          <option value="Conselho Consultivo">Conselho Consultivo</option>
-          <option value="Outros">Outros</option>
-        </select>
         <select id="statusFilter" class="form-select" style="max-width:140px">
           <option value="all">Todos</option>
           <option value="active">Ativos</option>
@@ -163,7 +155,7 @@
       </div>
       <div class="list-scroll-wrap">
         <div class="list-header dir-cols mt-2 small text-secondary fw-semibold">
-          <div></div><div>Nome</div><div>Cargo</div><div>Categoria</div><div>Status</div><div>Ações</div>
+          <div></div><div>Nome</div><div>Cargo</div><div>Status</div><div>Ações</div>
         </div>
         <div id="listWrap" class="mt-1"><div class="text-center text-secondary py-3">Carregando…</div></div>
       </div>
@@ -309,11 +301,9 @@
 
   function renderList(){
     const term=document.getElementById("srch").value.toLowerCase();
-    const cat=document.getElementById("catFilter").value;
     const status=document.getElementById("statusFilter").value;
     let items=allItems.filter(b=>{
       if(term&&!b.nome?.toLowerCase().includes(term)&&!b.cargo?.toLowerCase().includes(term))return false;
-      if(cat!=="all"&&b.categoria!==cat)return false;
       if(status==="active"&&!b.ativo)return false;
       if(status==="inactive"&&b.ativo)return false;
       return true;
@@ -330,7 +320,6 @@
           ${b.email?`<div class="small text-secondary">${esc(b.email)}</div>`:""}
         </div>
         <div class="small">${esc(b.cargo||"—")}</div>
-        <div class="small text-secondary">${esc(b.categoria||"")}</div>
         <div><span class="badge ${b.ativo?'bg-success':'bg-secondary'}">${b.ativo?'Ativo':'Inativo'}</span></div>
         <div class="d-flex gap-1 flex-wrap">
           <button class="btn btn-sm btn-outline-primary" onclick="editItem('${b.id}')">Editar</button>
@@ -341,7 +330,6 @@
   }
 
   document.getElementById("srch").addEventListener("input",renderList);
-  document.getElementById("catFilter").addEventListener("change",renderList);
   document.getElementById("statusFilter").addEventListener("change",renderList);
   document.getElementById("btnReload").addEventListener("click",loadList);
 

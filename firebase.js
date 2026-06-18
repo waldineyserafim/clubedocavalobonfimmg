@@ -604,3 +604,33 @@ export async function uploadImageFile(file, pathBase, onProgress, opts = {}) {
   return { url, path: objectPath };
 }
 
+// ── Navbar user (auto) ───────────────────────────────────────────────────────
+// Detecta #btnAssociado e atualiza com primeiro nome quando logado.
+// Roda automaticamente em todas as páginas que importam firebase.js.
+const _initNavbarUser = () => {
+  const btn = document.getElementById('btnAssociado');
+  if (!btn) return;
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      btn.innerHTML = '<i class="bi bi-person-circle me-1"></i>Entrar';
+      btn.href = 'login.html';
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (snap.exists()) {
+        const firstName = (snap.data().nome || '').trim().split(' ')[0] || 'Associado';
+        btn.innerHTML = `<i class="bi bi-person-circle me-1"></i>${firstName}`;
+        btn.href = 'pg_associado.html';
+      }
+    } catch { /* mantém o texto padrão */ }
+  });
+};
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initNavbarUser);
+  } else {
+    _initNavbarUser();
+  }
+}
+

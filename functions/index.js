@@ -1279,26 +1279,45 @@ exports.onAssociadoAtualizado = functions.firestore
 
     if (!after.asaasId) return null;
 
-    // Só sincroniza se nome, telefone ou CPF mudaram
-    const changed = ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
-    if (!changed) return null;
+    const dataChanged     = ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
+    const ativoToFalse    = before.ativo !== false && after.ativo === false;
+    const ativoToTrue     = before.ativo === false && after.ativo !== false;
+
+    if (!dataChanged && !ativoToFalse && !ativoToTrue) return null;
 
     try {
       const apiKey = await getAsaasApiKey();
-      const resp = await fetch(`${ASAAS_BASE_URL}/customers/${after.asaasId}`, {
-        method: 'POST',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name:        (after.nome || '').trim(),
-          cpfCnpj:     (after.cpf || '').replace(/\D/g, ''),
-          mobilePhone: formatPhoneForAsaas(after.telefone),
-        }),
-      });
-      const text = await resp.text();
-      const data = text ? JSON.parse(text) : {};
-      if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
 
-      console.log(`onAssociadoAtualizado: uid=${context.params.uid} asaasId=${after.asaasId} sincronizado`);
+      // Sincroniza dados cadastrais quando nome/telefone/CPF mudam
+      if (dataChanged) {
+        const resp = await fetch(`${ASAAS_BASE_URL}/customers/${after.asaasId}`, {
+          method: 'POST',
+          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name:        (after.nome || '').trim(),
+            cpfCnpj:     (after.cpf || '').replace(/\D/g, ''),
+            mobilePhone: formatPhoneForAsaas(after.telefone),
+          }),
+        });
+        const text = await resp.text();
+        const data = text ? JSON.parse(text) : {};
+        if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
+        console.log(`onAssociadoAtualizado: uid=${context.params.uid} dados sincronizados`);
+      }
+
+      // Pausa ou reativa assinatura Asaas quando ativo muda
+      if ((ativoToFalse || ativoToTrue) && after.asaasSubscriptionId) {
+        const newStatus = ativoToFalse ? 'INACTIVE' : 'ACTIVE';
+        const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${after.asaasSubscriptionId}`, {
+          method: 'POST',
+          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const subText = await subResp.text();
+        const subData = subText ? JSON.parse(subText) : {};
+        if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+        console.log(`onAssociadoAtualizado: uid=${context.params.uid} assinatura ${newStatus}`);
+      }
     } catch (err) {
       console.error('onAssociadoAtualizado error:', context.params.uid, err.message);
     }

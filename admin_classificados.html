@@ -509,11 +509,18 @@
 
     const featuredBadge = c.featured ? ' <span class="badge text-bg-warning text-dark">Destaque</span>' : '';
 
+    const firstImg = Array.isArray(c.imageUrls)&&c.imageUrls.length ? c.imageUrls[0] : null;
+    const thumb = firstImg
+      ? `<img src="${firstImg}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid #e9ecef;flex-shrink:0;">`
+      : `<div style="width:40px;height:40px;border-radius:6px;background:#f8f9fa;border:1px solid #e9ecef;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><i class="bi bi-image" style="font-size:.75rem;color:#adb5bd;"></i></div>`;
     return `
       <div class="item5-row list-row">
-        <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
-          ${(c.title||"—")}${featuredBadge}
-        </button>
+        <div class="d-flex align-items-center gap-2">
+          ${thumb}
+          <button class="row-title" type="button" data-bs-toggle="collapse" data-bs-target="#${cid}" aria-expanded="false">
+            ${(c.title||"—")}${featuredBadge}
+          </button>
+        </div>
         <div class="small text-secondary">${createdAtStr}</div>
         <div class="small">${owner}</div>
         <div class="row-badges">${badgeActive}</div>

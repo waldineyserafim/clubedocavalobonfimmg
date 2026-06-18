@@ -43,7 +43,13 @@
     .header-logo-lg { max-width: 120px; height: auto; }
 
     .hero-carousel { overflow: hidden; }
-    .hero-carousel .carousel-item img { width: 100%; height: auto; display: block; }
+    .hero-carousel .carousel-item {
+      height: clamp(180px, 40vw, 480px);
+      background: var(--brand-dark);
+    }
+    .hero-carousel .carousel-item img {
+      width: 100%; height: 100%; display: block; object-fit: contain;
+    }
     #bannerCarousel { margin-bottom: 0 !important; }
 
     .hero-cta {
@@ -145,10 +151,10 @@
 <!-- CTAs abaixo do carrossel -->
 <div style="background:var(--brand-light);">
   <div class="hero-cta">
-    <a href="events.html" class="btn btn-primary btn-lg" data-module="eventos">
-      <i class="bi bi-calendar-event me-1"></i>Próximos eventos
+    <a href="login.html" class="btn btn-primary btn-lg">
+      <i class="bi bi-person-circle me-1"></i>Área do Associado
     </a>
-    <a href="signup.html" class="btn btn-outline-primary btn-lg" style="background:#fff;">Associe-se</a>
+    <a href="signup.html" class="btn btn-outline-primary btn-lg" style="background:#fff;"><i class="bi bi-person-plus me-1"></i>Associe-se</a>
   </div>
 </div>
 
