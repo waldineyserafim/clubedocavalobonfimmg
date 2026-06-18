@@ -89,18 +89,25 @@
       <h1 class="h5 fw-bold mb-1" style="color:var(--brand);">
         <i class="bi bi-person-check me-1"></i>Área do Associado
       </h1>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <div class="text-secondary small">Bem-vindo(a), <strong id="memberName">—</strong></div>
+      <!-- Linha 1: nome -->
+      <div class="text-secondary small mb-1">Bem-vindo(a), <strong id="memberName">—</strong></div>
+      <!-- Linha 2: Plano | Situação | Próx. pag. -->
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span id="infoPlan" class="small text-secondary d-none">
+          <i class="bi bi-calendar2-check me-1"></i><span id="infoPlanText">—</span>
+        </span>
         <span id="chipPayStatus" class="chip d-none"><span id="chipPayDot" class="dot"></span><span id="chipPayText">—</span></span>
-      </div>
-      <div class="mt-1 d-flex flex-wrap align-items-center gap-2">
-        <div id="financeSummaryLine" class="small text-secondary d-none" style="line-height:1.4;"></div>
+        <span id="infoNextDue" class="small text-secondary d-none">
+          Próx. pag.: <strong id="infoNextDueText">—</strong>
+        </span>
         <a href="pay.html" id="btnRenewPlan" class="btn btn-success btn-sm d-none">
           <i class="bi bi-credit-card me-1"></i>Renovar plano
         </a>
       </div>
-      <span id="chipPlan" class="d-none" aria-hidden="true"><strong id="chipPlanText"></strong></span>
-      <span id="chipNextDue" class="d-none" aria-hidden="true"><strong id="chipNextDueText"></strong></span>
+      <!-- Elementos de compatibilidade JS (invisíveis) -->
+      <span id="chipPlan" style="display:none" aria-hidden="true"><strong id="chipPlanText"></strong></span>
+      <span id="chipNextDue" style="display:none" aria-hidden="true"><strong id="chipNextDueText"></strong></span>
+      <div id="financeSummaryLine" style="display:none" aria-hidden="true"></div>
     </div>
 
     <div class="d-flex flex-wrap gap-2 mt-2 mt-md-0 justify-content-md-end">
@@ -209,6 +216,10 @@
   const chipPayDot = document.getElementById("chipPayDot");
   const chipNextDue = document.getElementById("chipNextDue");
   const chipNextDueText = document.getElementById("chipNextDueText");
+  const infoPlan = document.getElementById("infoPlan");
+  const infoPlanText = document.getElementById("infoPlanText");
+  const infoNextDue = document.getElementById("infoNextDue");
+  const infoNextDueText = document.getElementById("infoNextDueText");
   const adminBtn = document.getElementById("adminBtn");
   const logoutBtn = document.getElementById("logoutBtn");
   const alertFinance = document.getElementById("alertFinance");
@@ -271,15 +282,23 @@
   applyModuleVisibility();
 
   function applySummaryToUI(summary){
+    // Plano
     const planType = String(summary?.planType || "").toLowerCase();
     if (planType && PLAN_LABEL[planType]) {
+      if (infoPlanText) infoPlanText.textContent = PLAN_LABEL[planType];
+      infoPlan?.classList.remove("d-none");
       if (chipPlanText) chipPlanText.textContent = PLAN_LABEL[planType];
-      chipPlan?.classList.remove("d-none");
     }
-    if (summary?.nextDue) {
-      if (chipNextDueText) chipNextDueText.textContent = fmtDate(summary.nextDue);
-      chipNextDue?.classList.remove("d-none");
+
+    // Próxima data: prefere nextDue, usa activeUntil como fallback
+    const nextDueVal = summary?.nextDue || summary?.activeUntil || null;
+    if (nextDueVal) {
+      if (infoNextDueText) infoNextDueText.textContent = fmtDate(nextDueVal);
+      infoNextDue?.classList.remove("d-none");
+      if (chipNextDueText) chipNextDueText.textContent = fmtDate(nextDueVal);
     }
+
+    // Status financeiro (ativo/inativo)
     try {
       const activeUntil = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
       const active = !!activeUntil && activeUntil.getTime() > Date.now();
@@ -294,22 +313,6 @@
         btnNewClassified?.classList.add("d-none");
       }
     } catch(_) {}
-
-    // Resumo financeiro
-    if (financeSummaryLine) {
-      const parts = [];
-      const pt = String(summary?.planType || '').toLowerCase();
-      if (pt && PLAN_LABEL[pt]) {
-        parts.push('Plano: ' + PLAN_LABEL[pt]);
-      }
-      if (summary?.nextDue) {
-        parts.push('Próx. pag.: ' + fmtDate(summary.nextDue));
-      }
-      if (parts.length) {
-        financeSummaryLine.innerHTML = '<i class="bi bi-calendar2-check me-1"></i>' + parts.join(' &nbsp;·&nbsp; ');
-        financeSummaryLine.classList.remove('d-none');
-      }
-    }
   }
 
   const RENEW_SOON_DAYS = 5;
@@ -386,19 +389,17 @@
       let planName = p.planType || p.planName || p.plano || (p.finance?.summary?.planName) || "—";
       let nextDue = p.nextDue || p.vencimento || p.planEnd || p.endDate || (p.finance?.summary?.nextDue);
 
-      if (planName && planName!=="—"){ if (chipPlanText) chipPlanText.textContent = planName; chipPlan?.classList.remove("d-none"); }
-      if (nextDue){ if (chipNextDueText) chipNextDueText.textContent = fmtDate(nextDue); chipNextDue?.classList.remove("d-none"); }
-
-      // Preenche o resumo financeiro imediatamente (não espera onSnapshot)
-      if (financeSummaryLine) {
-        const _parts = [];
-        const _pt = String(planName || '').toLowerCase();
-        if (PLAN_LABEL[_pt]) _parts.push('Plano: ' + PLAN_LABEL[_pt]);
-        if (nextDue) _parts.push('Próx. pag.: ' + fmtDate(nextDue));
-        if (_parts.length) {
-          financeSummaryLine.innerHTML = '<i class="bi bi-calendar2-check me-1"></i>' + _parts.join(' &nbsp;·&nbsp; ');
-          financeSummaryLine.classList.remove('d-none');
-        }
+      // Fallback imediato (antes do onSnapshot de finance/summary)
+      const _pt = String(planName || '').toLowerCase();
+      if (PLAN_LABEL[_pt]) {
+        if (infoPlanText) infoPlanText.textContent = PLAN_LABEL[_pt];
+        infoPlan?.classList.remove("d-none");
+        if (chipPlanText) chipPlanText.textContent = PLAN_LABEL[_pt];
+      }
+      if (nextDue) {
+        if (infoNextDueText) infoNextDueText.textContent = fmtDate(nextDue);
+        infoNextDue?.classList.remove("d-none");
+        if (chipNextDueText) chipNextDueText.textContent = fmtDate(nextDue);
       }
 
       if (!st || st.active){ setPayStatusBadge("Em dia"); }
