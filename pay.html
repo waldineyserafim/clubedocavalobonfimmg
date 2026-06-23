@@ -72,6 +72,12 @@
          class="btn btn-primary btn-lg w-100 mb-2 fw-semibold">
         <i class="bi bi-qr-code me-2"></i>Pagar via Asaas
       </a>
+      <div id="noLinkBox" class="alert alert-warning small d-none mt-1 mb-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        Link de pagamento indisponível no momento.
+        <a href="https://wa.me/5531986685028?text=Ol%C3%A1!%20Preciso%20de%20ajuda%20com%20o%20pagamento%20da%20minha%20associa%C3%A7%C3%A3o."
+           target="_blank" rel="noopener" class="alert-link">Entre em contato com a secretaria</a>.
+      </div>
       <p class="text-muted small text-center mb-3">
         No Asaas você escolhe: <strong>PIX</strong>, <strong>Boleto</strong> ou <strong>Cartão de Crédito</strong>
       </p>
@@ -79,6 +85,15 @@
       <div id="waitingBox" class="alert alert-info small text-center mb-0 d-none">
         <span class="spinner-border spinner-border-sm me-1" role="status"></span>
         Aguardando confirmação do pagamento...
+      </div>
+      <div id="waitingTimeoutBox" class="alert alert-secondary small text-center mb-0 d-none">
+        <i class="bi bi-clock me-1"></i>
+        Confirmação não recebida ainda. Pagamentos via boleto podem levar até 3 dias úteis.
+        <div class="mt-2">
+          <button class="btn btn-sm btn-outline-primary" id="btnVerifyAgain">
+            <i class="bi bi-arrow-clockwise me-1"></i>Verificar novamente
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -165,8 +180,13 @@
 
   const PLAN_LABEL = { mensal:"Mensal", trimestral:"Trimestral", semestral:"Semestral" };
 
+  const noLinkBox        = document.getElementById("noLinkBox");
+  const waitingTimeoutBox= document.getElementById("waitingTimeoutBox");
+  const btnVerifyAgain   = document.getElementById("btnVerifyAgain");
+
   let uid = null;
   let stopWatcher = null;
+  let watcherTimeoutId = null;
 
   function fmtBRL(v) {
     return (v || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
@@ -195,16 +215,32 @@
 
   function watchPayment() {
     if (stopWatcher) { stopWatcher(); stopWatcher = null; }
+    if (watcherTimeoutId) { clearTimeout(watcherTimeoutId); watcherTimeoutId = null; }
+
     const summaryRef = doc(db, "users", uid, "finance", "summary");
     getDoc(summaryRef).then(snap0 => {
       const baseline = snap0.data()?.lastPayment?.toMillis?.() || 0;
+
       stopWatcher = onSnapshot(summaryRef, snap => {
         if ((snap.data()?.lastPayment?.toMillis?.() || 0) > baseline) {
+          clearTimeout(watcherTimeoutId);
           location.href = "pay-success.html";
         }
       });
+
+      // Após 10 minutos sem confirmação, exibe mensagem de fallback
+      watcherTimeoutId = setTimeout(() => {
+        if (stopWatcher) { stopWatcher(); stopWatcher = null; }
+        waitingBox.classList.add("d-none");
+        waitingTimeoutBox.classList.remove("d-none");
+      }, 10 * 60 * 1000);
     });
   }
+
+  btnVerifyAgain?.addEventListener("click", () => {
+    waitingTimeoutBox.classList.add("d-none");
+    carregarFatura();
+  });
 
   async function carregarFatura() {
     showState("loading");
@@ -221,7 +257,18 @@
       invoiceDue.textContent   = fmtDate(d.dueDate);
       invoiceValue.textContent = fmtBRL(d.value);
       invoicePlan.textContent  = "—"; // será preenchido abaixo com o planType do Firestore
-      btnPagar.href = d.invoiceUrl || "#";
+
+      if (d.invoiceUrl) {
+        btnPagar.href = d.invoiceUrl;
+        btnPagar.classList.remove("disabled");
+        btnPagar.removeAttribute("aria-disabled");
+        noLinkBox.classList.add("d-none");
+      } else {
+        btnPagar.href = "#";
+        btnPagar.classList.add("disabled");
+        btnPagar.setAttribute("aria-disabled", "true");
+        noLinkBox.classList.remove("d-none");
+      }
 
       showState("invoice");
 
@@ -239,7 +286,12 @@
       }, { once: true });
 
     } catch (e) {
-      errorMsg.textContent = e.message || "Erro desconhecido. Tente novamente.";
+      const raw = e.message || "";
+      if (raw.includes("Assinatura não configurada") || raw.includes("not-found")) {
+        errorMsg.textContent = "Sua assinatura ainda não foi registrada no sistema de pagamentos. Entre em contato com a secretaria do clube para regularizar.";
+      } else {
+        errorMsg.textContent = raw || "Erro desconhecido. Tente novamente.";
+      }
       showState("error");
     }
   }
