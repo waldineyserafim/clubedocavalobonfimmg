@@ -805,15 +805,20 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
 
   const dueDateStr = new Date(dueDateMs).toISOString().slice(0, 10);
 
-  // Busca cobranças pendentes da assinatura com a mesma dueDate
-  const chargesResp = await fetch(
-    `${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=PENDING`,
-    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-  );
-  const chargesText = await chargesResp.text();
-  const chargesData = chargesText ? JSON.parse(chargesText) : {};
+  // Busca cobranças pendentes e vencidas da assinatura com a mesma dueDate
+  const [pendingResp, overdueResp] = await Promise.all([
+    fetch(`${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=PENDING`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
+    fetch(`${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=OVERDUE`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
+  ]);
+  const [pendingData, overdueData] = await Promise.all([
+    pendingResp.text().then(t => t ? JSON.parse(t) : {}),
+    overdueResp.text().then(t => t ? JSON.parse(t) : {}),
+  ]);
+  const allCharges = [...(pendingData.data || []), ...(overdueData.data || [])];
 
-  const charge = (chargesData.data || []).find(c => c.dueDate === dueDateStr);
+  const charge = allCharges.find(c => c.dueDate === dueDateStr);
   if (!charge) {
     console.warn(`syncManualPaymentToAsaas: cobrança não encontrada para uid=${uid} dueDate=${dueDateStr}`);
     return;
