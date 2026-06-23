@@ -203,6 +203,17 @@
     <div id="deckError" class="alert alert-danger d-none mt-3"></div>
   </section>
 
+  <!-- ===== Minhas Inscrições ===== -->
+  <section class="mt-4" id="sectionInscricoes" style="display:none;">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h2 class="h5 m-0"><i class="bi bi-ticket-perforated me-1 text-primary"></i>Minhas Inscrições</h2>
+      <a href="events.html" class="btn btn-sm btn-outline-primary">Ver eventos</a>
+    </div>
+    <div id="inscricoesWrap" class="card shadow-sm">
+      <div class="card-body text-secondary small text-center py-3">Carregando…</div>
+    </div>
+  </section>
+
 </main>
 
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
@@ -852,6 +863,44 @@
       btnChangePw.disabled = false;
     }
   });
+
+  // ===== Minhas Inscrições =====
+  (function loadMinhasInscricoes(){
+    import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js").then(({ collection, query, where, orderBy, getDocs, doc, getDoc }) => {
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) return;
+        const section = document.getElementById("sectionInscricoes");
+        const wrap    = document.getElementById("inscricoesWrap");
+        try {
+          const q = query(
+            collection(db,"eventRegistrations"),
+            where("uid","==",user.uid),
+            where("orgId","==",currentOrgId),
+            orderBy("registeredAt","desc")
+          );
+          const snap = await getDocs(q);
+          const regs = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.status!=="cancelado");
+          if (!regs.length) return;
+          section.style.display = "";
+          function fmtDT(ts){try{return ts.toDate().toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});}catch{return"—";}}
+          const statusLabel = {ativo:'<span class="badge" style="background:var(--accent);">Inscrito</span>',confirmado:'<span class="badge bg-success">Confirmado</span>'};
+          wrap.innerHTML = `<ul class="list-group list-group-flush">${regs.map(r=>`
+            <li class="list-group-item d-flex justify-content-between align-items-center gap-2 flex-wrap">
+              <div>
+                <div class="fw-semibold small">${r.eventoTitulo||"Evento"}</div>
+                <div class="text-secondary" style="font-size:.78rem;">Inscrito em ${fmtDT(r.registeredAt)}</div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                ${statusLabel[r.status]||""}
+                <a href="event_comprovante.html?regId=${r.id}&vt=${r.viewToken}" class="btn btn-sm btn-outline-primary" title="Ver comprovante">
+                  <i class="bi bi-qr-code"></i>
+                </a>
+              </div>
+            </li>`).join("")}</ul>`;
+        } catch(_) {}
+      });
+    });
+  })();
 
 </script>
 

@@ -125,6 +125,33 @@
               <label class="form-check-label" for="fAtivo">Ativo</label>
             </div>
           </div>
+
+          <!-- Inscrições -->
+          <div class="col-12">
+            <hr class="my-1">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" id="fPermiteInscricao">
+              <label class="form-check-label fw-semibold" for="fPermiteInscricao">Habilitar inscrições neste evento</label>
+            </div>
+            <div id="inscricaoOpts" class="d-none ps-2 border-start border-2 border-primary ms-1">
+              <div class="row g-3 mt-0">
+                <div class="col-md-4">
+                  <label class="form-label small">Encerramento das inscrições</label>
+                  <input type="datetime-local" class="form-control form-control-sm" id="fDataEncerramento">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small">Vagas máximas</label>
+                  <input type="number" min="0" class="form-control form-control-sm" id="fMaxInscritos" placeholder="0 = ilimitado">
+                </div>
+                <div class="col-md-5 d-flex align-items-end pb-1">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="fSomenteSocioEmDia">
+                    <label class="form-check-label small" for="fSomenteSocioEmDia">Somente sócio em dia</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="col-12 d-flex gap-2 flex-wrap align-items-center">
             <button class="btn btn-primary" type="submit" id="btnSalvar">Salvar</button>
             <button class="btn btn-light" type="button" id="btnCancelar">Cancelar</button>
@@ -228,7 +255,16 @@
     fAtivo=document.getElementById("fAtivo"),formMsg=document.getElementById("formMsg"),
     btnSalvar=document.getElementById("btnSalvar"),imgPreviewWrap=document.getElementById("imgPreviewWrap"),
     imgPreview=document.getElementById("imgPreview"),collapse=document.getElementById("formCollapse"),
-    formTitle=document.getElementById("formTitle");
+    formTitle=document.getElementById("formTitle"),
+    fPermiteInscricao=document.getElementById("fPermiteInscricao"),
+    inscricaoOpts=document.getElementById("inscricaoOpts"),
+    fDataEncerramento=document.getElementById("fDataEncerramento"),
+    fMaxInscritos=document.getElementById("fMaxInscritos"),
+    fSomenteSocioEmDia=document.getElementById("fSomenteSocioEmDia");
+
+  fPermiteInscricao.addEventListener("change",()=>{
+    inscricaoOpts.classList.toggle("d-none",!fPermiteInscricao.checked);
+  });
 
   let currentImagem="";
 
@@ -245,6 +281,8 @@
   function resetForm(){
     fId.value="";fTitulo.value="";fData.value="";fHora.value="";fLocal.value="";fValor.value="";
     fLink.value="";fDesc.value="";fImagem.value="";fDestaque.checked=false;fAtivo.checked=true;
+    fPermiteInscricao.checked=false;fDataEncerramento.value="";fMaxInscritos.value="";fSomenteSocioEmDia.checked=false;
+    inscricaoOpts.classList.add("d-none");
     currentImagem="";imgPreviewWrap.classList.add("d-none");
     formMsg.textContent="";btnSalvar.disabled=false;btnSalvar.textContent="Salvar";
   }
@@ -257,12 +295,17 @@
       let imagem=currentImagem;
       if(fImagem.files.length){showMsg("Enviando imagem…");imagem=await compressAndUpload(fImagem.files[0],`tenants/${currentOrgId}/cms/eventos`);}
       const dataTs = fData.value ? Timestamp.fromDate(new Date(fData.value+"T"+(fHora.value||"00:00")+":00")) : null;
+      const dataEncerramentoTs = fDataEncerramento.value ? Timestamp.fromDate(new Date(fDataEncerramento.value+":00")) : null;
       const payload={
         orgId:currentOrgId,titulo:fTitulo.value.trim(),descricao:fDesc.value.trim(),
         local:fLocal.value.trim(),hora:fHora.value,
         data:dataTs,valor:parseFloat(fValor.value)||0,
         linkInscricao:fLink.value.trim(),eventoDestaque:fDestaque.checked,
         imagem,ativo:fAtivo.checked,deleted:false,
+        permiteInscricao:fPermiteInscricao.checked,
+        somenteSocioEmDia:fPermiteInscricao.checked&&fSomenteSocioEmDia.checked,
+        dataEncerramento:fPermiteInscricao.checked?dataEncerramentoTs:null,
+        maxInscritos:fPermiteInscricao.checked?(parseInt(fMaxInscritos.value)||0):0,
         updatedAt:serverTimestamp(),updatedBy:auth.currentUser?.uid||""
       };
       const isEdit=!!fId.value;
@@ -319,7 +362,7 @@
       return `<div class="evt-cols list-row py-2 border-bottom">
         <div>${b.imagem?`<img class="evt-thumb" src="${b.imagem}" alt="">`:''}</div>
         <div>
-          <div class="fw-semibold">${esc(b.titulo||"—")}${b.eventoDestaque?' <span class="badge bg-warning text-dark">Destaque</span>':''}</div>
+          <div class="fw-semibold">${esc(b.titulo||"—")}${b.eventoDestaque?' <span class="badge bg-warning text-dark">Destaque</span>':''}${b.permiteInscricao?' <span class="badge bg-info text-dark">Inscrições</span>':''}</div>
           <div class="small text-secondary">${esc(b.local||"")}</div>
         </div>
         <div class="small ${isPast?"text-muted":"text-primary"}">${fmtDate(b.data)}</div>
@@ -344,6 +387,11 @@
     fHora.value=b.hora||"";fLocal.value=b.local||"";fValor.value=b.valor||"";
     fLink.value=b.linkInscricao||"";fDesc.value=b.descricao||"";
     fDestaque.checked=!!b.eventoDestaque;fAtivo.checked=!!b.ativo;
+    fPermiteInscricao.checked=!!b.permiteInscricao;
+    inscricaoOpts.classList.toggle("d-none",!b.permiteInscricao);
+    fSomenteSocioEmDia.checked=!!b.somenteSocioEmDia;
+    fMaxInscritos.value=b.maxInscritos||"";
+    if(b.dataEncerramento?.toDate){const d=b.dataEncerramento.toDate();fDataEncerramento.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+"T"+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");}else{fDataEncerramento.value="";}
     currentImagem=b.imagem||"";
     if(b.imagem){imgPreview.src=b.imagem;imgPreviewWrap.classList.remove("d-none");}else{imgPreviewWrap.classList.add("d-none");}
     formTitle.textContent="Editar evento";

@@ -211,11 +211,28 @@
   function fmtDate(ts){ try{ return ts.toDate().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}); }catch{return"";} }
   function fmtCurrency(v){ return v>0 ? new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v) : "Gratuito"; }
 
+  function btnInscricao(ev, id) {
+    const now = new Date();
+    if (ev.permiteInscricao) {
+      const prazoOk = !ev.dataEncerramento || ev.dataEncerramento.toDate() > now;
+      if (prazoOk) {
+        const restrict = ev.somenteSocioEmDia ? ' <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">Sócio em dia</span>' : '';
+        return `<a href="event_inscricao.html?eventoId=${esc(id)}" class="btn btn-primary btn-sm mt-2 fw-semibold"><i class="bi bi-person-check me-1"></i>Inscrever-se${restrict}</a>`;
+      } else {
+        return `<span class="btn btn-secondary btn-sm mt-2 disabled" style="pointer-events:none;"><i class="bi bi-clock me-1"></i>Inscrições encerradas</span>`;
+      }
+    }
+    if (ev.linkInscricao) {
+      return `<a href="${esc(ev.linkInscricao)}" class="btn btn-primary btn-sm mt-2" target="_blank" rel="noopener"><i class="bi bi-person-check me-1"></i>Inscrever-se</a>`;
+    }
+    return '';
+  }
+
   (async () => {
     try {
       const q = query(collection(db,"cms_events"), where("orgId","==",currentOrgId));
       const snap = await getDocs(q);
-      const eventos = snap.docs.map(d=>d.data())
+      const eventos = snap.docs.map(d=>({id:d.id,...d.data()}))
         .filter(e=>e.ativo&&!e.deleted)
         .sort((a,b)=>{const ta=a.data?.toDate?.()?.getTime()||0,tb=b.data?.toDate?.()?.getTime()||0;return ta-tb;});
       if (!eventos.length) return;
@@ -234,7 +251,7 @@
               <h5 class="card-title">${esc(ev.titulo||'Evento')}</h5>
               ${ev.descricao ? `<p class="card-text" style="font-size:var(--text-sm);">${esc(ev.descricao)}</p>` : ''}
               <p class="fw-semibold mb-0" style="color:var(--accent); font-size:var(--text-sm);">${fmtCurrency(ev.valor||0)}</p>
-              ${ev.linkInscricao ? `<a href="${esc(ev.linkInscricao)}" class="btn btn-primary btn-sm mt-2" target="_blank" rel="noopener"><i class="bi bi-person-check me-1"></i>Inscrever-se</a>` : ''}
+              ${btnInscricao(ev, ev.id)}
             </div>
           </div>
         </div>`).join("");

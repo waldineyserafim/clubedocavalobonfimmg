@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inscrição no Evento — Clube do Cavalo Bonfim MG</title>
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <style>
+    :root{--brand:#111279;--brand-dark:#0a0c55;}
+    .bg-primary{background-color:var(--brand)!important;}
+    .btn-primary{background-color:var(--brand)!important;border-color:var(--brand)!important;}
+    .brand-logo{height:36px;width:auto;object-fit:contain;filter:brightness(0) invert(1);}
+    html,body{height:100%;} body{min-height:100dvh;display:flex;flex-direction:column;} main{flex:1 0 auto;}
+    .evento-card{border-radius:12px;overflow:hidden;}
+    .evento-img{width:100%;height:160px;object-fit:cover;}
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-primary shadow-sm">
+  <div class="container d-flex align-items-center gap-2 flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="events.html">
+      <img class="brand-logo me-2" src="assets/img/logo_CCBMG.png" alt="Logo">
+      <span style="font-size:.9rem;">Clube do Cavalo — Bonfim MG</span>
+    </a>
+    <a class="btn btn-sm btn-outline-light ms-auto" href="events.html">
+      <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+  </div>
+</nav>
+
+<header class="py-3" style="background:linear-gradient(135deg,var(--brand) 0%,var(--brand-dark) 100%);">
+  <div class="container">
+    <h1 class="fw-bold text-white mb-0" style="font-size:1.25rem;">
+      <i class="bi bi-person-plus me-2"></i>Inscrição no Evento
+    </h1>
+    <p class="mb-0 text-white" style="font-size:.78rem;opacity:.8;">Preencha seus dados para confirmar a inscrição.</p>
+  </div>
+</header>
+
+<main class="container py-4">
+  <div id="stateLoading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-2 text-secondary small">Carregando evento…</p>
+  </div>
+
+  <div id="stateError" class="d-none">
+    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i><span id="errorMsg">Erro.</span></div>
+    <a href="events.html" class="btn btn-outline-secondary btn-sm">Ver eventos</a>
+  </div>
+
+  <div id="stateEncerrado" class="d-none">
+    <div class="alert alert-warning"><i class="bi bi-clock me-2"></i>O prazo de inscrições para este evento encerrou.</div>
+    <a href="events.html" class="btn btn-outline-secondary btn-sm">Ver outros eventos</a>
+  </div>
+
+  <div id="stateInadimplente" class="d-none">
+    <div class="alert alert-danger">
+      <h6 class="alert-heading fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Situação financeira pendente</h6>
+      <p class="mb-2">Este evento é exclusivo para associados em dia. Sua situação financeira precisa ser regularizada para se inscrever.</p>
+      <a href="pay.html" class="btn btn-danger btn-sm fw-semibold"><i class="bi bi-credit-card me-1"></i>Regularizar agora</a>
+    </div>
+    <a href="events.html" class="btn btn-outline-secondary btn-sm mt-2">Ver outros eventos</a>
+  </div>
+
+  <div id="stateDuplicata" class="d-none">
+    <div class="alert alert-info">
+      <h6 class="alert-heading fw-bold"><i class="bi bi-info-circle-fill me-2"></i>Você já está inscrito!</h6>
+      <p class="mb-2">Encontramos uma inscrição existente com este CPF para o evento.</p>
+      <a id="linkComprovante" href="#" class="btn btn-primary btn-sm fw-semibold"><i class="bi bi-qr-code me-1"></i>Ver meu comprovante</a>
+    </div>
+  </div>
+
+  <div id="stateForm" class="d-none">
+    <div class="row g-4 justify-content-center">
+      <div class="col-md-5">
+        <div class="card evento-card shadow-sm mb-3" id="eventoCard">
+          <img id="eventoImg" src="" alt="" class="evento-img d-none">
+          <div class="card-body">
+            <h5 class="card-title mb-1" id="eventoTitulo">—</h5>
+            <div class="d-flex flex-wrap gap-2 mb-2 small text-secondary">
+              <span id="eventoData"></span>
+              <span id="eventoLocal"></span>
+            </div>
+            <div id="eventoValor" class="small fw-semibold" style="color:var(--accent,#2a9d8f);"></div>
+            <div id="eventoVagas" class="small text-muted mt-1 d-none"></div>
+            <div id="eventoEncerramento" class="small text-muted mt-1 d-none"></div>
+            <div id="eventoRestrito" class="d-none mt-2">
+              <span class="badge bg-warning text-dark"><i class="bi bi-shield-lock me-1"></i>Somente sócio em dia</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h6 class="fw-bold mb-3"><i class="bi bi-person-fill me-2 text-primary"></i>Seus dados</h6>
+            <form id="inscricaoForm">
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">CPF <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="fCpf" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" required>
+                <div class="invalid-feedback" id="cpfFeedback">CPF inválido.</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Nome completo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="fNome" placeholder="Seu nome completo" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Telefone / WhatsApp</label>
+                <input type="tel" class="form-control" id="fTelefone" placeholder="(31) 99999-9999">
+              </div>
+              <div id="formMsg" class="d-none mb-3"></div>
+              <button type="submit" id="btnInscrever" class="btn btn-primary w-100 fw-semibold">
+                <i class="bi bi-person-check me-1"></i>Confirmar inscrição
+              </button>
+              <p class="text-muted small mt-2 mb-0 text-center">Após a inscrição você receberá um comprovante com QR Code.</p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="mt-auto py-3 border-top" style="background:var(--brand-dark);">
+  <div class="container text-center text-white" style="font-size:.72rem;opacity:.65;">
+    © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.
+  </div>
+</footer>
+
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { db, currentOrgId } from "./firebase.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { getApp }         from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFunctions, httpsCallable }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
+
+  const functions  = getFunctions(getApp(), "us-central1");
+  const params     = new URLSearchParams(location.search);
+  const eventoId   = params.get("eventoId");
+
+  function showState(id) {
+    ["stateLoading","stateError","stateEncerrado","stateInadimplente","stateDuplicata","stateForm"]
+      .forEach(s => document.getElementById(s).classList.add("d-none"));
+    document.getElementById(id).classList.remove("d-none");
+  }
+
+  function showMsg(msg, type="danger") {
+    const el = document.getElementById("formMsg");
+    el.className = `alert alert-${type} small`;
+    el.textContent = msg;
+    el.classList.remove("d-none");
+  }
+
+  function hideMsq() { document.getElementById("formMsg").classList.add("d-none"); }
+
+  function fmtDate(ts){
+    try{ return ts.toDate().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}); }catch{return"";}
+  }
+  function fmtDateTime(ts){
+    try{ return ts.toDate().toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }catch{return"";}
+  }
+  function maskCpf(v) {
+    v = v.replace(/\D/g,"").slice(0,11);
+    if(v.length>9) v=v.slice(0,3)+"."+v.slice(3,6)+"."+v.slice(6,9)+"-"+v.slice(9);
+    else if(v.length>6) v=v.slice(0,3)+"."+v.slice(3,6)+"."+v.slice(6);
+    else if(v.length>3) v=v.slice(0,3)+"."+v.slice(3);
+    return v;
+  }
+
+  if (!eventoId) {
+    showState("stateError");
+    document.getElementById("errorMsg").textContent = "Evento não especificado.";
+  } else {
+    (async () => {
+      try {
+        const eventoSnap = await getDoc(doc(db, "cms_events", eventoId));
+        if (!eventoSnap.exists() || eventoSnap.data().deleted || !eventoSnap.data().ativo) {
+          showState("stateError");
+          document.getElementById("errorMsg").textContent = "Evento não encontrado ou inativo.";
+          return;
+        }
+        const ev = eventoSnap.data();
+
+        if (!ev.permiteInscricao) {
+          showState("stateError");
+          document.getElementById("errorMsg").textContent = "Inscrições não habilitadas para este evento.";
+          return;
+        }
+
+        if (ev.dataEncerramento) {
+          const deadline = ev.dataEncerramento.toDate();
+          if (new Date() > deadline) { showState("stateEncerrado"); return; }
+        }
+
+        // Preenche card do evento
+        document.getElementById("eventoTitulo").textContent = ev.titulo || "Evento";
+        if (ev.imagem) {
+          const img = document.getElementById("eventoImg");
+          img.src = ev.imagem; img.alt = ev.titulo || "";
+          img.classList.remove("d-none");
+        }
+        if (ev.data) document.getElementById("eventoData").innerHTML = `<i class="bi bi-calendar-event me-1"></i>${fmtDate(ev.data)}${ev.hora ? " &bull; " + ev.hora : ""}`;
+        if (ev.local) document.getElementById("eventoLocal").innerHTML = `<i class="bi bi-geo-alt me-1"></i>${ev.local}`;
+        document.getElementById("eventoValor").textContent = ev.valor > 0
+          ? new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(ev.valor)
+          : "Entrada gratuita";
+        if (ev.maxInscritos > 0) {
+          document.getElementById("eventoVagas").textContent = `Vagas: ${ev.maxInscritos}`;
+          document.getElementById("eventoVagas").classList.remove("d-none");
+        }
+        if (ev.dataEncerramento) {
+          document.getElementById("eventoEncerramento").textContent = `Inscrições até: ${fmtDateTime(ev.dataEncerramento)}`;
+          document.getElementById("eventoEncerramento").classList.remove("d-none");
+        }
+        if (ev.somenteSocioEmDia) document.getElementById("eventoRestrito").classList.remove("d-none");
+
+        showState("stateForm");
+      } catch(e) {
+        showState("stateError");
+        document.getElementById("errorMsg").textContent = e.message || "Erro ao carregar evento.";
+      }
+    })();
+  }
+
+  // Máscara de CPF
+  document.getElementById("fCpf").addEventListener("input", function(){
+    this.value = maskCpf(this.value);
+  });
+
+  document.getElementById("inscricaoForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideMsq();
+
+    const cpf      = document.getElementById("fCpf").value;
+    const nome     = document.getElementById("fNome").value.trim();
+    const telefone = document.getElementById("fTelefone").value;
+    const btn      = document.getElementById("btnInscrever");
+
+    const cpfDigits = cpf.replace(/\D/g,"");
+    if (cpfDigits.length < 11) {
+      document.getElementById("fCpf").classList.add("is-invalid");
+      return;
+    }
+    document.getElementById("fCpf").classList.remove("is-invalid");
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Inscrevendo…';
+
+    try {
+      const fn = httpsCallable(functions, "createEventRegistration");
+      const result = await fn({ eventoId, cpf: cpfDigits, nome, telefone });
+      const { regId, viewToken, duplicate } = result.data;
+
+      if (duplicate) {
+        showState("stateDuplicata");
+        document.getElementById("linkComprovante").href = `event_comprovante.html?regId=${regId}&vt=${viewToken}`;
+        return;
+      }
+
+      location.href = `event_comprovante.html?regId=${regId}&vt=${viewToken}`;
+    } catch(err) {
+      const code = err?.code || "";
+      const msg  = err?.message || "Erro ao realizar inscrição.";
+
+      if (msg.includes("INADIMPLENTE") || code === "functions/permission-denied") {
+        showState("stateInadimplente");
+      } else if (msg.includes("prazo") || msg.includes("encerrou")) {
+        showState("stateEncerrado");
+      } else {
+        showMsg(msg);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-person-check me-1"></i>Confirmar inscrição';
+      }
+    }
+  });
+</script>
+</body>
+</html>

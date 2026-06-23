@@ -245,6 +245,42 @@
         { "fieldPath": "deleted",   "order": "ASCENDING"  },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "eventRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",          "order": "ASCENDING"  },
+        { "fieldPath": "eventoId",       "order": "ASCENDING"  },
+        { "fieldPath": "status",         "order": "ASCENDING"  },
+        { "fieldPath": "registeredAt",   "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "eventRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",        "order": "ASCENDING"  },
+        { "fieldPath": "eventoId",     "order": "ASCENDING"  },
+        { "fieldPath": "registeredAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "eventRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventoId", "order": "ASCENDING" },
+        { "fieldPath": "cpf",      "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "eventRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "uid",          "order": "ASCENDING"  },
+        { "fieldPath": "orgId",        "order": "ASCENDING"  },
+        { "fieldPath": "registeredAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

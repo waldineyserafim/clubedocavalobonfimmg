@@ -2184,6 +2184,178 @@ exports.auditAsaasSync = functions
     };
   });
 
+// ─── INSCRIÇÕES EM EVENTOS ───────────────────────────────────────────────────
+
+/* =======================================================================
+   createEventRegistration — inscreve participante em evento (sem auth)
+   Validações: evento ativo, prazo, vagas, adimplência, duplicata
+   ======================================================================= */
+exports.createEventRegistration = functions.https.onCall(async (data, _context) => {
+  const { eventoId, cpf, nome, telefone } = data || {};
+  const orgId = 'org_bonfim';
+
+  if (!eventoId || !cpf || !nome)
+    throw new functions.https.HttpsError('invalid-argument', 'Dados incompletos. Informe evento, CPF e nome.');
+
+  const cpfDigits = String(cpf).replace(/\D/g, '');
+  if (cpfDigits.length < 11)
+    throw new functions.https.HttpsError('invalid-argument', 'CPF inválido.');
+
+  // Carrega evento
+  const eventoSnap = await db.collection('cms_events').doc(eventoId).get();
+  if (!eventoSnap.exists || eventoSnap.data().deleted)
+    throw new functions.https.HttpsError('not-found', 'Evento não encontrado.');
+
+  const evento = eventoSnap.data();
+  if (!evento.permiteInscricao)
+    throw new functions.https.HttpsError('failed-precondition', 'Inscrições não habilitadas para este evento.');
+
+  if (!evento.ativo)
+    throw new functions.https.HttpsError('failed-precondition', 'Evento inativo.');
+
+  // Verifica prazo de inscrição
+  if (evento.dataEncerramento) {
+    const deadline = evento.dataEncerramento.toDate ? evento.dataEncerramento.toDate() : new Date(evento.dataEncerramento);
+    if (new Date() > deadline)
+      throw new functions.https.HttpsError('failed-precondition', 'O prazo de inscrições para este evento encerrou.');
+  }
+
+  // Verifica vagas
+  if (evento.maxInscritos > 0) {
+    const countSnap = await db.collection('eventRegistrations')
+      .where('eventoId', '==', eventoId)
+      .where('orgId', '==', orgId)
+      .where('status', 'in', ['ativo', 'confirmado'])
+      .get();
+    if (countSnap.size >= evento.maxInscritos)
+      throw new functions.https.HttpsError('resource-exhausted', 'Vagas esgotadas para este evento.');
+  }
+
+  // Resolução de uid e validação de adimplência
+  let resolvedUid = null;
+  let resolvedNome = String(nome).trim();
+
+  if (evento.somenteSocioEmDia) {
+    const userSnap = await db.collection('users')
+      .where('cpf', '==', cpfDigits)
+      .where('orgId', '==', orgId)
+      .limit(1)
+      .get();
+
+    if (userSnap.empty)
+      throw new functions.https.HttpsError('not-found', 'CPF não encontrado como associado. Entre em contato com a secretaria do clube.');
+
+    const userDoc = userSnap.docs[0];
+    resolvedUid = userDoc.id;
+    resolvedNome = userDoc.data().nome || resolvedNome;
+
+    const summarySnap = await db.collection('users').doc(resolvedUid).collection('finance').doc('summary').get();
+    let emDia = false;
+    if (summarySnap.exists) {
+      const s = summarySnap.data();
+      if (s.exempt === true) {
+        const exemptUntil = s.exemptUntil?.toDate?.();
+        emDia = !exemptUntil || exemptUntil > new Date();
+      } else {
+        const nextDue = s.nextDue?.toDate?.() || s.activeUntil?.toDate?.();
+        emDia = !!(nextDue && nextDue >= new Date());
+      }
+    }
+    if (!emDia)
+      throw new functions.https.HttpsError('permission-denied', 'INADIMPLENTE');
+  } else {
+    // Evento aberto: tenta resolver uid por CPF (best effort, sem exigir)
+    try {
+      const userSnap = await db.collection('users')
+        .where('cpf', '==', cpfDigits)
+        .where('orgId', '==', orgId)
+        .limit(1)
+        .get();
+      if (!userSnap.empty) resolvedUid = userSnap.docs[0].id;
+    } catch (_) {}
+  }
+
+  // Verifica duplicata
+  const dupSnap = await db.collection('eventRegistrations')
+    .where('eventoId', '==', eventoId)
+    .where('cpf', '==', cpfDigits)
+    .where('orgId', '==', orgId)
+    .limit(1)
+    .get();
+
+  if (!dupSnap.empty) {
+    const existing = dupSnap.docs[0];
+    if (existing.data().status !== 'cancelado')
+      return { duplicate: true, regId: existing.id, viewToken: existing.data().viewToken };
+  }
+
+  // Gera tokens únicos (Node.js 22 — crypto disponível nativamente)
+  const { randomUUID } = require('crypto');
+  const token     = randomUUID();
+  const viewToken = randomUUID();
+
+  const ref = await db.collection('eventRegistrations').add({
+    orgId,
+    eventoId,
+    eventoTitulo: evento.titulo || '',
+    uid:          resolvedUid,
+    nome:         resolvedNome,
+    cpf:          cpfDigits,
+    telefone:     String(telefone || '').replace(/\D/g, ''),
+    token,
+    viewToken,
+    status:       'ativo',
+    registeredAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt:    admin.firestore.FieldValue.serverTimestamp(),
+    confirmedAt:  null,
+    confirmedBy:  null,
+    canceledAt:   null,
+    canceledBy:   null,
+  });
+
+  return { regId: ref.id, viewToken };
+});
+
+/* =======================================================================
+   confirmEventCheckin — confirma presença via token de QR Code
+   Requer auth (admin/master/operador/adminView)
+   ======================================================================= */
+exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
+  if (!context.auth)
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário para confirmar check-in.');
+
+  const { token } = data || {};
+  if (!token)
+    throw new functions.https.HttpsError('invalid-argument', 'Token ausente.');
+
+  const snap = await db.collection('eventRegistrations')
+    .where('token', '==', token)
+    .limit(1)
+    .get();
+
+  if (snap.empty) return { result: 'invalid' };
+
+  const regDoc  = snap.docs[0];
+  const reg     = regDoc.data();
+
+  if (reg.status === 'cancelado')
+    return { result: 'canceled', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
+
+  if (reg.status === 'confirmado') {
+    const when = reg.confirmedAt?.toDate?.()
+      ?.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) || '—';
+    return { result: 'already_confirmed', nome: reg.nome, eventoTitulo: reg.eventoTitulo, confirmedAt: when };
+  }
+
+  await regDoc.ref.update({
+    status:      'confirmado',
+    confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+    confirmedBy: context.auth.uid,
+  });
+
+  return { result: 'confirmed', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
+});
+
 // ─── SAAS MULTI-TENANT ────────────────────────────────────────────────────────
 
 

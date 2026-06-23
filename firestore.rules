@@ -419,5 +419,19 @@ service cloud.firestore {
       allow read: if true;
       allow write: if canOperate();
     }
+
+    // ===========================
+    //   Inscrições em Eventos
+    // ===========================
+    match /eventRegistrations/{regId} {
+      // Leitura pública — viewToken valida acesso ao comprovante no client
+      allow read: if true;
+      // Criação pública (sem login) — validação de negócio feita via Cloud Function
+      allow create: if request.resource.data.orgId is string
+                    && request.resource.data.orgId.size() > 0;
+      // Atualização apenas por admin/master (check-in, cancelamento)
+      allow update: if canOperate();
+      allow delete: if false;
+    }
   }
 }

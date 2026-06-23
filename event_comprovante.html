@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comprovante de Inscrição — Clube do Cavalo Bonfim MG</title>
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <!-- QR Code library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    :root{--brand:#111279;--brand-dark:#0a0c55;--accent:#2a9d8f;}
+    .bg-primary{background-color:var(--brand)!important;}
+    .btn-primary{background-color:var(--brand)!important;border-color:var(--brand)!important;}
+    .brand-logo{height:36px;width:auto;object-fit:contain;filter:brightness(0) invert(1);}
+    html,body{height:100%;} body{min-height:100dvh;display:flex;flex-direction:column;} main{flex:1 0 auto;}
+    .comprovante-box{border:2px solid var(--brand);border-radius:16px;overflow:hidden;max-width:480px;margin:0 auto;}
+    .comprovante-header{background:var(--brand);color:#fff;padding:1.25rem 1.5rem;}
+    .comprovante-body{padding:1.5rem;}
+    .qr-wrap{text-align:center;margin:1.25rem 0;}
+    #qrCanvas{border:1px solid #e9ecef;border-radius:8px;padding:8px;background:#fff;}
+    .detail-row{display:flex;gap:.5rem;margin-bottom:.5rem;font-size:.88rem;}
+    .detail-label{color:#6c757d;min-width:80px;}
+    .detail-value{font-weight:600;}
+    .token-badge{font-family:monospace;letter-spacing:.1em;background:#f8f9fa;border-radius:6px;padding:.2rem .5rem;font-size:.8rem;border:1px solid #dee2e6;}
+    .status-ativo{color:var(--accent);}
+    .status-confirmado{color:#198754;}
+
+    @media print {
+      nav,header,.btn,.no-print,footer{display:none!important;}
+      .comprovante-box{border:2px solid #111279;max-width:100%;margin:0;}
+      body{background:#fff;}
+      main{padding:0!important;}
+    }
+  </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-primary shadow-sm no-print">
+  <div class="container d-flex align-items-center gap-2 flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="events.html">
+      <img class="brand-logo me-2" src="assets/img/logo_CCBMG.png" alt="Logo">
+      <span style="font-size:.9rem;">Clube do Cavalo — Bonfim MG</span>
+    </a>
+    <a class="btn btn-sm btn-outline-light ms-auto" href="events.html">
+      <i class="bi bi-calendar-event me-1"></i>Eventos
+    </a>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <div id="stateLoading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-2 text-secondary small">Carregando comprovante…</p>
+  </div>
+
+  <div id="stateError" class="d-none text-center py-5">
+    <i class="bi bi-exclamation-triangle text-danger" style="font-size:2.5rem;"></i>
+    <p class="mt-2 text-secondary"><span id="errorMsg">Comprovante não encontrado.</span></p>
+    <a href="events.html" class="btn btn-outline-secondary btn-sm">Ver eventos</a>
+  </div>
+
+  <div id="stateOk" class="d-none">
+    <div class="comprovante-box shadow">
+      <div class="comprovante-header">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <img src="assets/img/logo_CCBMG.png" alt="Logo" style="height:32px;width:auto;filter:brightness(0) invert(1);">
+          <span class="fw-bold" style="font-size:.85rem;">Clube do Cavalo — Bonfim MG</span>
+        </div>
+        <h5 class="mb-0 mt-2 fw-bold"><i class="bi bi-ticket-perforated me-2"></i>Comprovante de Inscrição</h5>
+      </div>
+      <div class="comprovante-body">
+        <div id="statusBadge" class="mb-3"></div>
+
+        <h6 class="fw-bold text-primary mb-3" id="eventoTituloComp">—</h6>
+
+        <div class="detail-row">
+          <span class="detail-label">Inscrito</span>
+          <span class="detail-value" id="compNome">—</span>
+        </div>
+        <div class="detail-row" id="rowData">
+          <span class="detail-label">Data</span>
+          <span class="detail-value" id="compData">—</span>
+        </div>
+        <div class="detail-row" id="rowLocal">
+          <span class="detail-label">Local</span>
+          <span class="detail-value" id="compLocal">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Inscrição em</span>
+          <span class="detail-value" id="compInscritoEm">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Token</span>
+          <span class="token-badge" id="compToken">—</span>
+        </div>
+
+        <div class="qr-wrap">
+          <p class="small text-muted mb-2">Apresente este QR Code na entrada do evento</p>
+          <canvas id="qrCanvas"></canvas>
+        </div>
+
+        <div id="confirmadoInfo" class="alert alert-success d-none small mt-2 mb-0">
+          <i class="bi bi-check-circle-fill me-1"></i>
+          Presença confirmada em <strong id="confirmedAt">—</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-center mt-3 flex-wrap no-print">
+      <button onclick="window.print()" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-printer me-1"></i>Imprimir
+      </button>
+      <button id="btnCopiar" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-link-45deg me-1"></i>Copiar link
+      </button>
+    </div>
+  </div>
+</main>
+
+<footer class="mt-auto py-3 border-top no-print" style="background:var(--brand-dark);">
+  <div class="container text-center text-white" style="font-size:.72rem;opacity:.65;">
+    © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.
+  </div>
+</footer>
+
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import { db } from "./firebase.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const params  = new URLSearchParams(location.search);
+  const regId   = params.get("regId");
+  const vt      = params.get("vt");
+
+  function showState(id) {
+    ["stateLoading","stateError","stateOk"].forEach(s => document.getElementById(s).classList.add("d-none"));
+    document.getElementById(id).classList.remove("d-none");
+  }
+
+  function fmtDate(ts){
+    try{ return ts.toDate().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}); }catch{return"";}
+  }
+  function fmtDateTime(ts){
+    try{ return ts.toDate().toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }catch{return"";}
+  }
+
+  if (!regId || !vt) {
+    showState("stateError");
+  } else {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "eventRegistrations", regId));
+        if (!snap.exists()) { showState("stateError"); return; }
+
+        const reg = snap.data();
+
+        // Valida viewToken
+        if (reg.viewToken !== vt) { showState("stateError"); document.getElementById("errorMsg").textContent = "Link inválido."; return; }
+
+        // Carrega evento para data/local
+        let ev = {};
+        try {
+          const evSnap = await getDoc(doc(db, "cms_events", reg.eventoId));
+          if (evSnap.exists()) ev = evSnap.data();
+        } catch(_) {}
+
+        // Preenche comprovante
+        document.getElementById("eventoTituloComp").textContent = reg.eventoTitulo || ev.titulo || "—";
+        document.getElementById("compNome").textContent         = reg.nome || "—";
+        document.getElementById("compInscritoEm").textContent   = fmtDateTime(reg.registeredAt) || "—";
+        document.getElementById("compToken").textContent        = reg.token?.slice(-8) || "—";
+
+        const dataEvento = ev.data || null;
+        if (dataEvento) {
+          document.getElementById("compData").textContent = fmtDate(dataEvento) + (ev.hora ? " · " + ev.hora : "");
+          document.getElementById("rowData").classList.remove("d-none");
+        }
+        if (ev.local) {
+          document.getElementById("compLocal").textContent = ev.local;
+          document.getElementById("rowLocal").classList.remove("d-none");
+        }
+
+        // Badge de status
+        const statusBadge = document.getElementById("statusBadge");
+        if (reg.status === "confirmado") {
+          statusBadge.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Presença confirmada</span>';
+          const confirmedAtEl = document.getElementById("confirmedAt");
+          confirmedAtEl.textContent = fmtDateTime(reg.confirmedAt) || "—";
+          document.getElementById("confirmadoInfo").classList.remove("d-none");
+        } else if (reg.status === "cancelado") {
+          statusBadge.innerHTML = '<span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Inscrição cancelada</span>';
+        } else {
+          statusBadge.innerHTML = '<span class="badge" style="background:var(--accent);"><i class="bi bi-ticket-perforated me-1"></i>Inscrito</span>';
+        }
+
+        // Gera QR Code com URL de check-in
+        const checkinUrl = `${location.origin}/event_checkin.html?token=${encodeURIComponent(reg.token)}`;
+        if (reg.status !== "cancelado") {
+          QRCode.toCanvas(document.getElementById("qrCanvas"), checkinUrl, {
+            width: 200, margin: 2,
+            color: { dark: "#111279", light: "#ffffff" }
+          });
+        } else {
+          document.getElementById("qrCanvas").style.display = "none";
+        }
+
+        showState("stateOk");
+      } catch(e) {
+        showState("stateError");
+        document.getElementById("errorMsg").textContent = e.message || "Erro ao carregar comprovante.";
+      }
+    })();
+  }
+
+  // Botão copiar link
+  document.getElementById("btnCopiar")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      const btn = document.getElementById("btnCopiar");
+      btn.innerHTML = '<i class="bi bi-check me-1"></i>Copiado!';
+      setTimeout(() => { btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Copiar link'; }, 2000);
+    } catch(_) { alert("Não foi possível copiar. URL: " + location.href); }
+  });
+</script>
+</body>
+</html>
