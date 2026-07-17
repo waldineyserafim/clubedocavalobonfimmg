@@ -21,16 +21,43 @@
     header .container{ padding-top:1rem; padding-bottom:1rem; }
     @media (min-width:768px){ header .container{ padding-top:1.25rem; padding-bottom:1.25rem; } }
     .badge-role{ background:var(--accent); }
-    .users-header, .user-row{ display:grid; grid-template-columns: 34px minmax(150px,1fr) minmax(120px,1fr) 130px 120px 130px 130px 160px; gap:12px; align-items:center; }
-    .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.5rem; }
-    .user-row{ padding:.5rem 0; border-bottom:1px dashed #e9ecef; }
-    .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; }
-    .user-status .badge{ min-width:96px; }
+
+    /* ===== Grade da listagem: 7 colunas (checkbox, associado, plano, vigência, situação, status da
+       cobrança, mais ações) ===== Situação vem antes do Status da Cobrança: primeiro a leitura
+       humana (em dia/vencido), depois a verificação da automação. */
+    .users-header, .user-row{ display:grid; grid-template-columns: 22px minmax(160px,1fr) 90px 178px 128px 144px 172px; gap:10px; align-items:center; }
+    .users-header > div, .user-row > div{ min-width:0; }
+    .users-header{ font-weight:600; color:#495057; border-bottom:1px solid #e9ecef; padding-bottom:.4rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.02em; }
+    .user-row{ padding:.5rem .5rem .5rem .75rem; border-bottom:1px dashed #e9ecef; border-left:3px solid transparent; }
+    .user-row:hover{ background:#fafbff; }
+    /* Prioridade visual: borda de cor só para linhas pendentes — ativos/inativos ficam neutros de propósito */
+    .user-row.tier-pendente{ border-left-color:#dc3545; background:#fff8f8; }
+    .user-row.tier-ativo{ opacity:.82; }
+    .user-row.tier-inativo{ opacity:.62; }
+
+    .user-name{ background:none; border:0; padding:0; text-align:left; font-weight:600; color:#0d6efd; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; display:block; line-height:1.35; }
+    .assoc-sub{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.76rem; line-height:1.3; }
+    /* Situação do associado (eixo à parte do financeiro) e ciclo de vida — texto pequeno,
+       propositalmente discreto para não competir com o badge de Situação financeira. */
+    .member-tag{ font-weight:600; }
+    .member-tag.tag-inativo{ color:#6c757d; }
+    .member-tag.tag-suspenso{ color:#dc3545; }
+    .member-tag.tag-isento{ color:#0d6efd; }
+    .member-tag.tag-novo{ color:#0d6efd; }
+    .member-tag.tag-renovou{ color:#198754; }
+    .member-tag.tag-alerta{ color:#a16600; }
+    .inconsistency-flag{ margin-left:.3rem; cursor:help; }
+
+    .plan-display{ overflow:hidden; }
+    .plan-value-sub{ font-size:.72rem; color:#6c757d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .plan-chip{
       display:inline-block;
-      padding:.25rem .5rem;
+      max-width:100%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      padding:.2rem .45rem;
       border-radius:.5rem;
-      font-size:.75rem;
+      font-size:.7rem;
       font-weight:500;
       white-space:nowrap;
     }
@@ -40,25 +67,78 @@
     .plan-chip-anual{ background:#f3e5f5; color:#7b1fa2; }
     .plan-chip-custom{ background:#f5f5f5; color:#616161; }
     .plan-chip-none{ background:#f8f9fa; color:#6c757d; font-style:italic; }
-    .toolbar-search{ display:flex; align-items:center; gap:.75rem; }
-    .toolbar-search .form-control{ flex:1 1 auto; min-width:0; }
-    .toolbar-filters,
-    .toolbar-actions{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
-    .toolbar-filters{ justify-content:center; }
-    .toolbar-actions{ justify-content:flex-end; }
-    .toolbar-filters .btn{ font-size:.75rem; padding:.25rem .5rem; white-space:nowrap; }
-    .assoc-stats-strip{
-      display:flex;
-      gap:.5rem;
-      flex-wrap:wrap;
+
+    /* Vigência: período + quanto falta */
+    .vigencia-cell{ line-height:1.3; overflow:hidden; }
+    .vigencia-cell .vig-range{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.78rem; }
+    .vigencia-cell .vig-remaining{ font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .vig-remaining.is-soon{ color:#a16600; font-weight:600; }
+    .vig-remaining.is-over{ color:#dc3545; font-weight:600; }
+
+    /* Status da Cobrança: 3 ícones independentes (assinatura ativa / cobrança do ciclo / automação
+       de avisos), cada um com tooltip próprio — sem texto fixo, sem legenda.
+       Cada ícone é um chip com fundo na cor do status. O fundo usa o tom suave da cor (não o tom
+       cheio) de propósito: são 3 chips por linha em uma lista densa — com fundo saturado, as
+       dezenas de linhas "tudo verde" gritariam mais que as pendências, invertendo a prioridade
+       visual da tela. O tom suave + ícone saturado dá a visibilidade sem quebrar essa hierarquia. */
+    .cobranca-cell{ display:flex; align-items:center; gap:.3rem; overflow:hidden; }
+    .cob-ico{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:22px; height:22px; border-radius:50%;
+      font-size:.78rem; line-height:1; cursor:help; flex:0 0 auto;
     }
+    .cob-ico.ok{ background:#d1e7dd; color:#0f5132; }
+    .cob-ico.warn{ background:#fff3cd; color:#664d03; }
+    .cob-ico.bad{ background:#f8d7da; color:#b02a37; }
+    .cob-ico.unknown{ background:#e9ecef; color:#adb5bd; }
+
+    .user-status{ overflow:hidden; }
+    .user-status .badge{ font-size:.7rem; padding:.32em .55em; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:top; }
+    .aging-sub{ font-size:.72rem; line-height:1.3; margin-top:.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Próxima ação: o botão é a coluna mais importante da linha — é a "operação", não o "dado" */
+    .col-action{ display:flex; gap:.2rem; align-items:center; justify-content:flex-end; white-space:nowrap; }
+    .btn-next-action{ font-size:.72rem; padding:.28rem .4rem; white-space:nowrap; max-width:104px; overflow:hidden; text-overflow:ellipsis; flex:0 1 auto; }
+    .btn-next-action.is-muted{ color:#adb5bd; background:none; border:0; cursor:default; padding:.28rem .3rem; }
+    .btn-wpp-quick{ padding:.25rem .4rem; flex:0 0 auto; }
+    .col-action .dropdown{ flex:0 0 auto; }
+    .col-action .dropdown > button{ padding:.25rem .4rem; }
+    /* Bug do menu de ações: com o Popper (posicionamento dinâmico padrão do Bootstrap) numa lista
+       densa que se move/re-renderiza (filtros, ordenação, seções recolhíveis), o menu podia
+       recalcular a posição e "brigar" com o hover da linha ao mover o cursor até ele. A correção
+       definitiva é sair do posicionamento dinâmico: `data-bs-display="static"` (no botão, no HTML)
+       faz o Bootstrap não usar Popper — daí o menu é 100% CSS, ancorado por este `position:relative`
+       no `.row-actions`, sem nenhum recálculo em tempo real. z-index alto garante que ele sempre
+       fica acima das linhas vizinhas, então o cursor nunca "vaza" para o associado de baixo/cima. */
+    .row-actions{ position:relative; }
+    .row-actions .dropdown-menu{ position:absolute; top:100%; right:0; left:auto; margin-top:.25rem; z-index:1060; }
+
+    /* ===== Seções por prioridade (gestão por exceção) ===== */
+    .tier-section{ margin-bottom:.35rem; }
+    .tier-section-header{
+      display:flex; align-items:center; gap:.5rem; width:100%;
+      padding:.5rem .25rem; border:0; background:none; text-align:left;
+      font-weight:700; font-size:.85rem; cursor:pointer;
+    }
+    .tier-section-header .tier-count{ font-weight:700; }
+    .tier-section-header .bi-chevron-down{ transition:transform .15s; margin-left:auto; color:#6c757d; }
+    .tier-section.collapsed .tier-section-header .bi-chevron-down{ transform:rotate(-90deg); }
+    .tier-section.collapsed .tier-section-body{ display:none; }
+    .tier-section-header.th-pendente{ color:#dc3545; }
+    .tier-section-header.th-ativo{ color:#495057; }
+    .tier-section-header.th-inativo{ color:#6c757d; }
+    .tier-section-hint{ font-weight:400; font-size:.76rem; color:#6c757d; margin-left:.25rem; }
+    .tier-empty{ font-size:.8rem; color:#6c757d; padding:.35rem .25rem 1rem; }
+
+    /* ===== Indicadores superiores (chips clicáveis = filtro por segmento) ===== */
+    .assoc-stats-strip{ display:flex; gap:.5rem; flex-wrap:wrap; }
     .stat-pill{
-      flex:1 1 0;
-      min-width:0;
+      flex:1 1 150px;
+      min-width:130px;
       display:flex;
       align-items:center;
       gap:.5rem;
-      padding:.55rem .9rem;
+      padding:.5rem .8rem;
       border-radius:.75rem;
       border:1.5px solid #e9ecef;
       background:#fff;
@@ -68,42 +148,42 @@
     }
     .stat-pill:hover{ border-color:var(--brand); background:#f5f6ff; }
     .stat-pill.active{ border-color:var(--brand); background:rgba(17,18,121,.06); }
-    .stat-dot{
-      width:.55rem;
-      height:.55rem;
-      border-radius:50%;
-      flex:0 0 auto;
-    }
-    .stat-label{ font-size:.78rem; color:#6c757d; white-space:nowrap; }
-    .stat-num{ margin-left:auto; font-size:1.35rem; font-weight:700; line-height:1; }
-    .stat-pill-total .stat-dot{ background:var(--brand); }
-    .stat-pill-total .stat-num{ color:var(--brand); }
-    .stat-pill-up .stat-dot{ background:#198754; }
-    .stat-pill-up .stat-num{ color:#198754; }
-    .stat-pill-pending .stat-dot{ background:#f59f00; }
-    .stat-pill-pending .stat-num{ color:#a16600; }
-    .stat-pill-inactive .stat-dot{ background:#6c757d; }
-    .stat-pill-inactive .stat-num{ color:#6c757d; }
-    @media (max-width:575.98px){
-      .stat-pill{ flex:1 1 42%; }
-    }
+    .stat-dot{ width:.55rem; height:.55rem; border-radius:50%; flex:0 0 auto; }
+    .stat-body{ display:flex; flex-direction:column; min-width:0; }
+    .stat-label{ font-size:.74rem; color:#6c757d; white-space:nowrap; line-height:1.2; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+    .stat-num{ margin-left:auto; font-size:1.25rem; font-weight:700; line-height:1; flex:0 0 auto; }
+    .stat-sub{ font-size:.65rem; color:#6c757d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stat-pill-total .stat-dot{ background:var(--brand); } .stat-pill-total .stat-num{ color:var(--brand); }
+    .stat-pill-pendente .stat-dot{ background:#dc3545; } .stat-pill-pendente .stat-num{ color:#dc3545; }
+    .stat-pill-soon .stat-dot{ background:#0dcaf0; } .stat-pill-soon .stat-num{ color:#087990; }
+    .stat-pill-nobilling .stat-dot{ background:#fd7e14; } .stat-pill-nobilling .stat-num{ color:#c85f04; }
+    .stat-pill-nosync .stat-dot{ background:#6f42c1; } .stat-pill-nosync .stat-num{ color:#6f42c1; }
+    .stat-pill-inactive .stat-dot{ background:#6c757d; } .stat-pill-inactive .stat-num{ color:#6c757d; }
+
+    /* ===== Filtros avançados ===== */
+    .filters-bar{ display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+    .filters-bar .form-select{ font-size:.82rem; padding:.3rem 2rem .3rem .6rem; width:auto; min-width:150px; }
+    .filters-bar .btn{ font-size:.8rem; }
+
+    .toolbar-search{ display:flex; align-items:center; gap:.75rem; }
+    .toolbar-search .form-control{ flex:1 1 auto; min-width:0; }
+    .toolbar-actions{ display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; justify-content:flex-end; }
+
+    @media (max-width:1199.98px){ .toolbar-actions{ justify-content:flex-start; } }
     @media (max-width:991.98px){
-      .users-header, .user-row{ grid-template-columns: 34px minmax(150px,1fr) minmax(100px,1fr) 120px 110px 110px 110px 140px; }
-    }
-    @media (max-width:1199.98px){
-      .toolbar-filters,
-      .toolbar-actions{ justify-content:flex-start; }
+      .users-header, .user-row{ grid-template-columns: 20px minmax(148px,1.2fr) 78px 158px 100px 84px 132px; gap:8px; }
     }
     @media (max-width:767.98px){
       .users-header{ display:none; }
-      .user-row{ grid-template-columns: 34px 1fr auto; }
-      .user-row .col-next, .user-row .col-lastpay, .user-row .col-value, .user-row .col-plan, .user-row .col-apelido{ display:none; }
-      .user-status .badge{ min-width:0; font-size:.7rem; }
+      .user-row{ grid-template-columns: 26px 1fr auto; padding-left:.5rem; }
+      .user-row .col-plan, .user-row .col-vigencia, .user-row .col-cobranca, .user-row .col-status{ display:none; }
+      .col-action{ justify-content:flex-end; }
+      .btn-next-action{ display:none; } /* no mobile, o botão de ação some da lista — some no drill-down */
+      .aging-sub{ display:none; }
       .dropdown-menu{ max-width:calc(100vw - 2rem); }
       .toolbar-actions{ flex-direction:column; align-items:stretch; }
       .toolbar-actions .btn, .toolbar-actions .dropdown{ width:100%; }
       .toolbar-actions .dropdown > button{ width:100%; }
-      .toolbar-filters{ justify-content:flex-start; }
     }
     main.container{ padding-top:1rem; padding-bottom:1.25rem; }
     /* brand-logo movido para design-system.css */
@@ -129,7 +209,7 @@
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
     <div>
       <h1 class="h4 h3-md mb-1">Administração — Associados</h1>
-      <p class="text-secondary mb-0">Cadastro, financeiro e automações.</p>
+      <p class="text-secondary mb-0">Ativos, pendentes e inativos. O grupo <strong>Pendentes</strong> já abre expandido, para ação.</p>
     </div>
     <div class="text-md-end">
       <div class="small">Logado como: <strong id="opName">—</strong></div>
@@ -157,7 +237,7 @@
       <div class="row g-3 align-items-center">
         <div class="col-12 col-md-6">
           <div class="toolbar-search">
-            <input type="search" id="searchQuery" class="form-control" placeholder="Buscar por nome ou CPF">
+            <input type="search" id="searchQuery" class="form-control" placeholder="Buscar por nome, apelido ou CPF">
             <button id="btnSearch" class="btn btn-outline-primary">Buscar</button>
           </div>
         </div>
@@ -177,53 +257,114 @@
 
       <hr class="my-3">
 
-      <div class="assoc-stats-strip mb-3" aria-label="Resumo dos associados">
-        <button class="stat-pill stat-pill-total" data-dash-filter="all">
-          <span class="stat-dot"></span>
-          <span class="stat-label">Total</span>
-          <strong class="stat-num" id="metricTotal">0</strong>
-        </button>
-        <button class="stat-pill stat-pill-up" data-dash-filter="em_dia">
-          <span class="stat-dot"></span>
-          <span class="stat-label">Em dia</span>
-          <strong class="stat-num" id="metricUpToDate">0</strong>
-        </button>
-        <button class="stat-pill stat-pill-pending" data-dash-filter="pendente">
-          <span class="stat-dot"></span>
-          <span class="stat-label">Pendentes</span>
-          <strong class="stat-num" id="metricPending">0</strong>
-        </button>
-        <button class="stat-pill stat-pill-inactive" data-dash-filter="inativo">
-          <span class="stat-dot"></span>
-          <span class="stat-label">Inativos</span>
-          <strong class="stat-num" id="metricInactive">0</strong>
-        </button>
+      <!-- Indicadores: cada chip responde uma pergunta real da diretoria e é também um filtro -->
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+        <div class="assoc-stats-strip flex-grow-1" aria-label="Indicadores operacionais">
+          <button class="stat-pill stat-pill-total" data-dash-filter="all" title="Associados com associação ativa (exclui desligados)">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Total</span></div>
+            <strong class="stat-num" id="metricTotal">0</strong>
+          </button>
+          <button class="stat-pill stat-pill-pendente" data-dash-filter="pendente" title="Fatura vencida/atrasada, sem cobrança configurada, sem plano definido ou inconsistência de dados — precisa de contato">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Pendentes</span></div>
+            <strong class="stat-num" id="metricPendente">0</strong>
+          </button>
+          <button class="stat-pill stat-pill-soon" data-dash-filter="vence_7d" id="chipDueSoon" title="Vigência termina nos próximos 7 dias — lembrete evita virar atraso">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Vence em 7 dias</span></div>
+            <strong class="stat-num" id="metricDueSoon">0</strong>
+          </button>
+          <button class="stat-pill stat-pill-nobilling" data-dash-filter="sem_plano" title="Associado ativo sem plano definido — nunca vai gerar cobrança automática">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Sem plano</span></div>
+            <strong class="stat-num" id="metricNoPlan">0</strong>
+          </button>
+          <button class="stat-pill stat-pill-nosync" data-dash-filter="sem_sync" title="Nunca foi sincronizado com o Asaas (sem asaasId) — cobrança automática não vai funcionar">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Sem sinc. Asaas</span></div>
+            <strong class="stat-num" id="metricNoSync">0</strong>
+          </button>
+          <button class="stat-pill stat-pill-inactive" data-dash-filter="inativo" title="Associados desligados do clube">
+            <span class="stat-dot"></span>
+            <div class="stat-body"><span class="stat-label">Inativos</span></div>
+            <strong class="stat-num" id="metricInactive">0</strong>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros: cada um resolve uma pergunta operacional distinta (ver justificativa na conversa) -->
+      <div class="filters-bar mb-3 pt-2 border-top">
+        <select id="filterAtivo" class="form-select" title="Situação do associado">
+          <option value="all">Associado: ativo + inativo</option>
+          <option value="ativo">Somente ativos</option>
+          <option value="inativo">Somente inativos</option>
+        </select>
+        <select id="filterFinanceiro" class="form-select" title="Situação financeira">
+          <option value="all">Financeiro: todos</option>
+          <option value="em_dia">Em dia</option>
+          <option value="atrasado">Atrasado (≤10d)</option>
+          <option value="vencido">Vencido (&gt;10d)</option>
+          <option value="isento">Isento</option>
+          <option value="sem_cobranca">Sem cobrança</option>
+          <option value="sem_plano">Sem plano</option>
+        </select>
+        <select id="filterAssinatura" class="form-select" title="Situação da assinatura no Asaas">
+          <option value="all">Assinatura Asaas: todas</option>
+          <option value="ACTIVE">Ativa</option>
+          <option value="INACTIVE">Inativa/Cancelada</option>
+          <option value="none">Não sincronizada</option>
+        </select>
+        <select id="filterVencimento" class="form-select" title="Faixa de vencimento">
+          <option value="all">Vencimento: qualquer</option>
+          <option value="hoje">Vence hoje</option>
+          <option value="7dias">Próximos 7 dias</option>
+          <option value="atrasado_10">Vencido até 10 dias</option>
+          <option value="vencido_10mais">Vencido há mais de 10 dias</option>
+          <option value="sem_data">Sem data de vencimento</option>
+        </select>
+        <select id="filterPlano" class="form-select" title="Plano">
+          <option value="all">Plano: todos</option>
+          <option value="mensal">Mensal</option>
+          <option value="trimestral">Trimestral</option>
+          <option value="semestral">Semestral</option>
+          <option value="anual">Anual</option>
+          <option value="none">Sem plano</option>
+        </select>
+        <select id="sortBy" class="form-select" title="Ordenação">
+          <option value="prioridade">Ordenar: Prioridade (recomendado)</option>
+          <option value="nome">Nome (A-Z)</option>
+          <option value="vencimento_asc">Vencimento (mais próximo primeiro)</option>
+          <option value="atraso_desc">Dias em atraso (maior primeiro)</option>
+          <option value="valor_aberto_desc">Valor em aberto (maior primeiro)</option>
+        </select>
+        <button class="btn btn-outline-secondary" id="btnClearFilters">Limpar filtros</button>
       </div>
 
       <div class="users-header">
         <div><input type="checkbox" id="chkAll"></div>
-        <div>Nome</div>
-        <div class="col-apelido">Apelido</div>
+        <div>Associado</div>
         <div class="col-plan">Plano</div>
-        <div class="col-lastpay">Último pagamento</div>
-        <div class="col-value">Valor pago</div>
-        <div class="col-next">Próximo pagamento</div>
-        <div class="col-status d-flex align-items-center gap-2">
-          Situação financeira
+        <div class="col-vigencia">Vigência</div>
+        <div class="col-status d-flex align-items-center gap-1">
+          Situação
           <i class="bi bi-info-circle text-secondary"
             data-bs-toggle="popover"
             data-bs-title="Regras de status"
             data-bs-html="true"
             data-bs-content="
-              <strong>Em dia</strong>: plano ativo (até o fim).<br>
+              <strong>Em dia</strong>: vigência ativa.<br>
               <strong>Atrasado</strong>: vencido há ≤ 10 dias.<br>
               <strong>Vencido</strong>: vencido há &gt; 10 dias.<br>
-              <strong>Cancelado</strong>: sem acesso.<br>
-              <strong>Na lista</strong>: exibimos <em>Pendente</em> quando está <em>Atrasado</em> ou <em>Vencido</em>.">
+              <strong>Isento</strong>: dispensado de cobrança.<br>
+              <strong>Inativo</strong>: associado desligado.<br>
+              O ícone <i class='bi bi-exclamation-triangle-fill text-warning'></i> indica inconsistência entre o status local e o Asaas.">
           </i>
         </div>
+        <div class="col-cobranca">Status da Cobrança</div>
+        <div class="col-action text-end">Mais Ações</div>
       </div>
-      <div id="usersWrap" class="mt-2">
+      <div id="resultsWrap" class="mt-2">
         <div class="text-center text-secondary py-3">Use a busca ou liste todos.</div>
       </div>
     </div>
@@ -262,6 +403,27 @@
   const bootstrap = window.bootstrap;
   [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el => new bootstrap.Popover(el));
 
+  // Causa raiz do bug de scroll da página: cada modal era descartado com `div.remove()` direto,
+  // sem passar pelo `.hide()` do Bootstrap. Se o elemento ainda estava visível (ex.: reabrir o
+  // mesmo modal rapidamente, ou abrir um novo antes do anterior terminar de fechar), o Bootstrap
+  // nunca roda sua limpeza — e o `overflow:hidden` + padding-right que ele aplica a <body> ao
+  // abrir um modal (para travar o scroll de fundo) fica PRESO para sempre, e o backdrop nunca é
+  // removido. Resultado: a página inteira para de rolar normalmente. Esta função sempre passa
+  // pelo `.hide()` antes de remover e, como rede de segurança, corrige o estado de <body> se não
+  // sobrar nenhum modal aberto (cobre também instâncias já quebradas por versões anteriores).
+  function disposeModal(div){
+    if (!div) return;
+    const inst = bootstrap.Modal.getInstance(div);
+    if (inst) inst.hide();
+    div.remove();
+    if (!document.querySelector('.modal.show')) {
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('padding-right');
+      document.querySelectorAll('.modal-backdrop').forEach(bd => bd.remove());
+    }
+  }
+
   function escHtml(s) {
     const d = document.createElement("div");
     d.textContent = String(s ?? "");
@@ -294,7 +456,7 @@
     opRoleEl.textContent = role.toUpperCase();
     opRoleEl.classList.remove("d-none");
     operatorProfile = { uid:user.uid, nome: d.nome || "", cpf: (d.cpf||"").replace(/\D/g,"") };
-    try { if (document.getElementById("usersWrap")) listUsers(""); } catch(e){ console.error(e); }
+    try { if (document.getElementById("resultsWrap")) listUsers(""); } catch(e){ console.error(e); }
   });
 
   document.getElementById("btnLogout")?.addEventListener("click", async ()=>{
@@ -304,6 +466,11 @@
 
   const PLAN_MONTHS = { mensal:1, trimestral:3, semestral:6, anual:12 };
   const PLAN_LABEL  = { mensal:"Mensal", trimestral:"Trimestral", semestral:"Semestral", anual:"Anual", custom:"Personalizado" };
+
+  // Nomes de mês para trocar referências relativas ("há 2 anos", "recentemente") por absolutas
+  // (mês/ano ou data completa) — pedido explícito de clareza: nada de informação ambígua.
+  const MONTH_ABBR_PT = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  const fmtMonthYearAbbr = (ms)=> { const d = new Date(ms); return `${MONTH_ABBR_PT[d.getMonth()]}/${d.getFullYear()}`; };
 
   const fmtBRL = (v)=> (v==null||v==="") ? "" : Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
   const toDateStr = (v)=> { try{ const d = v?.toDate ? v.toDate() : (v? new Date(v) : null); return d? d.toISOString().slice(0,10) : ""; } catch { return ""; } };
@@ -418,6 +585,201 @@
     return paid[0] || null;
   }
 
+  // Última cobrança (qualquer status), para a coluna "Última Cobrança" — não filtra por status,
+  // diferente de getLatestPaidInvoice acima.
+  function getLatestInvoiceAny(invoices = []){
+    return [...invoices]
+      .map(i => ({ ...i, _dueMs: i.dueDate?.toMillis?.() ?? (i.dueDate ? new Date(i.dueDate).getTime() : 0) }))
+      .sort((a, b) => b._dueMs - a._dueMs)[0] || null;
+  }
+
+  const BILLING_TYPE_LABEL = { PIX:"PIX", BOLETO:"Boleto", CREDIT_CARD:"Cartão", UNDEFINED:"—" };
+  const INVOICE_STATUS_BADGE = {
+    pago:      { icon:"✅", label:"Paga",      cls:"bg-success" },
+    paga:      { icon:"✅", label:"Paga",      cls:"bg-success" },
+    paid:      { icon:"✅", label:"Paga",      cls:"bg-success" },
+    em_aberto: { icon:"🟡", label:"Pendente",  cls:"bg-warning text-dark" },
+    atrasado:  { icon:"🟡", label:"Pendente",  cls:"bg-warning text-dark" },
+    vencido:   { icon:"🟠", label:"Vencido",   cls:"bg-danger" },
+    cancelado: { icon:"❌", label:"Cancelada", cls:"bg-secondary" },
+  };
+
+  function renderLastChargeCell(inv){
+    if (!inv) return "—";
+    const typeLabel = inv.billingType ? (BILLING_TYPE_LABEL[inv.billingType] || inv.billingType) : "—";
+    return `${fmtDateCell(inv.dueDate)} · ${fmtBRL(inv.amount)} · ${typeLabel}`;
+  }
+
+  // Tabela de preços oficial (ver CLAUDE.md "Planos e valores") — usada só como valor de
+  // referência quando ainda não existe nenhuma fatura para mostrar o valor real cobrado.
+  const PLAN_PRICE_TABLE = { mensal:30, trimestral:85, semestral:170 };
+
+  // Escolhe A fatura que representa o ciclo vigente — a MESMA fonte para Plano, Vigência e
+  // Cobrança, para nunca mostrar uma cobrança de um ciclo diferente do período exibido (pedido
+  // explícito: "a cobrança apresentada deve ser exatamente a cobrança correspondente ao plano vigente").
+  function getCurrentCycleInvoice(invoices = []){
+    if (!invoices.length) return null;
+    // Comparação por DIA de calendário (calendarDateOnly), não por instante bruto — planStart/
+    // planEnd marcam dias, não horários; comparar milissegundo a milissegundo contra Date.now()
+    // faz o "hoje" parecer já ter passado do fim da vigência horas antes de o dia realmente acabar.
+    const todayMs = startOfDay(new Date());
+    const toDayMs = (v)=> { const d = calendarDateOnly(v); return d ? d.getTime() : null; };
+    // 1) fatura cujo período (início–fim) cobre hoje
+    const covering = invoices.find(i=>{
+      const startMs = toDayMs(i.planStart);
+      const endMs = toDayMs(i.planEnd) ?? toDayMs(i.dueDate);
+      return startMs != null && endMs != null && startMs <= todayMs && todayMs <= endMs;
+    });
+    if (covering) return covering;
+    // 2) senão, a fatura em aberto/atrasada mais antiga (é a que deveria cobrir agora)
+    const unpaid = invoices.filter(i => !["pago","paga","paid","cancelado"].includes(String(i.status||"").toLowerCase()));
+    if (unpaid.length) return unpaid[0]; // invoices já vem ordenado por dueDate asc
+    // 3) senão, o último ciclo pago (não há ciclo em aberto — vigência está encerrada)
+    return invoices[invoices.length-1] || null;
+  }
+
+  // O que a API do Asaas realmente confirma (base dos 3 ícones da coluna Cobrança):
+  // - GET /subscriptions/{id} (subscriptionStatus, em finance/summary) → se a assinatura está ativa.
+  // - A fatura do ciclo vigente rastreada → se a cobrança do ciclo existe.
+  // - GET /customers/{id}/notifications (summary.notif) → quais CANAIS de aviso estão habilitados.
+  // O que a API do Asaas NÃO confirma (por isso nunca é afirmado na tela):
+  // - Entrega/leitura de WhatsApp, SMS ou e-mail. O endpoint de notificações informa se o canal
+  //   está habilitado para o cliente — não se uma notificação foi enviada, entregue ou lida.
+
+  // CORREÇÃO (bug encontrado com dados reais): a versão anterior só considerava "automática"
+  // quando a fatura do ciclo tinha `asaasPaymentId` — mas esse campo só é gravado pelo backend
+  // quando o webhook recebe PAYMENT_RECEIVED/CONFIRMED (ver upsertInvoiceFromAsaasPayment em
+  // functions/index.js). Uma cobrança VENCIDA e nunca paga NUNCA recebe esse evento — então
+  // `asaasPaymentId` nunca é gravado nela, mesmo quando a cobrança existe de verdade e já foi
+  // notificada pelo Asaas (confirmado manualmente: histórico de SMS/e-mail no painel do Asaas para
+  // associados que apareciam como "Não localizada" aqui). Na prática isso fazia TODO associado
+  // atrasado/vencido com cobrança real cair em "Não localizada" — um falso alarme sistemático,
+  // não um caso raro. O Firestore só espelha cobranças PAGAS; para as pendentes/vencidas, a melhor
+  // evidência que já temos localmente é a própria fatura do ciclo (dueDate/status), gravada quando
+  // o associado foi cadastrado ou por autoPatchInvoices — por isso agora "automática" é atribuído
+  // sempre que existe uma fatura rastreada para o ciclo, tenha ela `asaasPaymentId` ou não.
+  // "Não localizada" fica reservado para quando não há NENHUM registro de fatura, ponto — o caso
+  // realmente raro (assinatura ativa, mas Firestore nunca viu nenhuma cobrança desse associado).
+  //
+  // Correção mais profunda (não aplicada aqui): o webhook/reconciliação poderiam também gravar
+  // cobranças PENDING/OVERDUE (não só as pagas) chamando GET /payments?subscription=X&status=...,
+  // como já faz syncManualPaymentToAsaas — aí o asaasPaymentId real ficaria disponível mesmo antes
+  // do pagamento. Isso é mudança de Cloud Functions em produção, fora do escopo desta tela.
+  function computeAsaasChargeState(cycleInvoice, summary, hasSync, daysToEnd){
+    if (!hasSync || summary.subscriptionStatus === "INACTIVE") return "sem_automacao";
+    if (cycleInvoice){
+      const s = String(cycleInvoice.status||"").toLowerCase();
+      if (s === "cancelado") return "cancelada";
+      return "automatica";
+    }
+    return (daysToEnd != null && daysToEnd > 0) ? "aguardando_ciclo" : "nao_localizada";
+  }
+
+  // ===== Coluna Cobrança: 3 verificações independentes, cada uma com seu ícone e tooltip =====
+  // Cada ícone responde UMA pergunta e vem de um dado real do Asaas:
+  //  1) Assinatura ativa?      → status da assinatura (subscriptionStatus).
+  //  2) Cobrança do ciclo?     → asaasChargeState, derivado da fatura do ciclo vigente.
+  //  3) Automação de avisos?   → summary.notif (canais habilitados, lidos do Asaas na sincronização).
+  // "unknown" (cinza) existe só para o caso transitório de o dado ainda não ter sido verificado —
+  // pintar de vermelho algo que apenas não foi checado seria afirmar o que não sabemos.
+  function computeCobrancaIcons(hasSync, summary, asaasChargeState){
+    // 1) Assinatura ativa no Asaas
+    const subStatus = summary.subscriptionStatus;
+    const ico1 = subStatus === "ACTIVE" ? "ok" : (hasSync && !subStatus ? "unknown" : "bad");
+    const t1 = ico1 === "ok" ? "Assinatura ativa no Asaas."
+             : ico1 === "unknown" ? "Assinatura ainda não verificada. Use “Atualizar dados” no menu ⋮."
+             : "Este associado não possui assinatura ativa no Asaas.";
+
+    // 2) Cobrança do ciclo vigente criada
+    const ico2 = asaasChargeState === "automatica" ? "ok" : "bad";
+    const t2 = ico2 === "ok" ? "Cobrança do ciclo atual encontrada no Asaas."
+             : "Cobrança do ciclo atual não foi encontrada.";
+
+    // 3) Automação de avisos. Verde = padrão do clube (WhatsApp + SMS ativos); o e-mail é
+    // desligado de propósito, por isso não entra no critério de completo.
+    // Assinatura inativa também é vermelho: mesmo que os canais continuem configurados (dado que
+    // sobra de quando ela estava ativa), nenhum aviso é disparado — pintar de verde diria à
+    // Secretaria que o associado será avisado sozinho, o que não vai acontecer.
+    const nf = summary.notif;
+    let ico3, t3;
+    if (!hasSync || subStatus === "INACTIVE"){ ico3 = "bad"; t3 = "Sem assinatura ativa — nenhum aviso automático será enviado."; }
+    else if (!nf){ ico3 = "unknown"; t3 = "Automação ainda não verificada. Use “Atualizar dados” no menu ⋮."; }
+    else if (!nf.configured || (!nf.whatsapp && !nf.sms)){ ico3 = "bad"; t3 = "Automação de notificações não configurada."; }
+    else if (nf.whatsapp && nf.sms){ ico3 = "ok"; t3 = "Automação completa: avisos automáticos por WhatsApp e SMS ativos."; }
+    else { ico3 = "warn"; t3 = `Automação parcial: ${nf.whatsapp ? "SMS" : "WhatsApp"} desativado para este associado.`; }
+
+    return [
+      { icon:"bi-arrow-repeat", state:ico1, title:t1 },
+      { icon:"bi-receipt",      state:ico2, title:t2 },
+      { icon:"bi-bell",         state:ico3, title:t3 },
+    ];
+  }
+
+  // Situação do associado (eixo separado do financeiro): Ativo/Inativo/Suspenso/Isento.
+  // "Ativo" não retorna rótulo (silêncio = normal) — só os 3 outros aparecem na linha.
+  // "title" sempre carrega uma data absoluta quando existir, em vez de deixar o rótulo sozinho.
+  function computeMembershipStatusTag(userData, summary){
+    const statusStr = String(userData?.status ?? userData?.situacao ?? userData?.sit ?? "")
+      .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    const isInactive = userData?.ativo === false || userData?.isActive === false;
+    if (isInactive) return { code:"inativo", label:"Inativo", title:"Associado desligado do clube" };
+    if (/suspens|bloquead/.test(statusStr)) return { code:"suspenso", label:"Suspenso", title:"" };
+    const untilMs = summary.exemptUntil?.toMillis?.() ?? (summary.exemptUntil ? new Date(summary.exemptUntil).getTime() : null);
+    if (summary.exempt === true && (!untilMs || untilMs > Date.now())){
+      return { code:"isento", label:"Isento", title: untilMs ? `Isento até ${fmtDateBRShort(new Date(untilMs))}` : "Isento sem prazo definido" };
+    }
+    return { code:"ativo", label:"Ativo", title:"" };
+  }
+
+  // Ciclo de vida (conceito de AMS): sinaliza só o que é notável — silêncio = "associado
+  // recorrente normal", consistente com a filosofia de gestão por exceção da V3.
+  // Cada rótulo relativo ("recentemente") ganha uma data absoluta em "title".
+  function computeLifecycleTag(userData, invDocs){
+    const paidInvoices = invDocs.filter(i => ["pago","paga","paid"].includes(String(i.status||"").toLowerCase()));
+    const createdMs = userData.createdAt?.toMillis?.() ?? (userData.createdAt ? new Date(userData.createdAt).getTime() : null);
+    const createdStr = createdMs != null ? fmtDateBRShort(new Date(createdMs)) : null;
+    const daysSinceJoin = createdMs != null ? Math.floor((Date.now()-createdMs)/86400000) : null;
+
+    if (paidInvoices.length === 0){
+      const hasPendingInvoice = invDocs.some(i => ["em_aberto","atrasado"].includes(String(i.status||"").toLowerCase()));
+      if (hasPendingInvoice) return { code:"primeiro_pendente", label:"1º pagamento pendente", title: createdStr ? `Cadastrado em ${createdStr}, aguardando o 1º pagamento` : "Aguardando o 1º pagamento" };
+      if (invDocs.length > 0 || (daysSinceJoin != null && daysSinceJoin > 30)) return { code:"nunca_pagou", label:"Nunca pagou", title: createdStr ? `Cadastrado em ${createdStr}, sem nenhum pagamento registrado` : "Sem nenhum pagamento registrado" };
+      return null; // recém-cadastrado, ainda cedo pra rotular
+    }
+    if (paidInvoices.length === 1 && daysSinceJoin != null && daysSinceJoin <= 45){
+      return { code:"novo", label:"Novo associado", title: createdStr ? `Associado desde ${createdStr}` : "" };
+    }
+    if (paidInvoices.length > 1){
+      const lastPaidMs = Math.max(...paidInvoices
+        .map(i => (i.paidAt?.toMillis?.() ?? (i.paidAt ? new Date(i.paidAt).getTime() : 0)) || (i.recordedAt?.toMillis?.() ?? 0)));
+      if (lastPaidMs && (Date.now()-lastPaidMs) <= 30*86400000){
+        return { code:"renovou", label:"Renovou recentemente", title:`Renovado em ${fmtDateBRShort(new Date(lastPaidMs))}` };
+      }
+    }
+    return null;
+  }
+
+  // Tempo de casa: mostra "desde mês/ano" (absoluto, nunca fica desatualizado) em vez de "há X
+  // anos" — a duração relativa continua disponível, mas só no tooltip, para quem quiser o detalhe.
+  function formatTenure(createdAt){
+    const ms = createdAt?.toMillis?.() ?? (createdAt ? new Date(createdAt).getTime() : null);
+    if (!ms) return null;
+    const days = Math.floor((Date.now()-ms)/86400000);
+    if (days < 0) return null;
+    let relative;
+    if (days < 30) relative = `${days} dia${days===1?"":"s"}`;
+    else {
+      const months = Math.floor(days/30.44);
+      if (months < 12) relative = `${months} ${months===1?"mês":"meses"}`;
+      else {
+        const years = Math.floor(months/12);
+        const remMonths = months % 12;
+        relative = remMonths > 0 ? `${years}a ${remMonths}m` : `${years} ano${years===1?"":"s"}`;
+      }
+    }
+    return { text:`desde ${fmtMonthYearAbbr(ms)}`, title:`Associado há ${relative} (desde ${fmtDateBRShort(new Date(ms))})` };
+  }
+
   function wppUrl(phoneRaw, text){
     const p = (phoneRaw||"").replace(/\D/g,"");
     const msg = encodeURIComponent(text||"");
@@ -528,7 +890,7 @@
   }
 
   function openNewAssocModal(){
-    if (newAssocModalDiv) newAssocModalDiv.remove();
+    disposeModal(newAssocModalDiv);
     newAssocModalDiv = document.createElement("div");
     newAssocModalDiv.className = "modal fade";
     newAssocModalDiv.tabIndex = -1;
@@ -623,17 +985,7 @@
         showMsg(`Associado criado! UID: ${uid}`, "success");
         setTimeout(async()=>{
           modal.hide();
-          await listUsers("");
-          // Atualizar dashboard
-          const docs = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), orderBy("nome"), limit(100)));
-          const results = await Promise.all(docs.docs.map(d => loadFinanceForRow(d.id, d.data())));
-          const stats = { total: docs.docs.length, emDia: 0, pendente: 0, inativo: 0 };
-          for (const result of results) {
-            if (result === "inativo") stats.inativo += 1;
-            else if (result === "pendente") stats.pendente += 1;
-            else stats.emDia += 1;
-          }
-          renderDashboard(stats);
+          await listUsers(""); // já recalcula indicadores e filtros
         }, 700);
       }catch(err){
         console.error(err);
@@ -642,21 +994,153 @@
     });
   }
 
-  /* ===== Lista / filtros ===== */
-  const usersWrap = document.getElementById("usersWrap");
+  /* ===== Lista / filtros — modelo "gestão por exceção" =====
+     Os dados financeiros de TODOS os associados são resolvidos ANTES de desenhar a tela (e não
+     preenchidos linha a linha depois de renderizar), porque o grupo de cada linha
+     (Ativos/Pendentes/Inativos) só é conhecido depois do cálculo — não dá para agrupar por
+     exceção sem primeiro saber quem é exceção. */
+  const resultsWrap = document.getElementById("resultsWrap");
   const searchQuery = document.getElementById("searchQuery");
   const metricTotal = document.getElementById("metricTotal");
-  const metricUpToDate = document.getElementById("metricUpToDate");
-  const metricPending = document.getElementById("metricPending");
+  const metricPendente = document.getElementById("metricPendente");
+  const metricDueSoon = document.getElementById("metricDueSoon");
+  const metricNoPlan = document.getElementById("metricNoPlan");
+  const metricNoSync = document.getElementById("metricNoSync");
   const metricInactive = document.getElementById("metricInactive");
+  const chipDueSoon = document.getElementById("chipDueSoon");
   document.getElementById("btnSearch")?.addEventListener("click", ()=> listUsers(searchQuery.value.trim()));
 
-  function renderDashboard(stats = { total:0, emDia:0, pendente:0, inativo:0 }){
-    metricTotal.textContent = Number(stats.total || 0);
-    metricUpToDate.textContent = Number(stats.emDia || 0);
-    metricPending.textContent = Number(stats.pendente || 0);
-    metricInactive.textContent = Number(stats.inativo || 0);
-    if (dashboardFilter !== 'all') updateActiveFilterState();
+  /* ===== Ações rápidas — chamam as mesmas Cloud Functions da Central Financeira Asaas ===== */
+  const asaasFns = getFunctions(auth.app, "us-central1");
+  const callAsaasCreatePayment    = httpsCallable(asaasFns, "asaasCreatePayment");
+  const callAsaasCancelPayment    = httpsCallable(asaasFns, "asaasCancelPayment");
+  const callAsaasGetPaymentStatus = httpsCallable(asaasFns, "asaasGetPaymentStatus");
+  const callAsaasSyncAssociado    = httpsCallable(asaasFns, "asaasSyncAssociado");
+
+  // Recalcula o modelo de 1 associado após uma ação que muda dados financeiros, sem refazer a
+  // consulta inteira — atualiza allModels e redesenha (barato: é só reordenar/filtrar em memória).
+  async function refreshRow(uid){
+    const uSnap = await getDoc(doc(db,"users",uid));
+    const userData = uSnap.exists() ? uSnap.data() : {};
+    const model = await fetchRowData(uid, userData);
+    const idx = allModels.findIndex(x=>x.uid===uid);
+    if (idx>=0) allModels[idx] = model; else allModels.push(model);
+    renderResults();
+  }
+
+  // Delegação de clique — attachada 1x (persiste entre re-renders de renderResults())
+  resultsWrap.addEventListener("click", async (ev)=>{
+    const header = ev.target.closest(".tier-section-header");
+    if (header){
+      const section = header.closest(".tier-section");
+      const tier = section?.dataset.tier;
+      if (tier){
+        section.classList.toggle("collapsed");
+        if (section.classList.contains("collapsed")) collapsedTiers.add(tier); else collapsedTiers.delete(tier);
+      }
+      return;
+    }
+
+    const nameBtn = ev.target.closest(".user-name");
+    if (nameBtn){ openUserModal(nameBtn.getAttribute("data-uid")); return; }
+
+    const btn = ev.target.closest("[data-row-action]");
+    if (!btn) return;
+    if (btn.tagName === "A") ev.preventDefault();
+    const action = btn.getAttribute("data-row-action");
+    const uid = btn.getAttribute("data-uid");
+    const row = document.getElementById(`row-${uid}`);
+    if (!row) return;
+
+    if (action === "view-history") { openUserModal(uid, "financeiro"); return; }
+    if (action === "view-auditoria") { openUserModal(uid, "auditoria"); return; }
+
+    if (action === "copy-link") {
+      const link = row.dataset.lastInvoiceUrl;
+      if (!link) { alert("Nenhum link de cobrança disponível ainda."); return; }
+      try{ await navigator.clipboard.writeText(link); alert("Link copiado!"); }
+      catch{ alert("Não foi possível copiar o link automaticamente:\n" + link); }
+      return;
+    }
+
+    if (action === "open-wpp") {
+      const link = row.dataset.lastInvoiceUrl;
+      const msg = `Olá! Aqui é do Clube do Cavalo. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
+      window.open(wppUrl(row.dataset.telefone, msg), "_blank", "noopener");
+      return;
+    }
+
+    if (action === "open-email") {
+      const email = row.dataset.email || "";
+      const link = row.dataset.lastInvoiceUrl;
+      const subject = encodeURIComponent("Clube do Cavalo — Cobrança");
+      const body = encodeURIComponent(`Olá! ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`);
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+      return;
+    }
+
+    if (action === "sync") {
+      btn.disabled = true;
+      try{ await callAsaasSyncAssociado({ uid }); await refreshRow(uid); }
+      catch(e){ alert("Erro ao atualizar dados: " + e.message); }
+      finally{ btn.disabled = false; }
+      return;
+    }
+
+    if (action === "check-payment") {
+      const asaasPaymentId = row.dataset.lastAsaasPaymentId;
+      if (!asaasPaymentId) { alert("Este associado ainda não tem cobrança para consultar."); return; }
+      btn.disabled = true;
+      try{
+        const { data } = await callAsaasGetPaymentStatus({ asaasPaymentId });
+        alert(`Status no Asaas: ${data.status}\nValor: ${fmtBRL(data.value)}\nVencimento: ${fmtDateCell(data.dueDate)}`);
+      }catch(e){ alert("Erro ao consultar cobrança: " + e.message); }
+      finally{ btn.disabled = false; }
+      return;
+    }
+
+    if (action === "cancel-payment") {
+      const asaasPaymentId = row.dataset.lastAsaasPaymentId;
+      if (!asaasPaymentId) { alert("Este associado ainda não tem cobrança para cancelar."); return; }
+      if (!confirm("Cancelar a última cobrança deste associado no Asaas? Esta ação não pode ser desfeita.")) return;
+      btn.disabled = true;
+      try{ await callAsaasCancelPayment({ uid, asaasPaymentId }); await refreshRow(uid); }
+      catch(e){ alert("Erro ao cancelar cobrança: " + e.message); }
+      finally{ btn.disabled = false; }
+      return;
+    }
+
+    if (action === "create-payment") {
+      const valueStr = prompt("Valor da nova cobrança (R$):", "30");
+      if (!valueStr) return;
+      const value = Number(valueStr.replace(",", "."));
+      if (!value || value <= 0) { alert("Valor inválido."); return; }
+      const description = prompt("Descrição da cobrança:", "Cobrança avulsa CCBMG") || "";
+      btn.disabled = true;
+      try{ await callAsaasCreatePayment({ uid, value, description }); await refreshRow(uid); }
+      catch(e){ alert("Erro ao gerar cobrança: " + e.message); }
+      finally{ btn.disabled = false; }
+      return;
+    }
+  });
+
+  function startOfDay(v){
+    const d = v?.toDate ? v.toDate() : new Date(v);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+
+  // planStart/planEnd representam um DIA de calendário (não um instante) e são gravados pelo
+  // backend como meia-noite UTC do dia pretendido (ex.: vigência até 15/07 → Timestamp de
+  // "2026-07-15T00:00:00Z"). Lendo isso com getters LOCAIS num navegador em UTC-3 (Brasil), o
+  // instante cai em "14/07 21:00" e a data aparente VOLTA 1 dia — a causa raiz da divergência
+  // entre o período mostrado e os "dias restantes". Esta função recupera o dia certo (getters
+  // UTC) e devolve um Date "meia-noite local" já corrigido, para todo o resto do código (exibição
+  // e contagem de dias) usar sem precisar saber desse detalhe.
+  function calendarDateOnly(v){
+    if (v == null) return null;
+    const d = v?.toDate ? v.toDate() : new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
   }
 
   function classifyMemberForDashboard(userData, membership){
@@ -667,99 +1151,24 @@
     return membership?.listCode === "pendente" ? "pendente" : "emDia";
   }
 
-  let currentFilter = "all";
-  let dashboardFilter = "all"; // Filtro do dashboard (em_dia, pendente, inativo, all)
-  document.querySelectorAll("[data-filter]").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      currentFilter = btn.getAttribute("data-filter");
-      document.querySelectorAll("[data-filter]").forEach(b=> b.classList.remove("active"));
-      btn.classList.add("active");
-      listUsers(searchQuery.value.trim());
-    });
-  });
-  document.getElementById("chkAll")?.addEventListener("change", (e)=>{
-    document.querySelectorAll(".row-check").forEach(c=> c.checked = e.target.checked);
-  });
-
-  // Funções de filtragem do dashboard
-  function applyDashboardFilter(filter, clickedItem) {
-    dashboardFilter = filter;
-    updateActiveFilterState();
-    listUsers(searchQuery.value.trim());
+  // Heurística de inconsistência Firestore x Asaas: o status da assinatura cacheado em
+  // finance/summary (alimentado pelo webhook/onAssociadoAtualizado) diverge do status calculado
+  // localmente a partir das financeInvoices. Sinaliza dado desatualizado que precisa de "Atualizar dados".
+  function computeInconsistency(dashboardStatus, subscriptionStatus){
+    if (!subscriptionStatus) return false;
+    if (subscriptionStatus !== "ACTIVE" && dashboardStatus === "emDia") return true;
+    if (subscriptionStatus === "ACTIVE" && dashboardStatus === "inativo") return true;
+    return false;
   }
 
-  function updateActiveFilterState() {
-    document.querySelectorAll('.stat-pill[data-dash-filter]').forEach(pill => {
-      pill.classList.toggle('active', pill.getAttribute('data-dash-filter') === dashboardFilter);
-    });
+  function computeAgingLabel(membership){
+    if (membership.detail !== "atrasado" && membership.detail !== "vencido") return { text:"", days:0 };
+    const days = Math.max(0, Math.floor((Date.now() - membership.nextDue) / 86400000));
+    return { text: `há ${days} dia${days===1?"":"s"}`, days };
   }
 
-  document.querySelectorAll('.stat-pill[data-dash-filter]').forEach(pill => {
-    pill.addEventListener('click', () => applyDashboardFilter(pill.getAttribute('data-dash-filter')));
-  });
-
-  async function listUsers(term){
-    if(!usersWrap) return;
-    usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
-    renderDashboard();
-    let docs=[];
-    try{
-      if(!term){
-        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), orderBy("nome"), limit(100)));
-        docs = snap.docs;
-      }else if(/^\d{5,}$/.test(term.replace(/\D/g,""))){
-        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), where("cpf","==", term.replace(/\D/g,""))));
-        docs = snap.docs;
-      }else{
-        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), orderBy("nome"), limit(100)));
-        const lower = term.toLowerCase();
-        docs = snap.docs.filter(d => (d.data().nome||"").toLowerCase().includes(lower));
-      }
-    }catch(e){
-      console.error("Falha ao consultar usuários", e);
-      usersWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao consultar usuários.</div>`;
-      renderDashboard();
-      return;
-    }
-
-    if(!docs.length){
-      usersWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`;
-      renderDashboard();
-      return;
-    }
-
-    usersWrap.innerHTML = docs.map(d=>{
-      const u = d.data(); const uid = d.id;
-      return renderUserRow({ uid, ...u });
-    }).join("");
-    attachUserRowHandlers();
-
-    const results = await Promise.all(docs.map(d => loadFinanceForRow(d.id, d.data())));
-    const stats = { total: docs.length, emDia: 0, pendente: 0, inativo: 0 };
-    for (const result of results) {
-      if (result === "inativo") stats.inativo += 1;
-      else if (result === "pendente") stats.pendente += 1;
-      else stats.emDia += 1;
-    }
-    renderDashboard(stats);
-  }
-
-  function renderUserRow(u){
-    const uid = u.uid;
-    return `
-      <div class="user-row" id="row-${uid}">
-        <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
-        <button class="user-name" type="button" data-uid="${uid}">${escHtml(u.nome||"Sem nome")}</button>
-        <div class="apelido-display col-apelido text-secondary small">${escHtml(u.apelido||"—")}</div>
-        <div class="plan-display col-plan">—</div>
-        <div class="last-payment text-secondary small col-lastpay">—</div>
-        <div class="last-amount text-secondary small col-value">—</div>
-        <div class="next-due text-secondary small col-next">—</div>
-        <div class="user-status col-status"><span class="badge bg-secondary">Carregando...</span></div>
-      </div>
-    `;
-  }
-
+  // ===== Modelo único por associado: junta perfil + financeiro + heurísticas em UM objeto,
+  // usado tanto para desenhar a linha quanto para os indicadores/filtros/seções. =====
   async function autoPatchInvoices(uid){
     try{
       const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
@@ -774,123 +1183,459 @@
     }catch(e){ console.warn("autoPatchInvoices", uid, e); }
   }
 
-  async function loadFinanceForRow(uid, userData = null){
-    const row = document.getElementById(`row-${uid}`);
-    if (!row) return;
-
+  async function fetchRowData(uid, userData){
     await autoPatchInvoices(uid);
-
+    let summary = {}, invDocs = [];
     try{
-      const sumSnap = await getDoc(doc(db,"users",uid,"finance","summary"));
-      const summary = sumSnap.exists()? sumSnap.data() : {};
-
-      let invDocs = [];
-      try{
-        const invSnap = await getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")));
-        invDocs = invSnap.docs.map(x=>({ id:x.id, ...x.data() }));
-      }catch(errInv){
-        console.warn("Falha ao ler financeInvoices de", uid, errInv);
-      }
-
-      const m = computeMembership({ invoices: invDocs, summary });
-      const dashboardStatus = classifyMemberForDashboard(userData, m);
-      const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
-      const latestPaid = getLatestPaidInvoice(invDocs);
-      const lastPaymentDisplay = latestPaid ? fmtDateCell(latestPaid.paidAt || latestPaid.recordedAt) : fmtDateCell(summary.lastPayment);
-      const lastAmountValue = latestPaid?.amount ?? summary.lastAmount;
-
-      // Plano: lê da última fatura paga; fallback para fatura mais recente; fallback para campo do usuário
-      const latestAnyPlan = [...invDocs].reverse().find(i => i.planType)?.planType;
-      const planType = latestPaid?.planType || latestAnyPlan || userData.planType || null;
-      const planName = latestPaid?.planName || null;
-      const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
-      const planClass = planType ? `plan-chip plan-chip-${planType}` : "plan-chip plan-chip-none";
-
-      // Lógica de filtros baseados em data de vencimento (Próximo Pagamento)
-      let dateFilterMatch = true;
-      // Usar m.nextDue que já é calculado pela função computeMembership
-      const planEndDate = m.nextDue;
-
-      // Excluir associados Inativo e Isento dos filtros de data
-      const dateFilters = ["expiring_5days", "due_today", "overdue_5days", "overdue_more_10days"];
-      if (dateFilters.includes(currentFilter)) {
-        if (dashboardStatus === "inativo" || m.listCode === "isento") {
-          dateFilterMatch = false;
-        }
-      }
-
-      if (planEndDate && dateFilterMatch) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const dueDate = new Date(planEndDate);
-        const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-        const daysDiff = Math.floor((dueDay - today) / (24 * 3600 * 1000));
-
-        if (currentFilter === "expiring_5days") {
-          // À vencer em 5 dias: vence entre hoje e 5 dias no futuro
-          dateFilterMatch = daysDiff >= 0 && daysDiff <= 5;
-        } else if (currentFilter === "due_today") {
-          // Vence Hoje
-          dateFilterMatch = daysDiff === 0;
-        } else if (currentFilter === "overdue_5days") {
-          // Vencido entre 5 e 10 dias
-          dateFilterMatch = daysDiff < 0 && daysDiff >= -10 && daysDiff < -5;
-        } else if (currentFilter === "overdue_more_10days") {
-          // Vencido há 10 dias ou mais
-          dateFilterMatch = daysDiff < -10;
-        }
-      } else {
-        // Se não há data de vencimento, não corresponde aos filtros de data
-        if (dateFilters.includes(currentFilter)) {
-          dateFilterMatch = false;
-        }
-      }
-
-      // Aplicar filtros combinados (toolbar + dashboard + data)
-      const isDateFilter = dateFilters.includes(currentFilter);
-      const toolbarFilterMatch = currentFilter === "all" || isDateFilter || (dashboardStatus === "inativo" ? "inativo" : m.listCode) === currentFilter;
-      const dashboardFilterMatch = dashboardFilter === "all" || dashboardStatus === dashboardFilter || (dashboardFilter === "em_dia" && dashboardStatus === "emDia");
-
-      if (!toolbarFilterMatch || !dashboardFilterMatch || !dateFilterMatch) {
-        row.classList.add("d-none");
-      } else {
-        row.classList.remove("d-none");
-      }
-
-      const stEl = row.querySelector(".user-status .badge");
-      if (stEl){
-        stEl.className = "badge " + (dashboardStatus==="inativo" ? "bg-secondary"
-                          : m.listCode==="em_dia" ? "bg-success"
-                          : m.listCode==="pendente" ? "bg-warning text-dark"
-                          : m.listCode==="isento" ? "text-bg-secondary" : "text-bg-secondary");
-        stEl.textContent = dashboardStatus === "inativo" ? "Inativo" : m.listBadge;
-      }
-      const pd = row.querySelector(".plan-display");
-      if (pd) pd.innerHTML = `<span class="${planClass}">${planDisplay}</span>`;
-      const nd = row.querySelector(".next-due");
-      if (nd) nd.textContent = nextDueStr;
-      const lp = row.querySelector(".last-payment");
-      if (lp) lp.textContent = lastPaymentDisplay;
-      const la = row.querySelector(".last-amount");
-      if (la) la.textContent = lastAmountValue != null ? fmtBRL(lastAmountValue) : "—";
-      return dashboardStatus;
-    }catch(e){
-      console.error("Falha ao carregar financeiro de", uid, e);
-      const stEl = document.querySelector(`#row-${uid} .user-status .badge`);
-      if (stEl){ stEl.className = "badge text-bg-secondary"; stEl.textContent = "—"; }
-      return "inativo";
-    }
+      const [sumSnap, invSnap] = await Promise.all([
+        getDoc(doc(db,"users",uid,"finance","summary")),
+        getDocs(query(collection(db,"users",uid,"financeInvoices"), orderBy("dueDate","asc")))
+      ]);
+      summary = sumSnap.exists() ? sumSnap.data() : {};
+      invDocs = invSnap.docs.map(x=>({ id:x.id, ...x.data() }));
+    }catch(e){ console.warn("Falha ao carregar financeiro de", uid, e); }
+    return buildRowModel(uid, userData || {}, summary, invDocs);
   }
 
-  function attachUserRowHandlers(){
-    document.querySelectorAll(".user-name").forEach(btn=>{
-      btn.addEventListener("click", ()=> openUserModal(btn.getAttribute("data-uid")));
+  function buildRowModel(uid, userData, summary, invDocs){
+    const m = computeMembership({ invoices: invDocs, summary });
+    const dashboardStatus = classifyMemberForDashboard(userData, m);
+    const latestPaid = getLatestPaidInvoice(invDocs);
+    const latestAny = getLatestInvoiceAny(invDocs);
+    // Fatura do CICLO VIGENTE — única fonte para Plano, Vigência e Cobrança, garantindo que as
+    // 3 colunas sempre contem a mesma história (nunca mistura ciclos diferentes).
+    const cycleInvoice = getCurrentCycleInvoice(invDocs);
+    const latestAnyPlan = [...invDocs].reverse().find(i => i.planType)?.planType;
+    const planType = cycleInvoice?.planType || latestAnyPlan || userData.planType || null;
+    const planName = cycleInvoice?.planName || null;
+    const planValueRaw = cycleInvoice?.amount ?? null;
+    const planValue = planValueRaw ?? (planType && PLAN_PRICE_TABLE[planType] != null ? PLAN_PRICE_TABLE[planType] : null);
+    const planValueIsEstimate = planValueRaw == null && planValue != null;
+    const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
+
+    const isInactive = dashboardStatus === "inativo";
+    const isIsento = m.listCode === "isento";
+    const hasNoBilling = !isInactive && !isIsento && invDocs.length === 0;
+    const hasNoPlan = !isInactive && !planType;
+    const hasSync = !!(userData.asaasId && userData.asaasSubscriptionId);
+    const hasInconsistency = computeInconsistency(dashboardStatus, summary.subscriptionStatus);
+    const aging = computeAgingLabel(m);
+    const membershipTag = computeMembershipStatusTag(userData, summary);
+    const lifecycleTag = computeLifecycleTag(userData, invDocs);
+    const tenureInfo = formatTenure(userData.createdAt);
+
+    // Vigência: EXCLUSIVAMENTE início/fim do período de cobertura do plano — nunca a data de
+    // vencimento de uma cobrança (m.nextDue e subscriptionNextDueDate são conceitos de cobrança,
+    // calculados por rotinas próprias que podem apontar para uma fatura diferente da do ciclo
+    // exibido). "Fim" vem do planEnd da própria fatura do ciclo; na ausência dele, é calculado a
+    // partir do início do ciclo + duração do plano (mensal/trimestral/semestral/anual) — ainda
+    // assim um cálculo 100% de vigência, sem nenhuma data de cobrança envolvida. calendarDateOnly()
+    // corrige o dia certo (ver comentário na função) antes de qualquer conta ou exibição.
+    const vigStart = calendarDateOnly(cycleInvoice?.planStart);
+    let vigEnd = calendarDateOnly(cycleInvoice?.planEnd);
+    if (!vigEnd && vigStart && planType && PLAN_MONTHS[planType]){
+      vigEnd = addMonthsSafe(vigStart, PLAN_MONTHS[planType]);
+    }
+    const daysToEnd = vigEnd ? Math.round((startOfDay(vigEnd) - startOfDay(new Date())) / 86400000) : null;
+
+    // Depende de daysToEnd (vigência pura) para diferenciar "ainda não é hora" de "deveria existir
+    // cobrança e não existe" — por isso é calculado depois do bloco de vigência acima.
+    const asaasChargeState = computeAsaasChargeState(cycleInvoice, summary, hasSync, daysToEnd);
+    const cobIcons = computeCobrancaIcons(hasSync, summary, asaasChargeState);
+
+    // "Pago hoje" no selo da coluna Cobrança é sobre a fatura do CICLO exibido, não qualquer
+    // fatura antiga — evita mostrar ✓ hoje ao lado de um badge "Vencida"/"Pendente" contraditório.
+    const cyclePaidAtMs = cycleInvoice?.paidAt?.toMillis?.() ?? (cycleInvoice?.paidAt ? new Date(cycleInvoice.paidAt).getTime() : null);
+    const paidToday = !!(cyclePaidAtMs && startOfDay(cyclePaidAtMs) === startOfDay(new Date()));
+
+    // Valor em aberto do associado — não é mais indicador no topo (a tela não é dashboard
+    // financeiro), mas segue existindo para a ordenação "Valor em aberto" no filtro.
+    const overdueAmount = (m.listCode === "pendente" && !isInactive)
+      ? invDocs.filter(i=>{
+          const s = String(i.status||"").toLowerCase();
+          if (["pago","paga","paid","cancelado"].includes(s)) return false;
+          const due = i.dueDate?.toMillis?.() ?? (i.dueDate ? new Date(i.dueDate).getTime() : null);
+          return due && due < Date.now();
+        }).reduce((sum,i)=> sum + (Number(i.amount)||0), 0)
+      : 0;
+
+    // ===== Tier de prioridade (gestão por exceção) — ordem importa, primeiro match vale =====
+    // "Pendente" junta o que antes eram 2 grupos (Inadimplentes/Pendências) — qualquer motivo que
+    // exija contato. "Ativo" junta Renovações Próximas + Regulares — dentro do ciclo, em dia
+    // (renovando em breve ou não). reasonLabel continua granular (é o texto do badge Situação).
+    let tier, reasonLabel;
+    if (isInactive)                              { tier = "inativo"; reasonLabel = "Inativo"; }
+    else if (hasInconsistency)                   { tier = "pendente"; reasonLabel = "Inconsistência"; }
+    else if (m.detail === "vencido")              { tier = "pendente"; reasonLabel = `Vencido ${aging.text}`; }
+    else if (m.detail === "atrasado")             { tier = "pendente"; reasonLabel = `Atrasado ${aging.text}`; }
+    else if (hasNoBilling)                        { tier = "pendente"; reasonLabel = "Sem cobrança"; }
+    else if (hasNoPlan)                           { tier = "pendente"; reasonLabel = "Sem plano"; }
+    else if (daysToEnd != null && daysToEnd >= 0 && daysToEnd <= 7) { tier = "ativo"; reasonLabel = `Vence em ${daysToEnd}d`; }
+    else if (isIsento)                            { tier = "ativo"; reasonLabel = "Isento"; }
+    else                                           { tier = "ativo"; reasonLabel = "Em dia"; }
+
+    // ===== Próxima ação — o verbo é consequência da situação real, não um "Cobrar" genérico
+    // repetido pra tudo: falta de plano/cobrança pede um passo diferente de um débito vencido.
+    // Não depende só do tier (que agora agrupa "vence em breve" e "em dia" juntos em "ativo"). =====
+    let nextAction;
+    if (isInactive) nextAction = { label:"Sem ação", action:null };
+    else if (hasInconsistency) nextAction = { label:"Revisar", action:"view-auditoria" };
+    else if (tier === "pendente"){
+      if (hasNoPlan) nextAction = { label:"Definir plano", action:"view-history" };
+      else if (hasNoBilling) nextAction = { label:"Emitir cobrança", action:"view-history" };
+      else if (m.detail === "vencido") nextAction = { label:"Cobrar", action:"open-wpp" };
+      else nextAction = { label:"Lembrar", action:"open-wpp" }; // atrasado dentro da carência
+    } else if (daysToEnd != null && daysToEnd >= 0 && daysToEnd <= 7){
+      nextAction = { label:"Renovar", action:"open-wpp" };
+    } else {
+      nextAction = { label:"Regular", action:null };
+    }
+
+    return {
+      uid, nome:userData.nome||"", apelido:userData.apelido||"", cpf:userData.cpf||"",
+      telefone:userData.telefone||"", email:userData.email||"",
+      planType, planDisplay, planValue, planValueIsEstimate,
+      vigStart, vigEnd, daysToEnd,
+      cobranca: cycleInvoice, asaasChargeState, cobIcons, paidToday,
+      membershipTag, lifecycleTag, tenureInfo,
+      m, dashboardStatus, aging, tier, reasonLabel, nextAction,
+      hasNoBilling, hasNoPlan, hasSync, hasInconsistency, overdueAmount,
+      subStatus: summary.subscriptionStatus || "none",
+      lastAsaasPaymentId: cycleInvoice?.asaasPaymentId || "", lastInvoiceUrl: cycleInvoice?.invoiceUrl || ""
+    };
+  }
+
+  // ===== Estado de filtros/ordenação/seções (tudo em memória, sobre allModels) =====
+  let allModels = [];
+  let dashboardFilter = "all";
+  let filterAtivo = "all", filterFinanceiro = "all", filterAssinatura = "all", filterVencimento = "all", filterPlano = "all", sortBy = "prioridade";
+  const collapsedTiers = new Set(["ativo","inativo"]); // gestão por exceção: quem está OK começa recolhido
+
+  // 3 grupos por percepção funcional (pedido explícito): Pendentes (fatura vencida/atrasada ou
+  // qualquer outro motivo que exija contato), Ativos (dentro do ciclo, em dia — inclui quem está
+  // renovando em breve, só ordenado para aparecer primeiro dentro do grupo) e Inativos (saíram do
+  // clube). Substitui o modelo anterior de 5 grupos (Inadimplentes/Pendências/Renovações
+  // Próximas/Regulares/Inativos), que tinha granularidade maior mas era mais difícil de explicar.
+  const TIER_META = {
+    pendente: { icon:"🔴", label:"Pendentes" },
+    ativo:    { icon:"🟢", label:"Ativos" },
+    inativo:  { icon:"⚫", label:"Inativos" },
+  };
+  const TIER_ORDER = ["ativo","pendente","inativo"];
+  const TIER_FILTER_KEYS = new Set(["pendente","ativo","inativo"]);
+
+  document.getElementById("chkAll")?.addEventListener("change", (e)=>{
+    document.querySelectorAll(".row-check").forEach(c=> c.checked = e.target.checked);
+  });
+
+  function updateActiveFilterState() {
+    document.querySelectorAll('.stat-pill[data-dash-filter]').forEach(pill => {
+      pill.classList.toggle('active', pill.getAttribute('data-dash-filter') === dashboardFilter);
     });
   }
 
-  /* ===== Modal do Usuário (Perfil + Financeiro) ===== */
+  document.querySelectorAll('.stat-pill[data-dash-filter]').forEach(pill => {
+    pill.addEventListener('click', () => { dashboardFilter = pill.getAttribute('data-dash-filter'); renderResults(); });
+  });
+
+  const filterAtivoEl = document.getElementById("filterAtivo");
+  const filterFinanceiroEl = document.getElementById("filterFinanceiro");
+  const filterAssinaturaEl = document.getElementById("filterAssinatura");
+  const filterVencimentoEl = document.getElementById("filterVencimento");
+  const filterPlanoEl = document.getElementById("filterPlano");
+  const sortByEl = document.getElementById("sortBy");
+
+  filterAtivoEl?.addEventListener("change", ()=>{ filterAtivo = filterAtivoEl.value; renderResults(); });
+  filterFinanceiroEl?.addEventListener("change", ()=>{ filterFinanceiro = filterFinanceiroEl.value; renderResults(); });
+  filterAssinaturaEl?.addEventListener("change", ()=>{ filterAssinatura = filterAssinaturaEl.value; renderResults(); });
+  filterVencimentoEl?.addEventListener("change", ()=>{ filterVencimento = filterVencimentoEl.value; renderResults(); });
+  filterPlanoEl?.addEventListener("change", ()=>{ filterPlano = filterPlanoEl.value; renderResults(); });
+  sortByEl?.addEventListener("change", ()=>{ sortBy = sortByEl.value; renderResults(); });
+  document.getElementById("btnClearFilters")?.addEventListener("click", ()=>{
+    dashboardFilter = "all"; filterAtivo = "all"; filterFinanceiro = "all"; filterAssinatura = "all"; filterVencimento = "all"; filterPlano = "all"; sortBy = "prioridade";
+    [filterAtivoEl, filterFinanceiroEl, filterAssinaturaEl, filterVencimentoEl, filterPlanoEl].forEach(el=>{ if (el) el.value = "all"; });
+    if (sortByEl) sortByEl.value = "prioridade";
+    renderResults();
+  });
+
+  function passesFilters(m){
+    if (dashboardFilter !== "all"){
+      if (TIER_FILTER_KEYS.has(dashboardFilter)) { if (m.tier !== dashboardFilter) return false; }
+      else if (dashboardFilter === "vence_7d") { if (!(m.daysToEnd != null && m.daysToEnd >= 0 && m.daysToEnd <= 7)) return false; }
+      else if (dashboardFilter === "sem_plano") { if (!m.hasNoPlan) return false; }
+      else if (dashboardFilter === "sem_sync") { if (m.hasSync) return false; }
+    }
+    if (filterAtivo !== "all"){
+      if (filterAtivo === "ativo" && m.tier === "inativo") return false;
+      if (filterAtivo === "inativo" && m.tier !== "inativo") return false;
+    }
+    if (filterFinanceiro !== "all"){
+      const okMap = {
+        em_dia: m.tier !== "inativo" && m.m.listCode === "em_dia",
+        atrasado: m.m.detail === "atrasado",
+        vencido: m.m.detail === "vencido",
+        isento: m.m.listCode === "isento",
+        sem_cobranca: m.hasNoBilling,
+        sem_plano: m.hasNoPlan
+      };
+      if (!okMap[filterFinanceiro]) return false;
+    }
+    if (filterAssinatura !== "all"){
+      if (filterAssinatura === "none"){ if (m.hasSync) return false; }
+      else if (m.subStatus !== filterAssinatura) return false;
+    }
+    if (filterVencimento !== "all"){
+      const d = m.daysToEnd;
+      if (filterVencimento === "sem_data") { if (d != null) return false; }
+      else {
+        if (d == null) return false;
+        if (filterVencimento === "hoje" && d !== 0) return false;
+        if (filterVencimento === "7dias" && !(d >= 0 && d <= 7)) return false;
+        if (filterVencimento === "atrasado_10" && !(d < 0 && d >= -10)) return false;
+        if (filterVencimento === "vencido_10mais" && !(d < -10)) return false;
+      }
+    }
+    if (filterPlano !== "all"){
+      if (filterPlano === "none"){ if (m.planType) return false; }
+      else if (m.planType !== filterPlano) return false;
+    }
+    return true;
+  }
+
+  function sortModels(models, key){
+    const arr = models.slice();
+    if (key === "vencimento_asc") arr.sort((a,b)=> (a.daysToEnd ?? Infinity) - (b.daysToEnd ?? Infinity));
+    else if (key === "atraso_desc") arr.sort((a,b)=> (b.aging.days||0) - (a.aging.days||0));
+    else if (key === "valor_aberto_desc") arr.sort((a,b)=> (b.overdueAmount||0) - (a.overdueAmount||0));
+    else arr.sort((a,b)=> (a.nome||"").localeCompare(b.nome||"", "pt-BR"));
+    return arr;
+  }
+
+  // Só indicadores operacionais (contagem de associados) — a tela é uma Central de Gestão de
+  // Associados, não um dashboard financeiro; nenhum valor em R$ é somado aqui.
+  function computeStats(models){
+    const s = { total:0, pendente:0, dueSoon:0, noPlan:0, noSync:0, inactive:0 };
+    for (const m of models){
+      if (m.tier === "inativo") { s.inactive += 1; continue; }
+      s.total += 1;
+      if (m.tier === "pendente") s.pendente += 1;
+      if (m.daysToEnd != null && m.daysToEnd >= 0 && m.daysToEnd <= 7) s.dueSoon += 1;
+      if (m.hasNoPlan) s.noPlan += 1;
+      if (!m.hasSync) s.noSync += 1;
+    }
+    return s;
+  }
+
+  function renderDashboard(stats){
+    metricTotal.textContent = stats.total;
+    metricPendente.textContent = stats.pendente;
+    metricDueSoon.textContent = stats.dueSoon;
+    metricNoPlan.textContent = stats.noPlan;
+    metricNoSync.textContent = stats.noSync;
+    metricInactive.textContent = stats.inactive;
+    if (chipDueSoon){
+      const today = new Date();
+      const until = new Date(); until.setDate(until.getDate()+7);
+      chipDueSoon.title = `Vigência termina entre ${fmtDateBRShort(today)} e ${fmtDateBRShort(until)} — lembrete evita virar atraso`;
+    }
+    updateActiveFilterState();
+  }
+
+  function renderTierSection(tier, models, forceExpand){
+    const meta = TIER_META[tier];
+    const collapsed = !forceExpand && (collapsedTiers.has(tier) || models.length === 0);
+    // "Ativo" ordena por vigência mais próxima do fim primeiro — assim quem está renovando em
+    // breve continua aparecendo no topo do grupo, mesmo sem ter uma seção só pra isso.
+    const sorted = tier === "pendente" ? sortModels(models, "atraso_desc")
+                 : tier === "ativo" ? sortModels(models, "vencimento_asc")
+                 : sortModels(models, "nome");
+    const rowsHtml = sorted.length ? sorted.map(renderUserRow).join("") : `<div class="tier-empty">Nenhum associado neste grupo.</div>`;
+    const hint = tier === "ativo" ? "dentro do ciclo, em dia" : tier === "inativo" ? "desligados do clube" : "";
+    return `
+      <div class="tier-section ${collapsed?'collapsed':''}" data-tier="${tier}">
+        <button type="button" class="tier-section-header th-${tier}">
+          ${meta.icon} ${meta.label} <span class="tier-count">(${models.length})</span>
+          ${hint ? `<span class="tier-section-hint">${hint}</span>` : ""}
+          <i class="bi bi-chevron-down"></i>
+        </button>
+        <div class="tier-section-body">${rowsHtml}</div>
+      </div>
+    `;
+  }
+
+  function renderResults(){
+    const filtered = allModels.filter(passesFilters);
+    renderDashboard(computeStats(allModels)); // indicadores sempre refletem o total, não o filtro
+
+    if (!allModels.length) return; // listUsers já tratou a mensagem de "nenhum associado"
+
+    if (!filtered.length){
+      resultsWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado corresponde aos filtros atuais.</div>`;
+      return;
+    }
+
+    const term = searchQuery.value.trim();
+    const flatMode = !!term || sortBy !== "prioridade";
+
+    if (flatMode){
+      const sorted = sortModels(filtered, sortBy === "prioridade" ? "nome" : sortBy);
+      const hint = term ? `Resultados da busca (${sorted.length})` : `${sorted.length} associado(s), fora do modo por prioridade`;
+      resultsWrap.innerHTML = `<div class="tier-section-hint mb-2">${hint}</div>` + sorted.map(renderUserRow).join("");
+      return;
+    }
+
+    const tiersToRender = TIER_FILTER_KEYS.has(dashboardFilter) ? [dashboardFilter] : TIER_ORDER;
+    resultsWrap.innerHTML = tiersToRender.map(tier => renderTierSection(tier, filtered.filter(m=>m.tier===tier), TIER_FILTER_KEYS.has(dashboardFilter))).join("");
+  }
+
+  async function listUsers(term){
+    if(!resultsWrap) return;
+    resultsWrap.innerHTML = `<div class="text-center text-secondary py-3">Carregando...</div>`;
+    let docs=[];
+    try{
+      if(!term){
+        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), orderBy("nome"), limit(100)));
+        docs = snap.docs;
+        // Contas Master não têm orgId (propositalmente — são super-admins cross-org, ver
+        // tests/e2e/04-migration-data.spec.js), então ficam fora da query acima. Garantimos
+        // que o operador logado sempre veja o próprio registro na listagem.
+        if (operatorProfile.uid && !docs.some(d => d.id === operatorProfile.uid)) {
+          const selfSnap = await getDoc(doc(db,"users",operatorProfile.uid));
+          if (selfSnap.exists()) docs = [selfSnap, ...docs];
+        }
+      }else if(/^\d{5,}$/.test(term.replace(/\D/g,""))){
+        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), where("cpf","==", term.replace(/\D/g,""))));
+        docs = snap.docs;
+      }else{
+        const snap = await getDocs(query(collection(db,"users"), where("orgId","==",currentOrgId), orderBy("nome"), limit(100)));
+        const lower = term.toLowerCase();
+        docs = snap.docs.filter(d => (d.data().nome||"").toLowerCase().includes(lower) || (d.data().apelido||"").toLowerCase().includes(lower));
+      }
+    }catch(e){
+      console.error("Falha ao consultar usuários", e);
+      resultsWrap.innerHTML = `<div class="text-center text-danger py-3">Falha ao consultar usuários.</div>`;
+      return;
+    }
+
+    if(!docs.length){
+      allModels = [];
+      renderDashboard(computeStats(allModels));
+      resultsWrap.innerHTML = `<div class="text-center text-secondary py-3">Nenhum associado encontrado.</div>`;
+      return;
+    }
+
+    allModels = await Promise.all(docs.map(d => fetchRowData(d.id, d.data())));
+    renderResults();
+  }
+
+  const MEMBERSHIP_TAG_CLASS = { inativo:"tag-inativo", suspenso:"tag-suspenso", isento:"tag-isento" };
+  const LIFECYCLE_TAG_CLASS = { novo:"tag-novo", renovou:"tag-renovou", nunca_pagou:"tag-alerta", primeiro_pendente:"tag-alerta" };
+
+  function renderUserRow(m){
+    const uid = m.uid;
+    const cpfDigits = (m.cpf||"").replace(/\D/g,"");
+    // CPF sai da linha visível (raramente é motivo de olhar a linha) e vira tooltip; no lugar,
+    // priorizamos os sinais que ajudam a decisão: apelido, tempo de casa, situação do associado
+    // (eixo separado do financeiro) e estágio do ciclo de vida — só quando há algo notável.
+    const subParts = [];
+    if (m.apelido) subParts.push(escHtml(m.apelido));
+    if (m.tenureInfo) subParts.push(`<span title="${escHtml(m.tenureInfo.title)}">${m.tenureInfo.text}</span>`);
+    if (m.membershipTag.code !== "ativo"){
+      const t = m.membershipTag.title ? ` title="${escHtml(m.membershipTag.title)}"` : "";
+      subParts.push(`<span class="member-tag ${MEMBERSHIP_TAG_CLASS[m.membershipTag.code]||""}"${t}>${m.membershipTag.label}</span>`);
+    }
+    if (m.lifecycleTag){
+      const t = m.lifecycleTag.title ? ` title="${escHtml(m.lifecycleTag.title)}"` : "";
+      subParts.push(`<span class="member-tag ${LIFECYCLE_TAG_CLASS[m.lifecycleTag.code]||""}"${t}>${m.lifecycleTag.label}</span>`);
+    }
+    const assocTitle = `CPF ${cpfDigits || "—"}`;
+
+    const planClass = m.planType ? `plan-chip plan-chip-${m.planType}` : "plan-chip plan-chip-none";
+    const planValueSub = m.planValue != null ? (m.planValueIsEstimate ? `≈ ${fmtBRL(m.planValue)}` : fmtBRL(m.planValue)) : "";
+    const planValueTitle = m.planValueIsEstimate ? "Valor de tabela — ainda não há fatura registrada para confirmar o valor real cobrado" : "";
+
+    const vigEndAbs = m.vigEnd ? fmtDateCell(m.vigEnd) : "";
+    const vigRange = (m.vigStart || m.vigEnd) ? `${m.vigStart ? fmtDateCell(m.vigStart) : "—"} → ${m.vigEnd ? vigEndAbs : "—"}` : "—";
+    let vigRemaining = "", vigCls = "";
+    if (m.daysToEnd != null){
+      if (m.daysToEnd < 0){ vigRemaining = `venceu há ${Math.abs(m.daysToEnd)}d`; vigCls = "is-over"; }
+      else if (m.daysToEnd <= 7){ vigRemaining = `termina em ${m.daysToEnd}d`; vigCls = "is-soon"; }
+      else { vigRemaining = `${m.daysToEnd} dias restantes`; }
+    }
+    const vigRemainingTitle = vigEndAbs ? (m.daysToEnd < 0 ? `Venceu em ${vigEndAbs}` : `Termina em ${vigEndAbs}`) : "";
+
+    // Cobrança: 3 ícones independentes, cada um com seu próprio tooltip (sem texto/legenda fixa).
+    const cobHtml = m.cobIcons.map(i =>
+      `<i class="bi ${i.icon} cob-ico ${i.state}" title="${escHtml(i.title)}"></i>`
+    ).join("");
+
+    // Dentro dos 3 grupos (Pendentes/Ativos/Inativos), o badge ainda distingue a gravidade real —
+    // "Vencido" continua mais sério que "Atrasado", "Vence em Nd" mais notável que "Em dia".
+    const isDueSoon = m.daysToEnd != null && m.daysToEnd >= 0 && m.daysToEnd <= 7;
+    const stBadgeCls = m.tier==="inativo" ? "bg-secondary"
+                      : m.m.detail==="vencido" ? "bg-danger"
+                      : m.tier==="pendente" ? "bg-warning text-dark"
+                      : isDueSoon ? "text-bg-info"
+                      : (m.m.listCode==="isento" ? "text-bg-secondary" : "bg-success");
+
+    // "Vencido há Nd"/"Atrasado há Nd"/"Vence em Nd" são relativos por natureza (a leitura muda
+    // dia a dia) — o tooltip fixa a data absoluta por trás do rótulo, sem alongar o badge.
+    let statusTitle = "";
+    if (m.tier === "pendente" && (m.m.detail === "vencido" || m.m.detail === "atrasado")){
+      statusTitle = m.m.nextDue ? `Venceu em ${fmtDateCell(m.m.nextDue)}` : "";
+    } else if (isDueSoon && m.vigEnd){
+      statusTitle = `Vence em ${fmtDateCell(m.vigEnd)}`;
+    }
+
+    const actionBtnCls = m.tier==="pendente" ? "btn-danger" : isDueSoon ? "btn-outline-info" : "btn-outline-secondary";
+    const actionHtml = m.nextAction.action
+      ? `<button class="btn btn-sm ${actionBtnCls} btn-next-action" type="button" title="${escHtml(m.nextAction.label)}" data-row-action="${m.nextAction.action}" data-uid="${uid}">${m.nextAction.label}</button>`
+      : `<span class="btn-next-action is-muted" title="${escHtml(m.nextAction.label)}">${escHtml(m.nextAction.label)}</span>`;
+
+    return `
+      <div class="user-row tier-${m.tier}" id="row-${uid}" data-uid="${uid}" data-telefone="${escHtml(m.telefone)}" data-email="${escHtml(m.email)}" data-last-invoice-url="${escHtml(m.lastInvoiceUrl)}" data-last-asaas-payment-id="${escHtml(m.lastAsaasPaymentId)}">
+        <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
+        <div>
+          <button class="user-name" type="button" data-uid="${uid}" title="${assocTitle}">${escHtml(m.nome||"Sem nome")}${m.hasInconsistency ? `<i class="bi bi-exclamation-triangle-fill text-warning inconsistency-flag" title="Inconsistência entre o status local e o Asaas — veja a aba Auditoria"></i>` : ""}</button>
+          <div class="assoc-sub text-secondary">${subParts.join(" · ")}</div>
+        </div>
+        <div class="plan-display col-plan" ${planValueTitle ? `title="${planValueTitle}"` : ""}>
+          <span class="${planClass}">${escHtml(m.planDisplay)}</span>
+          ${planValueSub ? `<div class="plan-value-sub">${planValueSub}</div>` : ""}
+        </div>
+        <div class="vigencia-cell col-vigencia">
+          <div class="vig-range">${vigRange}</div>
+          ${vigRemaining ? `<div class="vig-remaining ${vigCls}" title="${vigRemainingTitle}">${vigRemaining}</div>` : ""}
+        </div>
+        <div class="user-status col-status"><span class="badge ${stBadgeCls}" ${statusTitle ? `title="${statusTitle}"` : ""}>${escHtml(m.reasonLabel)}</span></div>
+        <div class="cobranca-cell col-cobranca">${cobHtml}</div>
+        <div class="col-action">
+          ${actionHtml}
+          <a href="#" class="btn btn-sm btn-outline-success btn-wpp-quick" data-row-action="open-wpp" data-uid="${uid}" title="Abrir WhatsApp"><i class="bi bi-whatsapp"></i></a>
+          <div class="dropdown row-actions">
+            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" title="Mais ações">
+              <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item" type="button" data-row-action="view-history" data-uid="${uid}">Abrir financeiro</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="create-payment" data-uid="${uid}">Gerar cobrança</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="cancel-payment" data-uid="${uid}">Cancelar cobrança</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="check-payment" data-uid="${uid}">Consultar no Asaas</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="copy-link" data-uid="${uid}">Copiar link de pagamento</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="open-email" data-uid="${uid}">Abrir e-mail</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item" type="button" data-row-action="view-auditoria" data-uid="${uid}">Ver sincronização (Auditoria)</button></li>
+              <li><button class="dropdown-item" type="button" data-row-action="sync" data-uid="${uid}">Atualizar dados</button></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /* ===== Modal do Usuário (Dados Gerais / Financeiro / Cobrança / Auditoria) ===== */
   let userModalDiv = null;
-  async function openUserModal(uid){
+  async function openUserModal(uid, initialTab){
     let u = {}, summary = {}, invDocs = [];
     try{
       const [uSnap, sSnap, invSnap] = await Promise.all([
@@ -903,16 +1648,28 @@
       invDocs = invSnap.docs.map(d=>({ id:d.id, ...d.data() }));
     }catch(e){ console.warn("openUserModal fetch", e); }
 
-    if (userModalDiv) userModalDiv.remove();
+    disposeModal(userModalDiv);
     userModalDiv = document.createElement("div");
     userModalDiv.className = "modal fade";
     userModalDiv.tabIndex = -1;
 
     const m = computeMembership({ invoices: invDocs, summary });
     const nextDueStr = m.nextDue ? fmtDateBRShort(new Date(m.nextDue)) : "—";
+    const latestAny = getLatestInvoiceAny(invDocs);
 
-    const perfilHtml = renderProfileFormModal(u, summary);
-    const financeiroHtml = renderFinanceBlock(uid, summary, invDocs, nextDueStr, m);
+    const tabs = [
+      { id: "dados",      label: "Dados Gerais", html: renderProfileFormModal(u, summary) },
+      { id: "financeiro", label: "Financeiro",   html: `<div id="tabFinance">${renderFinanceBlock(uid, summary, invDocs, nextDueStr, m)}</div>` },
+      { id: "cobranca",   label: "Cobrança",     html: renderCobrancaTab(u, summary, latestAny) },
+      { id: "auditoria",  label: "Auditoria",    html: renderAuditoriaTab(u) },
+    ];
+    const activeId = tabs.some(t => t.id === initialTab) ? initialTab : "dados";
+    const navHtml = tabs.map(t => `
+      <li class="nav-item"><button class="nav-link ${t.id===activeId?'active':''}" data-bs-toggle="tab" data-bs-target="#tabPane-${t.id}" type="button">${t.label}</button></li>
+    `).join("");
+    const paneHtml = tabs.map(t => `
+      <div class="tab-pane fade ${t.id===activeId?'show active':''}" id="tabPane-${t.id}">${t.html}</div>
+    `).join("");
 
     userModalDiv.innerHTML = `
       <div class="modal-dialog modal-xl">
@@ -925,14 +1682,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="mb-4">
-              <h6 class="border-bottom pb-2 mb-3">Perfil</h6>
-              ${perfilHtml}
-            </div>
-            <div id="tabFinance">
-              <h6 class="border-bottom pb-2 mb-3">Financeiro</h6>
-              ${financeiroHtml}
-            </div>
+            <ul class="nav nav-tabs mb-3" style="flex-wrap:nowrap; overflow-x:auto">${navHtml}</ul>
+            <div class="tab-content">${paneHtml}</div>
           </div>
           <div class="modal-footer">
             <span class="me-auto small text-secondary">Situação: <strong>${m.listBadge}</strong> • Próxima cobrança: <strong>${nextDueStr}</strong></span>
@@ -965,16 +1716,9 @@
       };
       // Esta linha é a crítica — lança se falhar permissão ou conexão
       await updateDoc(doc(db,"users",uid), payload);
-      // Atualização visual da linha na tabela (não crítica)
-      const row = document.getElementById(`row-${uid}`);
-      if (row) {
-        const apelidoEl = row.querySelector('.apelido-display');
-        if (apelidoEl) apelidoEl.textContent = payload.apelido || "—";
-        const nomeEl = row.querySelector('.user-name');
-        if (nomeEl) nomeEl.textContent = payload.nome || "Sem nome";
-      }
-      // Refresh financeiro não bloqueia nem mascara erro do save
-      loadFinanceForRow(uid, payload).catch(e => console.warn("loadFinanceForRow pós-save:", e));
+      // Recalcula o modelo completo da linha (perfil + financeiro) e redesenha — não bloqueia
+      // nem mascara erro do save, que já foi confirmado acima.
+      refreshRow(uid).catch(e => console.warn("refreshRow pós-save:", e));
     };
 
     // Botão "Salvar Perfil" (dentro do formulário)
@@ -1029,6 +1773,14 @@
       if (action==="edit-invoice"){
         const invoiceId = btn.getAttribute("data-invid");
         openPaymentModal({ uid, invoiceId, onSaved: async()=> await reloadFinanceInsideModal(uid) });
+      }
+      if (action==="copy-invoice-link"){
+        const link = btn.getAttribute("data-link");
+        if (!link) { alert("Nenhum link de cobrança disponível ainda."); return; }
+        navigator.clipboard.writeText(link).then(
+          ()=> alert("Link copiado!"),
+          ()=> alert("Não foi possível copiar o link automaticamente:\n" + link)
+        );
       }
     });
 
@@ -1131,20 +1883,24 @@
     const rows = last3.map(inv=>{
       const s = String(inv.status||"").toLowerCase();
       const badge = s==="pago" ? "bg-success" : s==="atrasado" ? "bg-danger" : s==="cancelado" ? "bg-secondary" : "bg-warning text-dark";
+      const typeLabel = inv.billingType ? (BILLING_TYPE_LABEL[inv.billingType] || inv.billingType) : "—";
       return `
         <tr>
           <td>${displayPlan(inv)}</td>
           <td>${fmtBRL(inv.amount)}</td>
-          <td>${fmtDateCell(inv.planStart)}</td>
-          <td>${fmtDateCell(inv.planEnd)}</td>
+          <td>${typeLabel}</td>
           <td>${fmtDateCell(inv.dueDate)}</td>
           <td><span class="badge ${badge}">${inv.status||"-"}</span></td>
           <td class="text-end">
+            ${inv.invoiceUrl ? `
+              <a class="btn btn-sm btn-outline-secondary" href="${inv.invoiceUrl}" target="_blank" rel="noopener" title="Visualizar cobrança"><i class="bi bi-eye"></i></a>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-action="copy-invoice-link" data-link="${escHtml(inv.invoiceUrl)}" title="Copiar link"><i class="bi bi-link-45deg"></i></button>
+            ` : ""}
             <button class="btn btn-sm btn-outline-primary" data-action="edit-invoice" data-uid="${uid}" data-invid="${inv.id}">Editar</button>
           </td>
         </tr>
       `;
-    }).join("") || `<tr><td colspan="7" class="text-center text-secondary">Sem faturas visíveis.</td></tr>`;
+    }).join("") || `<tr><td colspan="6" class="text-center text-secondary">Sem faturas visíveis.</td></tr>`;
 
     const overdueAlert = (membership.detail==="atrasado")
       ? `<div class="alert alert-warning d-flex justify-content-between align-items-center">
@@ -1169,7 +1925,7 @@
       <div class="table-responsive">
         <table class="table table-sm">
           <thead><tr>
-            <th>Plano</th><th>Valor</th><th>Início</th><th>Fim</th><th>Vencimento</th><th>Status</th><th class="text-end">Ações</th>
+            <th>Plano</th><th>Valor</th><th>Tipo</th><th>Vencimento</th><th>Status</th><th class="text-end">Ações</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -1179,10 +1935,80 @@
     `;
   }
 
+  const fmtDateTimeOrDash = (v)=> v ? fmtDateTimeBR(v) : "—";
+
+  // Aba "Cobrança" — só ações manuais (WhatsApp/e-mail/copiar link, sem log de envio) +
+  // dados reais vindos do Asaas (fatura mais recente + status da assinatura cacheado em finance/summary).
+  function renderCobrancaTab(u, summary, latestAny){
+    const phone = u.telefone || "";
+    const email = u.email || "";
+    const link = latestAny?.invoiceUrl || "";
+    const waMsg = `Olá! Aqui é do Clube do Cavalo. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
+    const mailSubject = encodeURIComponent("Clube do Cavalo — Cobrança");
+    const mailBody = encodeURIComponent(`Olá! ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`);
+    const invStatus = latestAny ? String(latestAny.status||"").toLowerCase() : "";
+    const invBadge = INVOICE_STATUS_BADGE[invStatus];
+    const subStatus = summary.subscriptionStatus
+      ? `<span class="badge ${summary.subscriptionStatus === 'ACTIVE' ? 'bg-success' : 'bg-secondary'}">${escHtml(summary.subscriptionStatus)}</span>`
+      : `<span class="text-secondary">— (use "Atualizar dados" no menu ⋮)</span>`;
+
+    return `
+      <h6 class="border-bottom pb-2 mb-3">Comunicação</h6>
+      <div class="d-flex flex-wrap gap-2 mb-4">
+        <a class="btn btn-success" href="${wppUrl(phone, waMsg)}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>Abrir WhatsApp</a>
+        <a class="btn btn-outline-primary" href="mailto:${escHtml(email)}?subject=${mailSubject}&body=${mailBody}"><i class="bi bi-envelope me-1"></i>Abrir e-mail</a>
+        <button class="btn btn-outline-secondary" type="button" data-action="copy-invoice-link" data-link="${escHtml(link)}"><i class="bi bi-link-45deg me-1"></i>Copiar link de pagamento</button>
+      </div>
+
+      <h6 class="border-bottom pb-2 mb-3">Status da Cobrança</h6>
+      <div class="row g-3 small">
+        <div class="col-md-4"><div class="text-secondary">Status da cobrança atual</div><div>${invBadge ? invBadge.icon+" "+invBadge.label : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Valor</div><div>${latestAny ? fmtBRL(latestAny.amount) : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Vencimento</div><div>${latestAny ? fmtDateCell(latestAny.dueDate) : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Data de pagamento</div><div>${latestAny?.paidAt ? fmtDateCell(latestAny.paidAt) : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Forma de pagamento</div><div>${latestAny?.billingType ? (BILLING_TYPE_LABEL[latestAny.billingType]||latestAny.billingType) : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Link</div><div>${link ? `<a href="${link}" target="_blank" rel="noopener">Abrir cobrança</a>` : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Próximo vencimento (assinatura)</div><div>${summary.subscriptionNextDueDate ? fmtDateCell(summary.subscriptionNextDueDate) : "—"}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Status da assinatura</div><div>${subStatus}</div></div>
+        <div class="col-md-4"><div class="text-secondary">Valor / Ciclo da assinatura</div><div>${summary.subscriptionValue!=null ? fmtBRL(summary.subscriptionValue) : "—"} ${summary.subscriptionCycle ? "/ "+escHtml(summary.subscriptionCycle) : ""}</div></div>
+      </div>
+    `;
+  }
+
+  // Aba "Auditoria" — só o que ajuda o admin a diagnosticar (status/última sincronização/webhook);
+  // IDs técnicos ficam escondidos numa seção "Detalhes" recolhida.
+  function renderAuditoriaTab(u){
+    const sync = u.asaasSync || {};
+    const resultBadge = sync.lastSyncResult === "ok"
+      ? '<span class="badge bg-success">OK</span>'
+      : sync.lastSyncResult === "error"
+        ? `<span class="badge bg-danger" title="${escHtml(sync.lastSyncError||"")}">Erro</span>`
+        : '<span class="badge bg-secondary">—</span>';
+    const integrationStatus = (u.asaasId && u.asaasSubscriptionId)
+      ? '<span class="badge bg-success">Sincronizado</span>'
+      : '<span class="badge bg-warning text-dark">Não sincronizado</span>';
+
+    return `
+      <div class="row g-3 small mb-3">
+        <div class="col-md-6"><div class="text-secondary">Status da integração</div><div>${integrationStatus}</div></div>
+        <div class="col-md-6"><div class="text-secondary">Resultado da última sincronização</div><div>${resultBadge}</div></div>
+        <div class="col-md-6"><div class="text-secondary">Última atualização</div><div>${fmtDateTimeOrDash(sync.lastSyncedAt)}</div></div>
+        <div class="col-md-6"><div class="text-secondary">Último webhook recebido</div><div>${fmtDateTimeOrDash(sync.lastWebhookAt)}${sync.lastWebhookEvent ? " ("+escHtml(sync.lastWebhookEvent)+")" : ""}</div></div>
+      </div>
+      <details>
+        <summary class="text-secondary small" style="cursor:pointer">Detalhes técnicos</summary>
+        <div class="row g-2 small mt-2">
+          <div class="col-md-6"><div class="text-secondary">asaasId</div><div class="font-monospace">${escHtml(u.asaasId||"—")}</div></div>
+          <div class="col-md-6"><div class="text-secondary">asaasSubscriptionId</div><div class="font-monospace">${escHtml(u.asaasSubscriptionId||"—")}</div></div>
+        </div>
+      </details>
+    `;
+  }
+
   /* ===== Modal: Pagamento/Fatura ===== */
   let paymentModalDiv = null;
   function openPaymentModal({ uid, invoiceId=null, onSaved=null }){
-    if (paymentModalDiv) paymentModalDiv.remove();
+    disposeModal(paymentModalDiv);
     paymentModalDiv = document.createElement("div");
     paymentModalDiv.className = "modal fade"; paymentModalDiv.tabIndex = -1;
 
@@ -1363,7 +2189,7 @@
   /* ===== Modal: Isenção ===== */
   let exemptDiv = null;
   async function openExemptModal(uid){
-    if (exemptDiv) exemptDiv.remove();
+    disposeModal(exemptDiv);
     exemptDiv = document.createElement("div");
     exemptDiv.className = "modal fade"; exemptDiv.tabIndex = -1;
 
@@ -1441,7 +2267,7 @@
   /* ===== Modal: WhatsApp ===== */
   let sendLinkDiv = null;
   async function openSendLinkModal(uid){
-    if (sendLinkDiv) sendLinkDiv.remove();
+    disposeModal(sendLinkDiv);
     sendLinkDiv = document.createElement("div");
     sendLinkDiv.className = "modal fade"; sendLinkDiv.tabIndex = -1;
 
@@ -1496,7 +2322,7 @@ Qualquer dúvida, estamos à disposição.`;
   /* ===== Todas as faturas ===== */
   let allInvDiv = null;
   async function openAllInvoicesModal(uid){
-    if (allInvDiv) allInvDiv.remove();
+    disposeModal(allInvDiv);
     allInvDiv = document.createElement("div");
     allInvDiv.className = "modal fade"; allInvDiv.tabIndex = -1;
 
@@ -1585,7 +2411,7 @@ Qualquer dúvida, estamos à disposição.`;
   /* ===== Redefinir senha (master only) ===== */
   let resetPwDiv = null;
   function openResetPasswordModal(uid, nomeAssociado, cpfRaw, telefoneRaw) {
-    if (resetPwDiv) resetPwDiv.remove();
+    disposeModal(resetPwDiv);
     resetPwDiv = document.createElement("div");
     resetPwDiv.className = "modal fade"; resetPwDiv.tabIndex = -1;
     resetPwDiv.innerHTML = `
