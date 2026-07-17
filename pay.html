@@ -31,7 +31,7 @@
 </nav>
 
 <main class="container my-4" style="max-width:560px">
-  <div class="d-flex align-items-start justify-content-between mb-3">
+  <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
     <div>
       <h1 class="h5 fw-bold mb-0" style="color:var(--brand);">
         <i class="bi bi-credit-card me-1"></i>Pagamento da Associação
@@ -39,7 +39,7 @@
       <p id="cpfInfo"     class="small text-secondary mb-0 d-none"></p>
       <p id="titularInfo" class="small text-secondary mb-0 d-none"></p>
     </div>
-    <div class="d-flex gap-2 ms-3 flex-shrink-0">
+    <div class="d-flex flex-wrap gap-2">
       <!-- Sempre visível, independente do estado da fatura — inadimplência bloqueia o acesso a
            pg_associado.html, então esse é o único jeito do associado inadimplente cancelar. -->
       <button type="button" id="btnOpenCancelModal" class="btn btn-outline-secondary btn-sm"
