@@ -69,7 +69,13 @@ users/{uid}
   asaasId (string) — ID do cliente no Asaas,
   asaasSyncedAt (Timestamp),
   asaasSubscriptionId (string) — ID da assinatura no Asaas,
-  asaasSubscriptionSyncedAt (Timestamp)
+  asaasSubscriptionSyncedAt (Timestamp),
+  desativadoEm (Timestamp), desativadoPor (uid), notaDesativacao (string) —
+    gravados pelo admin junto com ativo:false (admin_associados.html); ativo:false
+    bloqueia login (login.html) e Firestore rules — só o admin usa esse mecanismo,
+  assinaturaCanceladaEm (Timestamp), assinaturaCanceladaPeloAssociado (bool) —
+    gravados pelo próprio associado (cancelMySubscription), SEM tocar em ativo,
+    para não bloquear login antes do fim da vigência paga (ver seção Autocancelamento)
 
 users/{uid}/finance/summary
   activeUntil, nextDue, lastPayment, lastAmount, exempt, exemptUntil, balance
@@ -129,13 +135,16 @@ events / partners  (coleções simples)
 | Função | Tipo | Descrição |
 |--------|------|-----------|
 | `onNewAssociadoCriado` | Firestore onCreate `users/{uid}` | Cria cliente + assinatura no Asaas automaticamente |
-| `onAssociadoAtualizado` | Firestore onUpdate `users/{uid}` | Sincroniza nome/telefone/CPF para o Asaas quando alterados |
+| `onAssociadoAtualizado` | Firestore onUpdate `users/{uid}` | Sincroniza nome/telefone/CPF para o Asaas quando alterados; quando `ativo` muda `true→false`, pausa a assinatura, cancela cobranças `PENDING`/`OVERDUE` em aberto e desliga notificações; quando muda `false→true`, reativa a assinatura, religa notificações e gera uma cobrança avulsa imediata |
 | `onInvoicePaid` | Firestore onUpdate `users/{uid}/financeInvoices/{id}` | Baixa cobrança no Asaas quando admin marca fatura como paga |
 | `onInvoiceCreatedPaid` | Firestore onCreate `users/{uid}/financeInvoices/{id}` | Idem para faturas criadas diretamente como pagas |
 | `asaasWebhook` | HTTP público | Recebe PAYMENT_RECEIVED/CONFIRMED do Asaas → atualiza fatura + finance/summary |
 | `configureAsaasNotifications` | HTTP Callable | Configura 3 avisos SMS por assinatura (−5d, 0, +5d) |
 | `syncAllAssociadosToAsaas` | HTTP Callable | Migração em massa (uso pontual) |
 | `createAsaasSubscriptions` | HTTP Callable | Criação em massa de assinaturas (uso pontual) |
+| `deleteAssociado` | HTTP Callable (master) | Exclui associado (Firestore + Auth) e cancela cliente/assinatura no Asaas |
+| `cancelMySubscription` | HTTP Callable (self-service) | Associado confirma CPF+telefone e cancela a própria assinatura — fala direto com o Asaas (pausa assinatura, cancela cobranças em aberto, desliga notificações) e grava `assinaturaCanceladaPeloAssociado:true`, **sem** tocar em `ativo` (ver Autocancelamento); avisa admins por e-mail |
+| `reactivateMySubscription` | HTTP Callable (self-service) | Associado reverte um autocancelamento (reativa assinatura, religa notificações, gera cobrança avulsa) — bloqueado se a conta tiver sido desativada pelo admin (`ativo:false`) |
 
 **Webhook URL:**
 `https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook`
@@ -161,6 +170,14 @@ Validação: header `asaas-access-token` comparado ao secret no Secret Manager
 - Criado com: `name`, `cpfCnpj`, `mobilePhone` (11 dígitos sem prefixo 55), `externalReference` (UID Firebase)
 - Assinatura: `billingType: UNDEFINED` (associado escolhe PIX/boleto/cartão), `interest: {value: 0.01}`, `notificationEnabled: true`
 - Notificações SMS: −5 dias, no vencimento, +5 dias
+
+### Autocancelamento pelo associado
+- Botão "Cancelar assinatura" em `pg_associado.html` (área logada) abre modal de 2 passos: confirma CPF+telefone cadastrados, depois mostra até quando o plano pago continua valendo (`finance/summary.activeUntil`) e pede confirmação explícita.
+- Chama `cancelMySubscription` (Cloud Function), que só age sobre `context.auth.uid` — nunca aceita uid do payload.
+- **Não grava `ativo:false`.** `ativo:false` é o mecanismo do admin para desligamento imediato (`admin_associados.html`) e é checado tanto por `login.html` (`routeAuthenticatedUser`/`deriveStatus` — redireciona pra `pay.html` **antes mesmo** de chegar em `pg_associado.html`) quanto por `firebase.js` (`getUserStatus`). Usar `ativo:false` no autocancelamento bloquearia o acesso imediatamente, contrariando o requisito de manter os benefícios até o fim da vigência paga.
+- Em vez disso, `cancelMySubscription` fala direto com o Asaas — pausa a assinatura (`POST /subscriptions/{id}` `status:INACTIVE`) e reaproveita `cancelOpenPayments`/`setCustomerNotificationsEnabled` (as mesmas rotinas que `onAssociadoAtualizado` usa na desativação pelo admin) — e grava só `assinaturaCanceladaPeloAssociado:true` + `assinaturaCanceladaEm`. Como cobranças já pagas nunca são tocadas, o associado mantém acesso normal (login + portal) até `activeUntil`; quem efetivamente bloqueia o acesso quando a vigência vence é o gate de inadimplência que já existe em `pg_associado.html` (> `GRACE_OVERDUE_DAYS` dias vencido).
+- "Reativar assinatura" chama `reactivateMySubscription`, que reverte isso (reativa assinatura, religa notificações via `syncCustomerNotifications`, gera cobrança avulsa via `createImmediateChargeOnReactivation`) — bloqueado se `ativo === false` (conta desativada pelo admin é um mecanismo totalmente separado, não pode ser revertida pelo associado).
+- Admins recebem e-mail imediato (mesmo transporter/credenciais do relatório diário) a cada cancelamento/reativação self-service.
 
 ---
 

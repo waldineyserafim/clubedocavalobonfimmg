@@ -39,9 +39,17 @@
       <p id="cpfInfo"     class="small text-secondary mb-0 d-none"></p>
       <p id="titularInfo" class="small text-secondary mb-0 d-none"></p>
     </div>
-    <button id="btnVoltar" class="btn btn-outline-secondary btn-sm ms-3 flex-shrink-0">
-      <i class="bi bi-box-arrow-left me-1"></i>Sair
-    </button>
+    <div class="d-flex gap-2 ms-3 flex-shrink-0">
+      <!-- Sempre visível, independente do estado da fatura — inadimplência bloqueia o acesso a
+           pg_associado.html, então esse é o único jeito do associado inadimplente cancelar. -->
+      <button type="button" id="btnOpenCancelModal" class="btn btn-outline-secondary btn-sm"
+              data-bs-toggle="modal" data-bs-target="#cancelSubModal">
+        <i class="bi bi-x-circle me-1"></i>Cancelar minha assinatura
+      </button>
+      <button id="btnVoltar" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-box-arrow-left me-1"></i>Sair
+      </button>
+    </div>
   </div>
 
   <!-- Estado: carregando -->
@@ -148,6 +156,60 @@
   </div>
 </footer>
 
+<!-- ===== MODAL: Cancelar assinatura ===== -->
+<div class="modal fade" id="cancelSubModal" tabindex="-1" aria-labelledby="cancelSubModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cancelSubModalLabel">Cancelar assinatura</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cancelSubMsg" class="d-none"></div>
+
+        <div id="cancelSubStep1">
+          <p class="text-secondary small">Por segurança, confirme seu CPF e telefone cadastrados antes de continuar.</p>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label">CPF</label>
+              <input id="cancelSubCPF" type="text" class="form-control" inputmode="numeric" placeholder="Somente números">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Telefone</label>
+              <input id="cancelSubTel" type="text" class="form-control" inputmode="numeric" placeholder="Com DDD">
+            </div>
+          </div>
+          <div class="mt-3 text-end">
+            <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Voltar</button>
+            <button type="button" id="btnCancelSubStep1Next" class="btn btn-primary btn-sm">Continuar</button>
+          </div>
+        </div>
+
+        <div id="cancelSubStep2" class="d-none">
+          <p class="mb-2" id="cancelSubUntilInfo">Seu plano <strong id="cancelSubPlanText">—</strong> está ativo até <strong id="cancelSubUntilText">—</strong>. Você continuará com acesso aos benefícios de associado até essa data.</p>
+          <p class="mb-2"><strong>Após cancelar, sua assinatura será encerrada e você deixará de ser cobrado</strong> — e, quando o período já pago acabar, perderá os benefícios de associado (produtos, serviços e demais vantagens exclusivas).</p>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="cancelSubAck">
+            <label class="form-check-label" for="cancelSubAck">Estou ciente e desejo cancelar minha assinatura.</label>
+          </div>
+          <div class="mt-3 text-end">
+            <button type="button" class="btn btn-light btn-sm" id="btnCancelSubBack">Voltar</button>
+            <button type="button" id="btnCancelSubConfirm" class="btn btn-danger btn-sm" disabled>Cancelar assinatura</button>
+          </div>
+        </div>
+
+        <div id="cancelSubDone" class="d-none">
+          <div class="alert alert-success mb-0">
+            <i class="bi bi-check-circle-fill me-1"></i>
+            <strong>Assinatura cancelada.</strong>
+            <div class="small mt-1" id="cancelSubDoneText"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script type="module">
   import { auth, db, applyModuleVisibility } from "./firebase.js";
@@ -185,8 +247,11 @@
   const btnVerifyAgain   = document.getElementById("btnVerifyAgain");
 
   let uid = null;
+  let userProfile = null;
   let stopWatcher = null;
   let watcherTimeoutId = null;
+
+  const callCancelMySubscription = httpsCallable(functions, "cancelMySubscription");
 
   function fmtBRL(v) {
     return (v || 0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
@@ -311,6 +376,7 @@
     try {
       const snap = await getDoc(doc(db, "users", uid));
       const d = snap.data() || {};
+      userProfile = d;
       const cpf  = String(d.cpf || "").replace(/\D/g, "");
       const nome = d.nome || user.displayName || "";
       if (cpf) {
@@ -324,6 +390,110 @@
     } catch (_) {}
 
     carregarFatura();
+  });
+
+  /* ===== Cancelar assinatura ===== */
+  const cancelSubModalEl      = document.getElementById("cancelSubModal");
+  const cancelSubStep1        = document.getElementById("cancelSubStep1");
+  const cancelSubStep2        = document.getElementById("cancelSubStep2");
+  const cancelSubDone         = document.getElementById("cancelSubDone");
+  const cancelSubDoneText     = document.getElementById("cancelSubDoneText");
+  const cancelSubMsg          = document.getElementById("cancelSubMsg");
+  const cancelSubCPF          = document.getElementById("cancelSubCPF");
+  const cancelSubTel          = document.getElementById("cancelSubTel");
+  const cancelSubPlanText     = document.getElementById("cancelSubPlanText");
+  const cancelSubUntilText    = document.getElementById("cancelSubUntilText");
+  const cancelSubUntilInfo    = document.getElementById("cancelSubUntilInfo");
+  const cancelSubAck          = document.getElementById("cancelSubAck");
+  const btnCancelSubStep1Next = document.getElementById("btnCancelSubStep1Next");
+  const btnCancelSubBack      = document.getElementById("btnCancelSubBack");
+  const btnCancelSubConfirm   = document.getElementById("btnCancelSubConfirm");
+
+  function setCancelSubMsg(text, kind){
+    if (!cancelSubMsg) return;
+    if (!text){ cancelSubMsg.classList.add("d-none"); cancelSubMsg.textContent = ""; return; }
+    cancelSubMsg.textContent = text;
+    cancelSubMsg.className = `alert alert-${kind || "danger"}`;
+  }
+
+  function resetCancelSubModal(){
+    cancelSubStep1?.classList.remove("d-none");
+    cancelSubStep2?.classList.add("d-none");
+    cancelSubDone?.classList.add("d-none");
+    if (cancelSubCPF) cancelSubCPF.value = "";
+    if (cancelSubTel) cancelSubTel.value = "";
+    if (cancelSubAck) cancelSubAck.checked = false;
+    if (btnCancelSubConfirm) btnCancelSubConfirm.disabled = true;
+    setCancelSubMsg("");
+  }
+  cancelSubModalEl?.addEventListener("hidden.bs.modal", resetCancelSubModal);
+
+  btnCancelSubStep1Next?.addEventListener("click", async ()=>{
+    const cpfDigits = (cancelSubCPF?.value || "").replace(/\D/g, "");
+    const telDigits = (cancelSubTel?.value || "").replace(/\D/g, "");
+    const cpfStored = String(userProfile?.cpf || "").replace(/\D/g, "");
+    const telStored = String(userProfile?.telefone || "").replace(/\D/g, "");
+    if (!cpfDigits || !telDigits){ setCancelSubMsg("Preencha CPF e telefone."); return; }
+    if (cpfDigits !== cpfStored || telDigits !== telStored){
+      setCancelSubMsg("CPF ou telefone não conferem com o cadastro.");
+      return;
+    }
+    setCancelSubMsg("");
+    const planType = String(userProfile?.planType || "").toLowerCase();
+    if (cancelSubPlanText) cancelSubPlanText.textContent = PLAN_LABEL[planType] || userProfile?.planType || "—";
+
+    let activeUntilDate = null;
+    try {
+      const summarySnap = await getDoc(doc(db, "users", uid, "finance", "summary"));
+      const raw = summarySnap.exists() ? (summarySnap.data().activeUntil || summarySnap.data().nextDue) : null;
+      activeUntilDate = raw?.toDate ? raw.toDate() : (raw ? new Date(raw) : null);
+    } catch(_) { /* opcional */ }
+
+    // Se já não há data futura de vigência (associado já perdeu o período pago), a mensagem de
+    // "acesso garantido até" não faz sentido — mostra só o aviso de encerramento.
+    if (activeUntilDate && activeUntilDate.getTime() > Date.now()) {
+      const fmt = new Intl.DateTimeFormat('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }).format(activeUntilDate);
+      if (cancelSubUntilText) cancelSubUntilText.textContent = fmt;
+      cancelSubUntilInfo?.classList.remove("d-none");
+    } else {
+      cancelSubUntilInfo?.classList.add("d-none");
+    }
+
+    cancelSubStep1?.classList.add("d-none");
+    cancelSubStep2?.classList.remove("d-none");
+  });
+
+  btnCancelSubBack?.addEventListener("click", ()=>{
+    cancelSubStep2?.classList.add("d-none");
+    cancelSubStep1?.classList.remove("d-none");
+  });
+
+  cancelSubAck?.addEventListener("change", ()=>{
+    if (btnCancelSubConfirm) btnCancelSubConfirm.disabled = !cancelSubAck.checked;
+  });
+
+  btnCancelSubConfirm?.addEventListener("click", async ()=>{
+    btnCancelSubConfirm.disabled = true;
+    setCancelSubMsg("Cancelando…", "info");
+    try{
+      const cpfDigits = (cancelSubCPF?.value || "").replace(/\D/g, "");
+      const telDigits = (cancelSubTel?.value || "").replace(/\D/g, "");
+      const res = await callCancelMySubscription({ cpf: cpfDigits, telefone: telDigits });
+      const until = res?.data?.activeUntil;
+      cancelSubDoneText.textContent = (until && until !== "—")
+        ? `Você continuará com acesso aos benefícios até ${until}.`
+        : "Você não será mais cobrado pela associação.";
+      cancelSubStep2?.classList.add("d-none");
+      setCancelSubMsg("");
+      cancelSubDone?.classList.remove("d-none");
+    } catch(e){
+      console.error(e);
+      const msg = (e?.code === "functions/permission-denied" || e?.code === "functions/failed-precondition")
+        ? (e.message || "Não foi possível cancelar sua assinatura.")
+        : "Erro ao cancelar. Tente novamente ou contate o clube.";
+      setCancelSubMsg(msg, "danger");
+      btnCancelSubConfirm.disabled = false;
+    }
   });
 </script>
 </body>

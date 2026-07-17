@@ -115,6 +115,13 @@
               data-bs-toggle="modal" data-bs-target="#pwModal">
         <i class="bi bi-key me-1"></i>Trocar senha
       </button>
+      <button id="btnOpenCancelModal" class="btn btn-outline-danger btn-sm d-none"
+              data-bs-toggle="modal" data-bs-target="#cancelSubModal">
+        <i class="bi bi-x-circle me-1"></i>Cancelar assinatura
+      </button>
+      <button id="btnReactivateSub" class="btn btn-outline-success btn-sm d-none" type="button">
+        <i class="bi bi-arrow-repeat me-1"></i>Reativar assinatura
+      </button>
       <button id="logoutBtn" class="btn btn-outline-danger btn-sm">
         <i class="bi bi-box-arrow-right me-1"></i>Sair
       </button>
@@ -240,6 +247,7 @@
     reauthenticateWithCredential, updatePassword, EmailAuthProvider
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { collection, getDocs, query, where, doc, getDoc, addDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
   
   // ====== UI refs ======
   const memberNameEl = document.getElementById("memberName");
@@ -399,6 +407,7 @@
     const p = await getUserProfile(user.uid) || {};
     userProfile = p;
     memberNameEl.textContent = p.nome || (user.email?.split("@")[0]) || "associado";
+    updateCancelReactivateButtons();
     const role = String(p.role||"").toLowerCase();
     if (/(admin|master)/.test(role)) adminBtn.classList.remove("d-none");
 
@@ -864,6 +873,126 @@
     }
   });
 
+  /* ===== Cancelar / Reativar assinatura ===== */
+  const cancelFunctions = getFunctions(auth.app, "us-central1");
+  const callCancelMySubscription = httpsCallable(cancelFunctions, "cancelMySubscription");
+  const callReactivateMySubscription = httpsCallable(cancelFunctions, "reactivateMySubscription");
+
+  const btnOpenCancelModal = document.getElementById("btnOpenCancelModal");
+  const btnReactivateSub = document.getElementById("btnReactivateSub");
+  const cancelSubModalEl = document.getElementById("cancelSubModal");
+  const cancelSubStep1 = document.getElementById("cancelSubStep1");
+  const cancelSubStep2 = document.getElementById("cancelSubStep2");
+  const cancelSubMsg = document.getElementById("cancelSubMsg");
+  const cancelSubCPF = document.getElementById("cancelSubCPF");
+  const cancelSubTel = document.getElementById("cancelSubTel");
+  const cancelSubPlanText = document.getElementById("cancelSubPlanText");
+  const cancelSubUntilText = document.getElementById("cancelSubUntilText");
+  const cancelSubAck = document.getElementById("cancelSubAck");
+  const btnCancelSubStep1Next = document.getElementById("btnCancelSubStep1Next");
+  const btnCancelSubBack = document.getElementById("btnCancelSubBack");
+  const btnCancelSubConfirm = document.getElementById("btnCancelSubConfirm");
+
+  function updateCancelReactivateButtons(){
+    const p = userProfile || {};
+    // ativo:false é desativação pelo admin (mecanismo separado, ver CLAUDE.md) — nesse caso não
+    // mostramos nem "Cancelar" nem "Reativar" self-service.
+    const isAdminDeactivated = p.ativo === false;
+    const isSelfCanceled = p.assinaturaCanceladaPeloAssociado === true;
+    btnOpenCancelModal?.classList.toggle("d-none", isAdminDeactivated || isSelfCanceled);
+    btnReactivateSub?.classList.toggle("d-none", isAdminDeactivated || !isSelfCanceled);
+  }
+
+  function setCancelSubMsg(text, kind){
+    if (!cancelSubMsg) return;
+    if (!text){ cancelSubMsg.classList.add("d-none"); cancelSubMsg.textContent = ""; return; }
+    cancelSubMsg.textContent = text;
+    cancelSubMsg.className = `alert alert-${kind || "danger"}`;
+  }
+
+  function resetCancelSubModal(){
+    cancelSubStep1?.classList.remove("d-none");
+    cancelSubStep2?.classList.add("d-none");
+    if (cancelSubCPF) cancelSubCPF.value = "";
+    if (cancelSubTel) cancelSubTel.value = "";
+    if (cancelSubAck) cancelSubAck.checked = false;
+    if (btnCancelSubConfirm) btnCancelSubConfirm.disabled = true;
+    setCancelSubMsg("");
+  }
+  cancelSubModalEl?.addEventListener("hidden.bs.modal", resetCancelSubModal);
+
+  btnCancelSubStep1Next?.addEventListener("click", async ()=>{
+    const cpfDigits = (cancelSubCPF?.value || "").replace(/\D/g, "");
+    const telDigits = (cancelSubTel?.value || "").replace(/\D/g, "");
+    const cpfStored = String(userProfile?.cpf || "").replace(/\D/g, "");
+    const telStored = String(userProfile?.telefone || "").replace(/\D/g, "");
+    if (!cpfDigits || !telDigits){ setCancelSubMsg("Preencha CPF e telefone."); return; }
+    if (cpfDigits !== cpfStored || telDigits !== telStored){
+      setCancelSubMsg("CPF ou telefone não conferem com o cadastro.");
+      return;
+    }
+    setCancelSubMsg("");
+    const planType = String(userProfile?.planType || "").toLowerCase();
+    if (cancelSubPlanText) cancelSubPlanText.textContent = PLAN_LABEL[planType] || userProfile?.planType || "—";
+    if (cancelSubUntilText) cancelSubUntilText.textContent = "—";
+    try{
+      const summarySnap = await getDoc(doc(db, "users", auth.currentUser.uid, "finance", "summary"));
+      const activeUntil = summarySnap.exists() ? (summarySnap.data().activeUntil || summarySnap.data().nextDue) : null;
+      if (cancelSubUntilText && activeUntil) cancelSubUntilText.textContent = fmtDate(activeUntil);
+    } catch(_) { /* opcional */ }
+    cancelSubStep1?.classList.add("d-none");
+    cancelSubStep2?.classList.remove("d-none");
+  });
+
+  btnCancelSubBack?.addEventListener("click", ()=>{
+    cancelSubStep2?.classList.add("d-none");
+    cancelSubStep1?.classList.remove("d-none");
+  });
+
+  cancelSubAck?.addEventListener("change", ()=>{
+    if (btnCancelSubConfirm) btnCancelSubConfirm.disabled = !cancelSubAck.checked;
+  });
+
+  btnCancelSubConfirm?.addEventListener("click", async ()=>{
+    btnCancelSubConfirm.disabled = true;
+    setCancelSubMsg("Cancelando…", "info");
+    try{
+      const cpfDigits = (cancelSubCPF?.value || "").replace(/\D/g, "");
+      const telDigits = (cancelSubTel?.value || "").replace(/\D/g, "");
+      const res = await callCancelMySubscription({ cpf: cpfDigits, telefone: telDigits });
+      const until = res?.data?.activeUntil || "o fim do período já pago";
+      setCancelSubMsg(`Assinatura cancelada. Você continuará com acesso aos benefícios até ${until}.`, "success");
+      if (userProfile) userProfile.assinaturaCanceladaPeloAssociado = true;
+      setTimeout(()=>{
+        bootstrap.Modal.getInstance(cancelSubModalEl)?.hide();
+        updateCancelReactivateButtons();
+      }, 2000);
+    } catch(e){
+      console.error(e);
+      const msg = (e?.code === "functions/permission-denied" || e?.code === "functions/failed-precondition")
+        ? (e.message || "Não foi possível cancelar sua assinatura.")
+        : "Erro ao cancelar. Tente novamente ou contate o clube.";
+      setCancelSubMsg(msg, "danger");
+      btnCancelSubConfirm.disabled = false;
+    }
+  });
+
+  btnReactivateSub?.addEventListener("click", async ()=>{
+    if (!confirm("Deseja reativar sua assinatura? Uma nova cobrança será gerada imediatamente.")) return;
+    btnReactivateSub.disabled = true;
+    try{
+      await callReactivateMySubscription({});
+      alert("Assinatura reativada! Uma nova cobrança foi gerada — confira em breve na tela de pagamento.");
+      if (userProfile) userProfile.assinaturaCanceladaPeloAssociado = false;
+      updateCancelReactivateButtons();
+    } catch(e){
+      console.error(e);
+      alert(e?.message || "Não foi possível reativar. Contate o clube.");
+    } finally{
+      btnReactivateSub.disabled = false;
+    }
+  });
+
   // ===== Minhas Inscrições =====
   (function loadMinhasInscricoes(){
     import("https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js").then(({ collection, query, where, orderBy, getDocs, doc, getDoc }) => {
@@ -939,6 +1068,52 @@
       <div class="modal-footer" id="pwModalFooter" style="display:none!important">
         <span class="me-auto small text-muted">Para continuar, defina sua senha pessoal.</span>
         <button type="button" id="btnPwModalLogout" class="btn btn-outline-secondary btn-sm">Sair</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: Cancelar assinatura ===== -->
+<div class="modal fade" id="cancelSubModal" tabindex="-1" aria-labelledby="cancelSubModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="cancelSubModalLabel">Cancelar assinatura</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cancelSubMsg" class="d-none"></div>
+
+        <div id="cancelSubStep1">
+          <p class="text-secondary small">Por segurança, confirme seu CPF e telefone cadastrados antes de continuar.</p>
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <label class="form-label">CPF</label>
+              <input id="cancelSubCPF" type="text" class="form-control" inputmode="numeric" placeholder="Somente números">
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">Telefone</label>
+              <input id="cancelSubTel" type="text" class="form-control" inputmode="numeric" placeholder="Com DDD">
+            </div>
+          </div>
+          <div class="mt-3 text-end">
+            <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Voltar</button>
+            <button type="button" id="btnCancelSubStep1Next" class="btn btn-primary btn-sm">Continuar</button>
+          </div>
+        </div>
+
+        <div id="cancelSubStep2" class="d-none">
+          <p class="mb-2">Seu plano <strong id="cancelSubPlanText">—</strong> está ativo até <strong id="cancelSubUntilText">—</strong>.</p>
+          <p class="mb-2">Você continuará com acesso aos benefícios de associado até essa data. <strong>Após essa data, sua assinatura será encerrada e você perderá os benefícios de associado</strong> (produtos, serviços e demais vantagens exclusivas).</p>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="cancelSubAck">
+            <label class="form-check-label" for="cancelSubAck">Estou ciente e desejo cancelar minha assinatura.</label>
+          </div>
+          <div class="mt-3 text-end">
+            <button type="button" class="btn btn-light btn-sm" id="btnCancelSubBack">Voltar</button>
+            <button type="button" id="btnCancelSubConfirm" class="btn btn-danger btn-sm" disabled>Cancelar assinatura</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

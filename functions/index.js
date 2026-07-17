@@ -1841,6 +1841,186 @@ exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
 });
 
 /* =======================================================================
+   Auto-cancelamento e reativação de assinatura pelo próprio associado
+   ======================================================================= */
+
+// Envia um e-mail curto de aviso aos admins (mesmo transporter/credenciais de
+// sendDailyPaymentReport). Nunca lança — falha de e-mail não pode impedir o
+// cancelamento/reativação em si.
+async function notifyAdminsByEmail(subject, bodyHtml) {
+  // Timeout curto proposital: se o SMTP estiver lento/com credenciais inválidas, isso não pode
+  // atrasar (nem, em navegadores/proxies com timeout agressivo, derrubar do lado do cliente) a
+  // resposta de cancelMySubscription/reactivateMySubscription — o e-mail é só um aviso, não faz
+  // parte do resultado que o associado está esperando.
+  const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
+  const send = (async () => {
+    try {
+      const emailUser = await getSecret('projects/clubecavalobonfim/secrets/email-user/versions/latest');
+      const emailPassword = await getSecret('projects/clubecavalobonfim/secrets/email-password/versions/latest');
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: emailUser, pass: emailPassword },
+      });
+      await transporter.sendMail({
+        from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
+        to: 'waldiney.serafim@gmail.com, mpmarquesnutri@gmail.com',
+        subject,
+        html: bodyHtml,
+      });
+    } catch (err) {
+      console.warn('notifyAdminsByEmail: falha ao enviar e-mail:', err.message);
+    }
+  })();
+  await Promise.race([send, timeout]);
+}
+
+// Callable: o próprio associado cancela a assinatura, após confirmar CPF e telefone.
+//
+// Importante: NÃO grava ativo:false. login.html (routeAuthenticatedUser/deriveStatus) e
+// firebase.js (getUserStatus) tratam ativo:false como "conta desativada" e bloqueiam o acesso
+// já no próximo login — isso é o comportamento certo para desativação pelo admin (justa causa,
+// desligamento imediato), mas o requisito aqui é o oposto: o associado deve continuar acessando
+// o portal e os benefícios normalmente até finance/summary.activeUntil, só parando de ser
+// cobrado dali pra frente. Por isso esta function fala direto com o Asaas — pausa a assinatura
+// e cancela cobranças em aberto reaproveitando as mesmas rotinas que onAssociadoAtualizado usa
+// na desativação pelo admin (cancelOpenPayments/setCustomerNotificationsEnabled) — e grava só um
+// marcador dedicado (assinaturaCanceladaPeloAssociado). Quando activeUntil vencer, quem realmente
+// tira o acesso é o bloqueio de inadimplência que já existe em pg_associado.html.
+exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const uid = context.auth.uid;
+  const userRef = db.collection('users').doc(uid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
+
+  const userData = userSnap.data();
+
+  const cpfInput  = String(data?.cpf || '').replace(/\D/g, '');
+  const telInput  = String(data?.telefone || '').replace(/\D/g, '');
+  const cpfStored = String(userData.cpf || '').replace(/\D/g, '');
+  const telStored = String(userData.telefone || '').replace(/\D/g, '');
+  if (!cpfInput || !telInput || cpfInput !== cpfStored || telInput !== telStored) {
+    throw new functions.https.HttpsError('permission-denied', 'CPF ou telefone não conferem com o cadastro.');
+  }
+
+  if (userData.ativo === false) {
+    throw new functions.https.HttpsError('failed-precondition', 'Sua conta está desativada pela administração. Entre em contato com o clube.');
+  }
+  if (userData.assinaturaCanceladaPeloAssociado === true) {
+    throw new functions.https.HttpsError('failed-precondition', 'Sua assinatura já está cancelada.');
+  }
+
+  try {
+    const apiKey = await getAsaasApiKey();
+
+    if (userData.asaasSubscriptionId) {
+      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
+        method: 'POST',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'INACTIVE' }),
+      });
+      const subText = await subResp.text();
+      const subData = subText ? JSON.parse(subText) : {};
+      if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+    }
+
+    if (userData.asaasId) {
+      await cancelOpenPayments(uid, userData.asaasId, apiKey);
+      await setCustomerNotificationsEnabled(userData.asaasId, apiKey, false);
+    }
+  } catch (err) {
+    console.error('cancelMySubscription: falha ao cancelar no Asaas', uid, err.message);
+    throw new functions.https.HttpsError('internal', 'Não foi possível cancelar sua assinatura agora. Tente novamente ou contate o clube.');
+  }
+
+  await userRef.update({
+    assinaturaCanceladaEm: admin.firestore.FieldValue.serverTimestamp(),
+    assinaturaCanceladaPeloAssociado: true,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  let activeUntilStr = '—';
+  try {
+    await updateFinanceSummary(uid);
+    const summarySnap = await userRef.collection('finance').doc('summary').get();
+    const activeUntil = summarySnap.exists ? summarySnap.data().activeUntil : null;
+    if (activeUntil) activeUntilStr = formatDateBR(activeUntil.toDate ? activeUntil.toDate() : new Date(activeUntil));
+  } catch (_) { /* opcional */ }
+
+  await notifyAdminsByEmail(
+    `CCBMG - Associado cancelou a própria assinatura: ${userData.nome || uid}`,
+    `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}, tel. ${escHtml(userData.telefone || '—')}) cancelou a própria assinatura pelo portal.</p>
+     <p>Plano: ${escHtml(userData.planType || '—')}<br>Acesso garantido até: ${escHtml(activeUntilStr)}</p>`
+  );
+
+  console.log(`cancelMySubscription: uid=${uid} cancelado pelo próprio associado`);
+  return { success: true, activeUntil: activeUntilStr };
+});
+
+// Callable: o próprio associado reativa uma assinatura que ele mesmo cancelou (reverte
+// exatamente o que cancelMySubscription fez, reaproveitando as mesmas rotinas que
+// onAssociadoAtualizado usa na reativação pelo admin: syncCustomerNotifications +
+// createImmediateChargeOnReactivation). Bloqueado se a conta foi desativada pelo admin
+// (ativo:false é um mecanismo totalmente separado — ver comentário de cancelMySubscription).
+exports.reactivateMySubscription = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const uid = context.auth.uid;
+  const userRef = db.collection('users').doc(uid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
+
+  const userData = userSnap.data();
+
+  if (userData.ativo === false) {
+    throw new functions.https.HttpsError('permission-denied', 'Sua conta foi desativada pela administração. Entre em contato com o clube para reativar.');
+  }
+  if (userData.assinaturaCanceladaPeloAssociado !== true) {
+    throw new functions.https.HttpsError('failed-precondition', 'Não há cancelamento para reverter — sua assinatura já está ativa.');
+  }
+
+  try {
+    const apiKey = await getAsaasApiKey();
+
+    if (userData.asaasSubscriptionId) {
+      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
+        method: 'POST',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ACTIVE' }),
+      });
+      const subText = await subResp.text();
+      const subData = subText ? JSON.parse(subText) : {};
+      if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+    }
+
+    if (userData.asaasId) {
+      await syncCustomerNotifications(userData.asaasId, apiKey);
+      await createImmediateChargeOnReactivation(uid, userData, apiKey);
+    }
+  } catch (err) {
+    console.error('reactivateMySubscription: falha ao reativar no Asaas', uid, err.message);
+    throw new functions.https.HttpsError('internal', 'Não foi possível reativar sua assinatura agora. Tente novamente ou contate o clube.');
+  }
+
+  await userRef.update({
+    assinaturaCanceladaEm: admin.firestore.FieldValue.delete(),
+    assinaturaCanceladaPeloAssociado: admin.firestore.FieldValue.delete(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  try { await updateFinanceSummary(uid); } catch (_) { /* opcional */ }
+
+  await notifyAdminsByEmail(
+    `CCBMG - Associado reativou a própria assinatura: ${userData.nome || uid}`,
+    `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) reativou a própria assinatura pelo portal.</p>`
+  );
+
+  console.log(`reactivateMySubscription: uid=${uid} reativado pelo próprio associado`);
+  return { success: true };
+});
+
+/* =======================================================================
    CENTRAL FINANCEIRA — sincronização sob demanda + ações rápidas do painel admin
    ======================================================================= */
 
