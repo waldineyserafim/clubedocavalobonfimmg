@@ -840,9 +840,70 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
     throw new Error(receiveData.errors?.[0]?.description || `HTTP ${receiveResp.status}`);
   }
 
-  // Salva asaasPaymentId na fatura para idempotência
-  await invoiceRef.update({ asaasPaymentId: charge.id });
+  // Salva asaasPaymentId na fatura para idempotência (+ billingType/invoiceNumber para exibição no painel)
+  await invoiceRef.update({
+    asaasPaymentId: charge.id,
+    billingType:    charge.billingType || null,
+    invoiceNumber:  charge.invoiceNumber || null,
+  });
   console.log(`syncManualPaymentToAsaas: uid=${uid} charge=${charge.id} marcado como pago no Asaas`);
+}
+
+// Cria ou atualiza uma financeInvoice a partir de um objeto payment do Asaas (idempotente por asaasPaymentId).
+// Usado pelo webhook, pela sincronização manual sob demanda e pela reconciliação diária —
+// única fonte da lógica de "achar/criar invoice por dueDate" para evitar divergência entre as 3 rotinas.
+async function upsertInvoiceFromAsaasPayment(uid, payment) {
+  const invoicesRef = db.collection('users').doc(uid).collection('financeInvoices');
+
+  // Idempotência: já existe fatura com esse asaasPaymentId?
+  const byPaymentId = await invoicesRef.where('asaasPaymentId', '==', payment.id).limit(1).get();
+  if (!byPaymentId.empty) {
+    return { action: 'already_recorded', invoiceId: byPaymentId.docs[0].id };
+  }
+
+  const userSnap = await db.collection('users').doc(uid).get();
+  if (!userSnap.exists) return { action: 'skipped', reason: 'user_not_found' };
+
+  const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
+  const dueDate   = new Date(payment.dueDate);
+  const paidAt    = new Date(payment.paymentDate || payment.confirmedDate || new Date());
+  const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
+  const planEnd   = calculatePlanEnd(planStart, planType);
+  const now       = admin.firestore.FieldValue.serverTimestamp();
+
+  // Procura fatura em_aberto com a mesma dueDate para atualizar ao invés de criar nova
+  const existingSnap = await invoicesRef
+    .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
+    .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
+    .limit(1).get();
+
+  const paymentPayload = {
+    status:         'pago',
+    paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
+    amount:         payment.value,
+    asaasPaymentId: payment.id,
+    invoiceUrl:     payment.invoiceUrl || null,
+    billingType:    payment.billingType || null,
+    invoiceNumber:  payment.invoiceNumber || null,
+    planType,
+    planStart:      admin.firestore.Timestamp.fromDate(planStart),
+    planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
+    updatedAt:      now,
+  };
+
+  if (!existingSnap.empty) {
+    // Atualiza a fatura existente — evita duplicata e resolve o status corretamente
+    await existingSnap.docs[0].ref.update(paymentPayload);
+    return { action: 'updated', invoiceId: existingSnap.docs[0].id };
+  }
+
+  // Não havia fatura pré-criada — cria uma nova
+  const newRef = await invoicesRef.add({
+    ...paymentPayload,
+    dueDate:   admin.firestore.Timestamp.fromDate(dueDate),
+    createdAt: now,
+  });
+  return { action: 'created', invoiceId: newRef.id };
 }
 
 // Busca cliente no Asaas pelo CPF; cria se não existir.
@@ -943,6 +1004,11 @@ exports.onNewAssociadoCriado = functions.firestore
       const apiKey  = await getAsaasApiKey();
       const { asaasId, action } = await findOrCreateAsaasCustomer(apiKey, userData);
 
+      // Notificações (WhatsApp + SMS) precisam estar configuradas antes de
+      // criar a assinatura, para que a 1ª cobrança já saia com o padrão certo.
+      const notifResult = await syncCustomerNotifications(asaasId, apiKey);
+      console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} notificações ajustadas=${notifResult.changed}/${notifResult.total}`);
+
       const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
       const nextDueDate = getNextDueDate();
 
@@ -986,7 +1052,14 @@ exports.onNewAssociadoCriado = functions.firestore
 const PLAN_CYCLE = { mensal: 'MONTHLY', trimestral: 'QUARTERLY', semestral: 'SEMIANNUALLY' };
 const PLAN_VALUE = { mensal: 30, trimestral: 85, semestral: 170 };
 const PLAN_LABEL = { mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral' };
-const PENDING_RESTART_DATE = '2026-06-10';
+// Vencimento da 1ª cobrança quando o associado não tem fatura paga anterior
+// (pendente/atrasado/novo): hoje + 5 dias, calculado a cada chamada para nunca
+// cair no passado (era uma data fixa hardcoded que ficou obsoleta).
+function getPendingRestartDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + 5);
+  return d.toISOString().slice(0, 10);
+}
 
 // Retorna o planType da fatura mais recente; fallback para userData.planType; default 'mensal'
 function detectPlanType(invoices, userPlanType) {
@@ -1072,9 +1145,9 @@ exports.createAsaasSubscriptions = functions
           const planEnd = getLastPlanEndDate(invoices);
           nextDueDate = planEnd
             ? planEnd.toISOString().slice(0, 10)
-            : PENDING_RESTART_DATE;
+            : getPendingRestartDate();
         } else {
-          nextDueDate = PENDING_RESTART_DATE;
+          nextDueDate = getPendingRestartDate();
         }
 
         const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
@@ -1118,10 +1191,80 @@ exports.createAsaasSubscriptions = functions
   });
 
 
-// Callable: configura o agendamento das notificações do Asaas para todos os associados
-// - 5 dias antes do vencimento (PAYMENT_DUEDATE_WARNING)
-// - No dia do vencimento     (PAYMENT_DUEDATE_REACHED)
-// - 5 dias após o vencimento  (PAYMENT_OVERDUE)
+/* =======================================================================
+   ASAAS — PADRÃO DE NOTIFICAÇÕES (WhatsApp + SMS)
+   ======================================================================= */
+
+// Eventos padrão criados automaticamente pelo Asaas para cada cliente
+// (PAYMENT_CREATED, PAYMENT_UPDATED, PAYMENT_RECEIVED, PAYMENT_OVERDUE,
+// PAYMENT_DUEDATE_WARNING, SEND_LINHA_DIGITAVEL — alguns duplicados com
+// scheduleOffset diferente). SEND_LINHA_DIGITAVEL não aceita ativação de
+// WhatsApp (confirmado via teste em Sandbox); mantido como Set para permitir
+// fallback dinâmico caso o Asaas passe a rejeitar outro evento no futuro.
+const WHATSAPP_UNSUPPORTED_EVENTS = new Set(['SEND_LINHA_DIGITAVEL']);
+
+// Aplica o padrão institucional (WhatsApp + SMS ativos; e-mail e ligação
+// desativados) às notificações de 1 cliente do Asaas. Preserva scheduleOffset
+// e os campos *ForProvider (não são enviados no payload, então a API mantém
+// o valor atual). PUT /notifications/batch é atômico — se 1 notificação for
+// rejeitada, o lote inteiro falha — por isso o fallback abaixo reenvia sem o
+// campo problemático em vez de abortar a sincronização do cliente inteiro.
+async function syncCustomerNotifications(asaasId, apiKey) {
+  const listResp = await fetch(
+    `${ASAAS_BASE_URL}/customers/${asaasId}/notifications`,
+    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+  );
+  const listText = await listResp.text();
+  const listData = listText ? JSON.parse(listText) : {};
+  if (!listResp.ok) {
+    throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+  }
+
+  const notifications = listData.data || [];
+  const byId = new Map(notifications.map(n => [n.id, n]));
+  const unsupported = new Set(WHATSAPP_UNSUPPORTED_EVENTS);
+
+  const buildChanged = () => notifications.reduce((acc, notif) => {
+    const desired = {
+      enabled:                     true,
+      whatsappEnabledForCustomer:  !unsupported.has(notif.event),
+      smsEnabledForCustomer:       true,
+      emailEnabledForCustomer:     false,
+      phoneCallEnabledForCustomer: false,
+    };
+    const isDifferent = Object.entries(desired).some(([k, v]) => notif[k] !== v);
+    if (isDifferent) acc.push({ id: notif.id, ...desired });
+    return acc;
+  }, []);
+
+  for (let attempt = 0; attempt <= notifications.length; attempt++) {
+    const changed = buildChanged();
+    if (!changed.length) return { total: notifications.length, changed: 0 };
+
+    const updResp = await fetch(`${ASAAS_BASE_URL}/notifications/batch`, {
+      method: 'PUT',
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer: asaasId, notifications: changed }),
+    });
+    if (updResp.ok) return { total: notifications.length, changed: changed.length };
+
+    const updText = await updResp.text();
+    const updData = updText ? JSON.parse(updText) : {};
+    const msg = updData.errors?.[0]?.description || `HTTP ${updResp.status}`;
+
+    // Só sabemos contornar rejeição de WhatsApp para um evento específico;
+    // qualquer outro erro propaga e interrompe a sincronização desse cliente.
+    const m = msg.match(/notifica(?:ç|c)ão (not_\w+).*whatsapp/i);
+    const badNotif = m && byId.get(m[1]);
+    if (!badNotif || unsupported.has(badNotif.event)) throw new Error(msg);
+    unsupported.add(badNotif.event);
+  }
+  throw new Error('Excedeu tentativas de ajuste do lote de notificações.');
+}
+
+// Callable: aplica o padrão institucional de notificações (WhatsApp + SMS
+// ativos; e-mail e ligação desativados) a TODOS os clientes cadastrados no
+// Asaas — não apenas os associados atualmente no Firestore.
 exports.configureAsaasNotifications = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .https.onCall(async (_data, context) => {
@@ -1134,91 +1277,170 @@ exports.configureAsaasNotifications = functions
       throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
     }
 
-    const apiKey    = await getAsaasApiKey();
-    const usersSnap = await db.collection('users').get();
-    const results   = { configured: 0, skipped: 0, errors: [] };
+    const apiKey  = await getAsaasApiKey();
+    const results = { totalClientes: 0, atualizados: 0, ignorados: 0, errors: [] };
+    const limit   = 100;
+    let offset    = 0;
 
-    // scheduleOffset: null = não enviar o campo (PAYMENT_DUEDATE_REACHED não aceita dias)
-    const NOTIF_CONFIG = {
-      PAYMENT_DUEDATE_WARNING: { scheduleOffset: 5 },
-      PAYMENT_DUEDATE_REACHED: { scheduleOffset: null },
-      PAYMENT_OVERDUE:         { scheduleOffset: 5 },
-    };
-
-    for (const userDoc of usersSnap.docs) {
-      const userData = { uid: userDoc.id, ...userDoc.data() };
-
-      if (!userData.asaasId || userData.ativo === false) {
-        results.skipped++;
-        continue;
+    while (true) {
+      const listResp = await fetch(
+        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
+        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+      );
+      const listText = await listResp.text();
+      const listData = listText ? JSON.parse(listText) : {};
+      if (!listResp.ok) {
+        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
       }
 
-      try {
-        // Lista as notificações atuais do cliente no Asaas
-        const listResp = await fetch(
-          `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications`,
-          { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-        );
-        const listText = await listResp.text();
-        const listData = listText ? JSON.parse(listText) : {};
-
-        if (!listResp.ok) {
-          throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+      for (const customer of (listData.data || [])) {
+        results.totalClientes++;
+        try {
+          const { changed } = await syncCustomerNotifications(customer.id, apiKey);
+          if (changed > 0) results.atualizados++; else results.ignorados++;
+        } catch (err) {
+          console.error('configureAsaasNotifications error:', customer.id, err.message);
+          results.errors.push({ asaasId: customer.id, nome: customer.name || '—', error: err.message });
         }
-
-        let notifOk = 0;
-        for (const notif of (listData.data || [])) {
-          const cfg = NOTIF_CONFIG[notif.event];
-          if (!cfg) continue;
-
-          const body = {
-            enabled:                    true,
-            smsEnabledForCustomer:      true,
-            emailEnabledForCustomer:    false,
-            whatsappEnabledForCustomer: false,
-          };
-          // Só envia scheduleOffset para eventos que têm dias configuráveis
-          if (cfg.scheduleOffset !== null) body.scheduleOffset = cfg.scheduleOffset;
-
-          const updResp = await fetch(
-            `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications/${notif.id}`,
-            {
-              method: 'PUT',
-              headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            }
-          );
-          const updText = await updResp.text();
-          const updData = updText ? JSON.parse(updText) : {};
-
-          if (!updResp.ok) {
-            // Loga o erro de notificação individual mas não para o loop
-            console.warn(
-              `configureAsaasNotifications: notif ${notif.event} falhou para ${userDoc.id}:`,
-              updData.errors?.[0]?.description || `HTTP ${updResp.status}`
-            );
-          } else {
-            notifOk++;
-          }
-
-          await new Promise(r => setTimeout(r, 100));
-        }
-
-        if (notifOk > 0) {
-          results.configured++;
-        } else {
-          results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: 'Nenhuma notificação configurada' });
-        }
-      } catch (err) {
-        console.error('configureAsaasNotifications error:', userDoc.id, err.message);
-        results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
+        await new Promise(r => setTimeout(r, 150));
       }
 
-      await new Promise(r => setTimeout(r, 200));
+      if (!listData.hasMore) break;
+      offset += limit;
     }
 
     console.log('configureAsaasNotifications result:', results);
     return results;
+  });
+
+// Callable (diagnóstico, somente leitura): lista todos os clientes cadastrados
+// diretamente no Asaas (id, nome, cpfCnpj, externalReference), para cruzar com
+// os associados do Firestore e identificar quem ainda não tem cliente no Asaas.
+exports.listAsaasCustomersRaw = functions
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey    = await getAsaasApiKey();
+    const customers  = [];
+    const limit = 100;
+    let offset  = 0;
+
+    while (true) {
+      const listResp = await fetch(
+        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
+        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+      );
+      const listText = await listResp.text();
+      const listData = listText ? JSON.parse(listText) : {};
+      if (!listResp.ok) {
+        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+      }
+
+      for (const c of (listData.data || [])) {
+        customers.push({ id: c.id, name: c.name, cpfCnpj: c.cpfCnpj, externalReference: c.externalReference || null });
+      }
+
+      if (!listData.hasMore) break;
+      offset += limit;
+    }
+
+    return { total: customers.length, customers };
+  });
+
+// Callable (auditoria, somente leitura): abre a notificação individual de
+// TODOS os clientes do Asaas e confere, notificação por notificação, se o
+// padrão institucional (WhatsApp + SMS ativos, e-mail e ligação desativados)
+// está realmente aplicado — não confia no contador agregado de
+// configureAsaasNotifications, lê o estado atual direto da API.
+exports.verifyAsaasNotificationStandard = functions
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    const callerRole = mapRoleServer(callerSnap.data()?.role);
+    if (!['admin', 'master'].includes(callerRole)) {
+      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+    }
+
+    const apiKey = await getAsaasApiKey();
+    const counts = {
+      totalClientes: 0,
+      totalNotificacoes: 0,
+      whatsappAtivo: 0,
+      whatsappInativo: 0,
+      smsAtivo: 0,
+      smsInativo: 0,
+      emailAtivo: 0,
+      ligacaoAtiva: 0,
+    };
+    const whatsappInativoPorEvento = {};
+    const naoConformes = []; // qualquer notificação fora do padrão, exceto a exceção conhecida (SEND_LINHA_DIGITAVEL sem whatsapp)
+    const limit = 100;
+    let offset  = 0;
+
+    while (true) {
+      const listResp = await fetch(
+        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
+        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+      );
+      const listText = await listResp.text();
+      const listData = listText ? JSON.parse(listText) : {};
+      if (!listResp.ok) {
+        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+      }
+
+      for (const customer of (listData.data || [])) {
+        counts.totalClientes++;
+
+        const notifResp = await fetch(
+          `${ASAAS_BASE_URL}/customers/${customer.id}/notifications`,
+          { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+        );
+        const notifText = await notifResp.text();
+        const notifData = notifText ? JSON.parse(notifText) : {};
+        if (!notifResp.ok) {
+          naoConformes.push({ asaasId: customer.id, nome: customer.name, erro: notifData.errors?.[0]?.description || `HTTP ${notifResp.status}` });
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
+
+        for (const n of (notifData.data || [])) {
+          counts.totalNotificacoes++;
+          if (n.whatsappEnabledForCustomer) counts.whatsappAtivo++; else {
+            counts.whatsappInativo++;
+            whatsappInativoPorEvento[n.event] = (whatsappInativoPorEvento[n.event] || 0) + 1;
+          }
+          if (n.smsEnabledForCustomer) counts.smsAtivo++; else counts.smsInativo++;
+          if (n.emailEnabledForCustomer) counts.emailAtivo++;
+          if (n.phoneCallEnabledForCustomer) counts.ligacaoAtiva++;
+
+          const isKnownException = !n.whatsappEnabledForCustomer && n.event === 'SEND_LINHA_DIGITAVEL';
+          const conforme = n.smsEnabledForCustomer === true &&
+            n.emailEnabledForCustomer === false &&
+            n.phoneCallEnabledForCustomer === false &&
+            (n.whatsappEnabledForCustomer === true || isKnownException);
+          if (!conforme) {
+            naoConformes.push({ asaasId: customer.id, nome: customer.name, notifId: n.id, event: n.event, notif: n });
+          }
+        }
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      if (!listData.hasMore) break;
+      offset += limit;
+    }
+
+    return { counts, whatsappInativoPorEvento, naoConformes };
   });
 
 // Callable: corrige os telefones no Asaas para todos os associados com asaasId
@@ -1409,6 +1631,305 @@ exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
 });
 
 /* =======================================================================
+   CENTRAL FINANCEIRA — sincronização sob demanda + ações rápidas do painel admin
+   ======================================================================= */
+
+// Busca assinatura + pagamentos recentes ao vivo no Asaas, reconcilia financeInvoices/finance/summary
+// e grava o resultado em asaasSync. Usado tanto pela callable interativa (manual=true) quanto pela
+// reconciliação diária agendada (manual=false) — única fonte dessa rotina para as duas não divergirem.
+async function syncOneAssociado(uid, { manual = false } = {}) {
+  const userRef = db.collection('users').doc(uid);
+
+  try {
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) throw new Error('Associado não encontrado.');
+    const userData = userSnap.data();
+    if (!userData.asaasId || !userData.asaasSubscriptionId) {
+      throw new Error('Associado sem assinatura Asaas configurada.');
+    }
+
+    const apiKey = await getAsaasApiKey();
+
+    const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    });
+    const subText = await subResp.text();
+    const subData = subText ? JSON.parse(subText) : {};
+    if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+
+    // Reconcilia só os pagamentos já efetivamente recebidos — mesmo escopo do asaasWebhook,
+    // nunca mexe em cobranças pendentes/vencidas (essas continuam responsabilidade do Asaas).
+    const paymentsResp = await fetch(
+      `${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&limit=10&sort=dueDate&order=desc`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+    );
+    const paymentsText = await paymentsResp.text();
+    const paymentsData = paymentsText ? JSON.parse(paymentsText) : {};
+    const payments = paymentsData.data || [];
+
+    for (const p of payments) {
+      if (['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(p.status)) {
+        await upsertInvoiceFromAsaasPayment(uid, p);
+      }
+    }
+
+    await updateFinanceSummary(uid);
+
+    // Estado da automação de notificações POR CANAL (WhatsApp/SMS/E-mail) — alimenta o indicador
+    // na Central de Associados. Best-effort: se a leitura falhar, não interrompe a sincronização
+    // nem apaga o valor anterior (notifSummary fica null e não é gravado). Um canal é considerado
+    // habilitado só se estiver ligado em TODOS os eventos aplicáveis (WhatsApp não é suportado em
+    // SEND_LINHA_DIGITAVEL, então esse evento é ignorado no cálculo do WhatsApp).
+    let notifSummary = null;
+    try {
+      const notifResp = await fetch(
+        `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications`,
+        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+      );
+      const notifText = await notifResp.text();
+      const notifData = notifText ? JSON.parse(notifText) : {};
+      if (notifResp.ok) {
+        const notifs = notifData.data || [];
+        const whatsApplicable = notifs.filter(n => !WHATSAPP_UNSUPPORTED_EVENTS.has(n.event));
+        notifSummary = {
+          configured: notifs.length > 0,
+          whatsapp:   whatsApplicable.length > 0 && whatsApplicable.every(n => n.whatsappEnabledForCustomer === true),
+          sms:        notifs.length > 0 && notifs.every(n => n.smsEnabledForCustomer === true),
+          email:      notifs.length > 0 && notifs.every(n => n.emailEnabledForCustomer === true),
+          checkedAt:  admin.firestore.FieldValue.serverTimestamp(),
+        };
+      }
+    } catch (e) {
+      console.warn('syncOneAssociado: falha ao ler notificações', uid, e.message);
+    }
+
+    // Status da assinatura não é gravado por nenhum outro fluxo — só aqui, sob demanda
+    await userRef.collection('finance').doc('summary').set({
+      subscriptionStatus:      subData.status || null,
+      subscriptionValue:       subData.value ?? null,
+      subscriptionCycle:       subData.cycle || null,
+      subscriptionBillingType: subData.billingType || null,
+      subscriptionNextDueDate: subData.nextDueDate || null,
+      ...(notifSummary ? { notif: notifSummary } : {}),
+    }, { merge: true });
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const syncPatch = {
+      'asaasSync.lastSyncedAt':   now,
+      'asaasSync.lastSyncResult': 'ok',
+      'asaasSync.lastSyncError':  null,
+    };
+    if (manual) {
+      syncPatch['asaasSync.lastApiCheckAt']     = now;
+      syncPatch['asaasSync.lastApiCheckStatus'] = 'ok';
+    }
+    await userRef.update(syncPatch);
+
+    return { ok: true };
+  } catch (err) {
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const syncPatch = {
+      'asaasSync.lastSyncedAt':   now,
+      'asaasSync.lastSyncResult': 'error',
+      'asaasSync.lastSyncError':  err.message,
+    };
+    if (manual) {
+      syncPatch['asaasSync.lastApiCheckAt']     = now;
+      syncPatch['asaasSync.lastApiCheckStatus'] = 'error';
+    }
+    await userRef.update(syncPatch).catch(() => {});
+    throw err;
+  }
+}
+
+// Callable: "Atualizar dados" no painel — consulta o Asaas ao vivo para 1 associado.
+// Requer role admin ou master.
+exports.asaasSyncAssociado = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+  }
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.data()?.role);
+  if (!['admin', 'master'].includes(callerRole)) {
+    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+  }
+
+  const uid = data?.uid;
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
+
+  try {
+    await syncOneAssociado(uid, { manual: true });
+  } catch (err) {
+    throw new functions.https.HttpsError('internal', err.message || 'Falha ao consultar o Asaas.');
+  }
+
+  const summarySnap = await db.collection('users').doc(uid).collection('finance').doc('summary').get();
+  return { ok: true, summary: summarySnap.exists ? summarySnap.data() : null };
+});
+
+// Callable: "Gerar cobrança" no painel — cria uma cobrança avulsa para o associado (fora do ciclo da assinatura).
+// Requer role admin ou master.
+exports.asaasCreatePayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+  }
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.data()?.role);
+  if (!['admin', 'master'].includes(callerRole)) {
+    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+  }
+
+  const uid = data?.uid;
+  const value = Number(data?.value);
+  const description = String(data?.description || '').trim();
+  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
+  if (!value || value <= 0) throw new functions.https.HttpsError('invalid-argument', 'Valor inválido.');
+
+  const userSnap = await db.collection('users').doc(uid).get();
+  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Associado não encontrado.');
+  const userData = userSnap.data();
+  if (!userData.asaasId) throw new functions.https.HttpsError('failed-precondition', 'Associado sem cadastro no Asaas.');
+
+  const apiKey = await getAsaasApiKey();
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 5);
+
+  const payResp = await fetch(`${ASAAS_BASE_URL}/payments`, {
+    method: 'POST',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer:          userData.asaasId,
+      billingType:       'UNDEFINED',
+      value,
+      dueDate:           dueDate.toISOString().slice(0, 10),
+      description:       description || 'Cobrança avulsa CCBMG',
+      externalReference: uid,
+    }),
+  });
+  const payData = await payResp.json();
+  if (!payResp.ok || !payData.id) {
+    throw new functions.https.HttpsError('internal', payData.errors?.[0]?.description || 'Falha ao gerar cobrança no Asaas.');
+  }
+
+  console.log(`asaasCreatePayment: uid=${uid} payment=${payData.id} value=${value}`);
+  return { asaasPaymentId: payData.id, invoiceUrl: payData.invoiceUrl, dueDate: payData.dueDate };
+});
+
+// Callable: "Cancelar cobrança" no painel.
+// Requer role admin ou master.
+exports.asaasCancelPayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+  }
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.data()?.role);
+  if (!['admin', 'master'].includes(callerRole)) {
+    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+  }
+
+  const uid = data?.uid;
+  const asaasPaymentId = data?.asaasPaymentId;
+  if (!uid || !asaasPaymentId) {
+    throw new functions.https.HttpsError('invalid-argument', 'uid e asaasPaymentId são obrigatórios.');
+  }
+
+  const apiKey = await getAsaasApiKey();
+  const delResp = await fetch(`${ASAAS_BASE_URL}/payments/${asaasPaymentId}`, {
+    method: 'DELETE',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+  });
+  const delData = await delResp.json();
+  if (!delResp.ok || delData.deleted !== true) {
+    throw new functions.https.HttpsError('internal', delData.errors?.[0]?.description || 'Falha ao cancelar cobrança no Asaas.');
+  }
+
+  // Reflete localmente a cobrança cancelada, se existir uma financeInvoice correspondente
+  const invSnap = await db.collection('users').doc(uid).collection('financeInvoices')
+    .where('asaasPaymentId', '==', asaasPaymentId).limit(1).get();
+  if (!invSnap.empty) {
+    await invSnap.docs[0].ref.update({
+      status: 'cancelado',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  console.log(`asaasCancelPayment: uid=${uid} payment=${asaasPaymentId} cancelado`);
+  return { ok: true };
+});
+
+// Callable: "Consultar cobrança" no painel — status ao vivo, somente leitura.
+// Requer role admin ou master.
+exports.asaasGetPaymentStatus = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
+  }
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.data()?.role);
+  if (!['admin', 'master'].includes(callerRole)) {
+    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
+  }
+
+  const asaasPaymentId = data?.asaasPaymentId;
+  if (!asaasPaymentId) throw new functions.https.HttpsError('invalid-argument', 'asaasPaymentId é obrigatório.');
+
+  const apiKey = await getAsaasApiKey();
+  const resp = await fetch(`${ASAAS_BASE_URL}/payments/${asaasPaymentId}`, {
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+  });
+  const result = await resp.json();
+  if (!resp.ok) {
+    throw new functions.https.HttpsError('internal', result.errors?.[0]?.description || 'Falha ao consultar cobrança no Asaas.');
+  }
+
+  return {
+    status:        result.status,
+    value:         result.value,
+    dueDate:       result.dueDate,
+    paymentDate:   result.paymentDate || result.confirmedDate || null,
+    billingType:   result.billingType,
+    invoiceUrl:    result.invoiceUrl,
+    invoiceNumber: result.invoiceNumber,
+  };
+});
+
+// Agendada: reconciliação diária de madrugada — autocorrige o Firestore caso algum webhook tenha falhado.
+// Escopo estritamente de leitura/reconciliação: nunca cria/cancela cobrança, nunca cria assinatura,
+// nunca altera valor ou data de vencimento. Só chama o mesmo syncOneAssociado usado pelo botão "Atualizar dados".
+exports.asaasReconciliationDaily = functions
+  // Percorre a base inteira chamando a API do Asaas por associado (assinatura + pagamentos +
+  // notificações) — no timeout padrão de 60s a rotina morria no meio, deixando parte da base
+  // sem reconciliar e sem ninguém perceber (roda de madrugada). 540s é o mesmo teto já usado
+  // pelas outras rotinas em lote deste arquivo.
+  .runWith({ timeoutSeconds: 540, memory: '256MB' })
+  .pubsub.schedule('0 4 * * *')
+  .timeZone('America/Sao_Paulo')
+  .onRun(async () => {
+    // Mesmo padrão de syncAllAssociadosToAsaas/auditAsaasSync: 1 leitura da coleção + filtro em memória,
+    // evita depender de um índice composto novo.
+    const usersSnap = await db.collection('users').get();
+    const results = { synced: 0, errors: [] };
+
+    for (const userDoc of usersSnap.docs) {
+      const userData = userDoc.data();
+      if (!userData.asaasId || !userData.asaasSubscriptionId || userData.ativo === false) continue;
+
+      try {
+        await syncOneAssociado(userDoc.id, { manual: false });
+        results.synced++;
+      } catch (err) {
+        console.error('asaasReconciliationDaily error:', userDoc.id, err.message);
+        results.errors.push({ uid: userDoc.id, error: err.message });
+      }
+
+      // Pausa para respeitar rate limits do Asaas
+      await new Promise(r => setTimeout(r, 250));
+    }
+
+    console.log('asaasReconciliationDaily result:', results);
+    return null;
+  });
+
+/* =======================================================================
    WEBHOOK ASAAS → FIREBASE
    Configurar no Asaas: Configurações → Integrações → Webhook
    URL: https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook
@@ -1467,64 +1988,23 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
       return res.status(200).send('OK');
     }
 
-    // Idempotência: verifica se já existe fatura com esse asaasPaymentId
-    const existing = await db.collection('users').doc(uid)
-      .collection('financeInvoices')
-      .where('asaasPaymentId', '==', payment.id)
-      .limit(1).get();
+    // Marca que recebemos um webhook para este uid (aba Auditoria do painel admin) — best-effort
+    await db.collection('users').doc(uid).update({
+      'asaasSync.lastWebhookAt':    admin.firestore.FieldValue.serverTimestamp(),
+      'asaasSync.lastWebhookEvent': event,
+    }).catch(err => console.warn('asaasWebhook: falha ao gravar asaasSync', uid, err.message));
 
-    if (!existing.empty) {
+    const result = await upsertInvoiceFromAsaasPayment(uid, verifyData);
+
+    if (result.action === 'skipped') {
+      console.warn('asaasWebhook:', result.reason, uid);
+      return res.status(200).send('OK');
+    }
+    if (result.action === 'already_recorded') {
       console.log('asaasWebhook: pagamento já registrado', payment.id);
       return res.status(200).send('OK');
     }
-
-    const userSnap = await db.collection('users').doc(uid).get();
-    if (!userSnap.exists) {
-      console.warn('asaasWebhook: usuário não encontrado', uid);
-      return res.status(200).send('OK');
-    }
-
-    const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
-    const dueDate   = new Date(verifyData.dueDate);
-    const paidAt    = new Date(verifyData.paymentDate || verifyData.confirmedDate || new Date());
-    const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
-    const planEnd   = calculatePlanEnd(planStart, planType);
-    const dueDateStr = dueDate.toISOString().slice(0, 10);
-    const now        = admin.firestore.FieldValue.serverTimestamp();
-
-    const invoicesRef = db.collection('users').doc(uid).collection('financeInvoices');
-
-    // Procura fatura em_aberto com a mesma dueDate para atualizar ao invés de criar nova
-    const existingSnap = await invoicesRef
-      .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
-      .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
-      .limit(1).get();
-
-    const paymentPayload = {
-      status:         'pago',
-      paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
-      amount:         verifyData.value,
-      asaasPaymentId: payment.id,
-      invoiceUrl:     verifyData.invoiceUrl || null,
-      planType,
-      planStart:      admin.firestore.Timestamp.fromDate(planStart),
-      planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
-      updatedAt:      now,
-    };
-
-    if (!existingSnap.empty) {
-      // Atualiza a fatura existente — evita duplicata e resolve o status corretamente
-      await existingSnap.docs[0].ref.update(paymentPayload);
-      console.log(`asaasWebhook: fatura atualizada uid=${uid} invoiceId=${existingSnap.docs[0].id} payment=${payment.id}`);
-    } else {
-      // Não havia fatura pré-criada — cria uma nova
-      await invoicesRef.add({
-        ...paymentPayload,
-        dueDate:   admin.firestore.Timestamp.fromDate(dueDate),
-        createdAt: now,
-      });
-      console.log(`asaasWebhook: fatura criada uid=${uid} payment=${payment.id} planType=${planType}`);
-    }
+    console.log(`asaasWebhook: fatura ${result.action} uid=${uid} invoiceId=${result.invoiceId} payment=${payment.id}`);
 
     // Atualiza finance/summary com os dados mais recentes
     await updateFinanceSummary(uid);
@@ -1565,6 +2045,75 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
   });
 
   console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${context.auth.uid}`);
+  return { success: true };
+});
+
+// Exclui definitivamente um associado: cobrança/cliente no Asaas, subcoleções do
+// Firestore, o documento em users/{uid} e a conta no Firebase Auth. Irreversível —
+// restrito ao perfil master.
+exports.deleteAssociado = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
+  }
+
+  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
+  if (callerRole !== 'master') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas o perfil master pode excluir associados.');
+  }
+
+  const targetUid = data?.uid;
+  if (!targetUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
+  }
+  if (targetUid === context.auth.uid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Não é possível excluir a própria conta por esta rota.');
+  }
+
+  const userRef = db.collection('users').doc(targetUid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Associado não encontrado no Firestore.');
+  }
+  const userData = userSnap.data();
+
+  // Cancela cliente/assinatura no Asaas antes de apagar o registro local (não bloqueia a exclusão em caso de falha)
+  try {
+    const apiKey = await getAsaasApiKey();
+    if (userData.asaasSubscriptionId) {
+      await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
+        method: 'DELETE',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+      });
+    }
+    if (userData.asaasId) {
+      await fetch(`${ASAAS_BASE_URL}/customers/${userData.asaasId}`, {
+        method: 'DELETE',
+        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+      });
+    }
+  } catch (e) {
+    console.warn(`deleteAssociado: falha ao remover uid=${targetUid} do Asaas (prosseguindo com exclusão local): ${e.message}`);
+  }
+
+  // Apaga subcoleções (financeInvoices, finance/summary) e o documento do usuário
+  const invSnap = await userRef.collection('financeInvoices').get();
+  const batch = db.batch();
+  invSnap.docs.forEach(d => batch.delete(d.ref));
+  batch.delete(userRef.collection('finance').doc('summary'));
+  batch.delete(userRef);
+  await batch.commit();
+
+  // Apaga a conta no Firebase Auth, se existir
+  try {
+    await admin.auth().deleteUser(targetUid);
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') {
+      throw new functions.https.HttpsError('internal', `Registro do Firestore removido, mas falhou ao excluir conta de autenticação: ${e.message}`);
+    }
+  }
+
+  console.log(`deleteAssociado: uid=${targetUid} excluído por master uid=${context.auth.uid}`);
   return { success: true };
 });
 

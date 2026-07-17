@@ -53,6 +53,7 @@ service cloud.firestore {
         "ativo",
         "asaasId",
         "asaasSubscriptionId",
+        "asaasSync",
         "orgId"
       ]);
     }
