@@ -345,7 +345,7 @@ function computeMembership({ invoices = [], summary = {} }) {
 
     const s = String(i.status || '').toLowerCase();
 
-    return !['pago', 'paga', 'paid'].includes(s);
+    return !['pago', 'paga', 'paid', 'cancelado', 'estornado'].includes(s);
 
   });
 
@@ -758,7 +758,7 @@ async function updateFinanceSummary(uid) {
   }
 
   const open = invoices.filter(i =>
-    !['pago', 'paga', 'paid', 'cancelado'].includes(String(i.status || '').toLowerCase())
+    !['pago', 'paga', 'paid', 'cancelado', 'estornado'].includes(String(i.status || '').toLowerCase())
   );
   const nextDue = open.length ? (open[0].dueDate || null) : null;
 
@@ -849,37 +849,52 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
   console.log(`syncManualPaymentToAsaas: uid=${uid} charge=${charge.id} marcado como pago no Asaas`);
 }
 
+// Traduz o estado de um payment do Asaas para o vocabulário local de financeInvoices.
+// `deleted` é um campo booleano independente de `status` (confirmado via API) — uma cobrança
+// excluída (PAYMENT_DELETED) mantém seu `status` anterior, então precisa ser checado primeiro.
+// Isso também cobre PAYMENT_RESTORED "de graça": ao restaurar, `deleted` volta a false e o
+// `status` natural (PENDING/OVERDUE/...) já reflete o estado correto, sem caso especial.
+function mapAsaasPaymentStatus(payment) {
+  if (payment.deleted === true) return 'cancelado';
+  switch (payment.status) {
+    case 'RECEIVED':
+    case 'CONFIRMED':
+    case 'RECEIVED_IN_CASH':
+      return 'pago';
+    case 'OVERDUE':
+      return 'atrasado';
+    case 'PENDING':
+      return 'em_aberto';
+    case 'REFUNDED':
+    case 'REFUND_REQUESTED':
+    case 'REFUND_IN_PROGRESS':
+      return 'estornado';
+    default:
+      return 'em_aberto';
+  }
+}
+
 // Cria ou atualiza uma financeInvoice a partir de um objeto payment do Asaas (idempotente por asaasPaymentId).
-// Usado pelo webhook, pela sincronização manual sob demanda e pela reconciliação diária —
-// única fonte da lógica de "achar/criar invoice por dueDate" para evitar divergência entre as 3 rotinas.
+// Usado pelo webhook, pela sincronização manual sob demanda, pela reconciliação diária e pelo
+// cancelamento/reativação de associado — única fonte da lógica de "achar/criar invoice por
+// dueDate ou por asaasPaymentId" para evitar divergência entre as rotinas. Entende qualquer
+// estado de cobrança (pago/pendente/vencido/cancelado), embora hoje só receba pagas e as
+// cobranças canceladas/recriadas pelo fluxo de desativação/reativação.
 async function upsertInvoiceFromAsaasPayment(uid, payment) {
   const invoicesRef = db.collection('users').doc(uid).collection('financeInvoices');
-
-  // Idempotência: já existe fatura com esse asaasPaymentId?
-  const byPaymentId = await invoicesRef.where('asaasPaymentId', '==', payment.id).limit(1).get();
-  if (!byPaymentId.empty) {
-    return { action: 'already_recorded', invoiceId: byPaymentId.docs[0].id };
-  }
 
   const userSnap = await db.collection('users').doc(uid).get();
   if (!userSnap.exists) return { action: 'skipped', reason: 'user_not_found' };
 
   const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
   const dueDate   = new Date(payment.dueDate);
-  const paidAt    = new Date(payment.paymentDate || payment.confirmedDate || new Date());
   const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
   const planEnd   = calculatePlanEnd(planStart, planType);
   const now       = admin.firestore.FieldValue.serverTimestamp();
-
-  // Procura fatura em_aberto com a mesma dueDate para atualizar ao invés de criar nova
-  const existingSnap = await invoicesRef
-    .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
-    .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
-    .limit(1).get();
+  const status    = mapAsaasPaymentStatus(payment);
 
   const paymentPayload = {
-    status:         'pago',
-    paidAt:         admin.firestore.Timestamp.fromDate(paidAt),
+    status,
     amount:         payment.value,
     asaasPaymentId: payment.id,
     invoiceUrl:     payment.invoiceUrl || null,
@@ -891,13 +906,34 @@ async function upsertInvoiceFromAsaasPayment(uid, payment) {
     updatedAt:      now,
   };
 
+  // Só grava data de pagamento quando o pagamento é real — nunca usar "agora" como fallback
+  // para uma cobrança que não foi paga (isso carimbaria uma data de pagamento falsa).
+  if (status === 'pago') {
+    const paidAt = new Date(payment.paymentDate || payment.confirmedDate || payment.clientPaymentDate || Date.now());
+    paymentPayload.paidAt = admin.firestore.Timestamp.fromDate(paidAt);
+  }
+
+  // 1) Já existe fatura vinculada a este payment.id? Converge (upsert) — cobre todo o ciclo de
+  //    vida da mesma cobrança (criada → vencida → paga, ou criada → cancelada) sem duplicar.
+  const byPaymentId = await invoicesRef.where('asaasPaymentId', '==', payment.id).limit(1).get();
+  if (!byPaymentId.empty) {
+    await byPaymentId.docs[0].ref.update(paymentPayload);
+    return { action: 'updated', invoiceId: byPaymentId.docs[0].id };
+  }
+
+  // 2) Fatura pré-existente sem asaasPaymentId ainda (criada manualmente/migração), mesma
+  //    dueDate e em aberto — vincula a este payment ao invés de duplicar.
+  const existingSnap = await invoicesRef
+    .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
+    .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
+    .limit(1).get();
+
   if (!existingSnap.empty) {
-    // Atualiza a fatura existente — evita duplicata e resolve o status corretamente
     await existingSnap.docs[0].ref.update(paymentPayload);
     return { action: 'updated', invoiceId: existingSnap.docs[0].id };
   }
 
-  // Não havia fatura pré-criada — cria uma nova
+  // 3) Não havia nada — cria uma fatura nova espelhando esta cobrança do Asaas.
   const newRef = await invoicesRef.add({
     ...paymentPayload,
     dueDate:   admin.firestore.Timestamp.fromDate(dueDate),
@@ -906,27 +942,52 @@ async function upsertInvoiceFromAsaasPayment(uid, payment) {
   return { action: 'created', invoiceId: newRef.id };
 }
 
-// Busca cliente no Asaas pelo CPF; cria se não existir.
+// Busca cliente no Asaas (por externalReference, com fallback por CPF); cria se não existir.
 // Retorna { asaasId, action: 'found' | 'created' }
 async function findOrCreateAsaasCustomer(apiKey, user) {
-  const cpf = (user.cpf || '').replace(/\D/g, '');
-  if (!cpf) throw new Error('CPF ausente');
+  const isMirim = user.categoriaAssociado === 'mirim';
+  const cpf = ((isMirim ? user.responsavelCpf : user.cpf) || '').replace(/\D/g, '');
+  if (!cpf) throw new Error(isMirim ? 'CPF do responsável ausente' : 'CPF ausente');
 
-  // 1) Busca pelo CPF
-  const searchResp = await fetch(
-    `${ASAAS_BASE_URL}/customers?cpfCnpj=${cpf}`,
-    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-  );
-  const searchData = await searchResp.json();
-  if (searchData.data && searchData.data.length > 0) {
-    return { asaasId: searchData.data[0].id, action: 'found' };
+  // 1) Casa por externalReference (UID Firebase) — idempotente e correto tanto para mirim
+  //    quanto para associado normal, sem depender do CPF.
+  if (user.uid) {
+    const refResp = await fetch(
+      `${ASAAS_BASE_URL}/customers?externalReference=${user.uid}`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+    );
+    const refData = await refResp.json();
+    if (refData.data && refData.data.length > 0) {
+      return { asaasId: refData.data[0].id, action: 'found' };
+    }
   }
 
-  // 2) Cria novo cliente
+  // 2) Só para associado normal: casa por CPF — cobre clientes já cadastrados manualmente no
+  //    Asaas ANTES da integração (sem externalReference ainda). Não se aplica a mirim: o CPF
+  //    é do responsável, então casar por ele encontraria o cliente ERRADO (o do próprio
+  //    responsável, se ele também for associado) em vez de criar um cliente distinto pro mirim.
+  //    O Asaas permite clientes duplicados por CPF — é seguro criar um novo para o mirim.
+  if (!isMirim) {
+    const cpfResp = await fetch(
+      `${ASAAS_BASE_URL}/customers?cpfCnpj=${cpf}`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+    );
+    const cpfData = await cpfResp.json();
+    if (cpfData.data && cpfData.data.length > 0) {
+      return { asaasId: cpfData.data[0].id, action: 'found' };
+    }
+  }
+
+  // 3) Cria novo cliente
+  const nome = isMirim
+    ? `${(user.nome || 'Associado').trim()} (Mirim) — resp. ${(user.responsavelNome || '').trim()}`
+    : (user.nome || 'Associado').trim();
+  const telefone = isMirim ? user.responsavelTelefone : user.telefone;
+
   const body = {
-    name: (user.nome || 'Associado').trim(),
+    name: nome,
     cpfCnpj: cpf,
-    mobilePhone: formatPhoneForAsaas(user.telefone),
+    mobilePhone: formatPhoneForAsaas(telefone),
     externalReference: user.uid || undefined,
   };
 
@@ -998,7 +1059,9 @@ exports.onNewAssociadoCriado = functions.firestore
   .onCreate(async (snap, context) => {
     const uid      = context.params.uid;
     const userData = { uid, ...snap.data() };
-    if (!userData.cpf || userData.ativo === false) return null;
+    const isMirim  = userData.categoriaAssociado === 'mirim';
+    const cpfDisponivel = isMirim ? userData.responsavelCpf : userData.cpf;
+    if (!cpfDisponivel || userData.ativo === false) return null;
 
     try {
       const apiKey  = await getAsaasApiKey();
@@ -1011,6 +1074,8 @@ exports.onNewAssociadoCriado = functions.firestore
 
       const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
       const nextDueDate = getNextDueDate();
+      const value       = resolvePlanValue(planType, userData.categoriaAssociado);
+      const descricao   = `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'}${isMirim ? ' (Mirim)' : ''}`;
 
       const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
         method: 'POST',
@@ -1018,10 +1083,10 @@ exports.onNewAssociadoCriado = functions.firestore
         body: JSON.stringify({
           customer:          asaasId,
           billingType:       'UNDEFINED',
-          value:             PLAN_VALUE[planType] || 30,
+          value,
           nextDueDate,
           cycle:             PLAN_CYCLE[planType] || 'MONTHLY',
-          description:       `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'}`,
+          description:       descricao,
           externalReference: uid,
           interest:          { value: 0.01 },
           notificationEnabled: true,
@@ -1052,6 +1117,13 @@ exports.onNewAssociadoCriado = functions.firestore
 const PLAN_CYCLE = { mensal: 'MONTHLY', trimestral: 'QUARTERLY', semestral: 'SEMIANNUALLY' };
 const PLAN_VALUE = { mensal: 30, trimestral: 85, semestral: 170 };
 const PLAN_LABEL = { mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral' };
+
+// Mirim paga metade do valor do plano normal, cobrado no CPF do responsável
+// (categoriaAssociado/responsavelCpf em users/{uid} — mirim não tem login próprio).
+function resolvePlanValue(planType, categoriaAssociado) {
+  const base = PLAN_VALUE[String(planType || 'mensal').toLowerCase().trim()] || 30;
+  return categoriaAssociado === 'mirim' ? base / 2 : base;
+}
 // Vencimento da 1ª cobrança quando o associado não tem fatura paga anterior
 // (pendente/atrasado/novo): hoje + 5 dias, calculado a cada chamada para nunca
 // cair no passado (era uma data fixa hardcoded que ficou obsoleta).
@@ -1156,10 +1228,10 @@ exports.createAsaasSubscriptions = functions
           body: JSON.stringify({
             customer: userData.asaasId,
             billingType: 'UNDEFINED',
-            value: PLAN_VALUE[planType],
+            value: resolvePlanValue(planType, userData.categoriaAssociado),
             nextDueDate,
             cycle: PLAN_CYCLE[planType],
-            description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}`,
+            description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
             externalReference: userDoc.id,
             interest: { value: 0.01 },
             notificationEnabled: true,
@@ -1260,6 +1332,98 @@ async function syncCustomerNotifications(asaasId, apiKey) {
     unsupported.add(badNotif.event);
   }
   throw new Error('Excedeu tentativas de ajuste do lote de notificações.');
+}
+
+// Liga/desliga TODAS as notificações de um cliente de uma vez (usado na desativação de
+// associado). Diferente de syncCustomerNotifications (que aplica o padrão institucional
+// completo por evento/canal), aqui só o campo `enabled` importa.
+async function setCustomerNotificationsEnabled(asaasId, apiKey, enabled) {
+  const listResp = await fetch(
+    `${ASAAS_BASE_URL}/customers/${asaasId}/notifications`,
+    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
+  );
+  const listText = await listResp.text();
+  const listData = listText ? JSON.parse(listText) : {};
+  if (!listResp.ok) throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+
+  const notifications = listData.data || [];
+  const changed = notifications.filter(n => n.enabled !== enabled).map(n => ({ id: n.id, enabled }));
+  if (!changed.length) return { total: notifications.length, changed: 0 };
+
+  const updResp = await fetch(`${ASAAS_BASE_URL}/notifications/batch`, {
+    method: 'PUT',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customer: asaasId, notifications: changed }),
+  });
+  if (!updResp.ok) {
+    const updText = await updResp.text();
+    const updData = updText ? JSON.parse(updText) : {};
+    throw new Error(updData.errors?.[0]?.description || `HTTP ${updResp.status}`);
+  }
+  return { total: notifications.length, changed: changed.length };
+}
+
+// Cancela (DELETE) todas as cobranças em aberto (PENDING + OVERDUE) de um cliente no Asaas —
+// usado na desativação de associado, para que nada continue vencendo depois que ele saiu.
+// Espelha cada cancelamento como 'cancelado' no financeInvoices correspondente, sem round-trip
+// extra: já sabemos que a exclusão deu certo, então marcamos deleted:true localmente.
+async function cancelOpenPayments(uid, asaasId, apiKey) {
+  const [pendingResp, overdueResp] = await Promise.all([
+    fetch(`${ASAAS_BASE_URL}/payments?customer=${asaasId}&status=PENDING`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
+    fetch(`${ASAAS_BASE_URL}/payments?customer=${asaasId}&status=OVERDUE`,
+      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
+  ]);
+  const [pendingData, overdueData] = await Promise.all([
+    pendingResp.text().then(t => t ? JSON.parse(t) : {}),
+    overdueResp.text().then(t => t ? JSON.parse(t) : {}),
+  ]);
+  if (!pendingResp.ok || !overdueResp.ok) {
+    throw new Error(pendingData.errors?.[0]?.description || overdueData.errors?.[0]?.description || 'Falha ao listar cobranças em aberto.');
+  }
+  const openPayments = [...(pendingData.data || []), ...(overdueData.data || [])];
+
+  let canceled = 0;
+  for (const payment of openPayments) {
+    const delResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
+      method: 'DELETE',
+      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    });
+    if (!delResp.ok) {
+      console.warn(`cancelOpenPayments: falha ao cancelar payment=${payment.id} uid=${uid}: HTTP ${delResp.status}`);
+      continue; // não interrompe os demais por causa de 1 falha isolada
+    }
+    canceled++;
+    await upsertInvoiceFromAsaasPayment(uid, { ...payment, deleted: true });
+  }
+  return { found: openPayments.length, canceled };
+}
+
+// Cria uma cobrança avulsa imediata ao reativar um associado — equivalente a reiniciar o plano
+// hoje, em vez de esperar o próximo ciclo natural da assinatura (que pode estar meses à frente
+// sem cobrar nada nesse meio-tempo). Espelhada no Firestore via o mesmo upsert de sempre.
+async function createImmediateChargeOnReactivation(uid, after, apiKey) {
+  const planType = String(after.planType || 'mensal').toLowerCase().trim();
+  const value = resolvePlanValue(planType, after.categoriaAssociado);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const resp = await fetch(`${ASAAS_BASE_URL}/payments`, {
+    method: 'POST',
+    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customer:    after.asaasId,
+      billingType: 'UNDEFINED',
+      value,
+      dueDate:     today,
+      description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
+    }),
+  });
+  const text = await resp.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
+
+  await upsertInvoiceFromAsaasPayment(uid, data);
+  return data;
 }
 
 // Callable: aplica o padrão institucional de notificações (WhatsApp + SMS
@@ -1506,30 +1670,38 @@ exports.onAssociadoAtualizado = functions.firestore
 
     if (!after.asaasId) return null;
 
-    const dataChanged     = ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
+    const isMirim         = after.categoriaAssociado === 'mirim';
+    // Mirim é cobrado nos dados do responsável — só esses campos importam para o Asaas.
+    const dataChanged     = isMirim
+      ? ['nome', 'responsavelNome', 'responsavelCpf', 'responsavelTelefone'].some(f => before[f] !== after[f])
+      : ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
     const ativoToFalse    = before.ativo !== false && after.ativo === false;
     const ativoToTrue     = before.ativo === false && after.ativo !== false;
 
     if (!dataChanged && !ativoToFalse && !ativoToTrue) return null;
 
+    const uid = context.params.uid;
+
     try {
       const apiKey = await getAsaasApiKey();
 
-      // Sincroniza dados cadastrais quando nome/telefone/CPF mudam
+      // Sincroniza dados cadastrais quando nome/telefone/CPF (ou os do responsável, se mirim) mudam
       if (dataChanged) {
         const resp = await fetch(`${ASAAS_BASE_URL}/customers/${after.asaasId}`, {
           method: 'POST',
           headers: { access_token: apiKey, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name:        (after.nome || '').trim(),
-            cpfCnpj:     (after.cpf || '').replace(/\D/g, ''),
-            mobilePhone: formatPhoneForAsaas(after.telefone),
+            name:        isMirim
+              ? `${(after.nome || '').trim()} (Mirim) — resp. ${(after.responsavelNome || '').trim()}`
+              : (after.nome || '').trim(),
+            cpfCnpj:     ((isMirim ? after.responsavelCpf : after.cpf) || '').replace(/\D/g, ''),
+            mobilePhone: formatPhoneForAsaas(isMirim ? after.responsavelTelefone : after.telefone),
           }),
         });
         const text = await resp.text();
         const data = text ? JSON.parse(text) : {};
         if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
-        console.log(`onAssociadoAtualizado: uid=${context.params.uid} dados sincronizados`);
+        console.log(`onAssociadoAtualizado: uid=${uid} dados sincronizados`);
       }
 
       // Pausa ou reativa assinatura Asaas quando ativo muda
@@ -1543,10 +1715,48 @@ exports.onAssociadoAtualizado = functions.firestore
         const subText = await subResp.text();
         const subData = subText ? JSON.parse(subText) : {};
         if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
-        console.log(`onAssociadoAtualizado: uid=${context.params.uid} assinatura ${newStatus}`);
+        console.log(`onAssociadoAtualizado: uid=${uid} assinatura ${newStatus}`);
+      }
+
+      // Desativação: cancela tudo que está em aberto no Asaas e desliga notificações — sem
+      // isso, o associado inativo continua vencendo cobrança e recebendo aviso de cobrança.
+      if (ativoToFalse && after.asaasId) {
+        const { found, canceled } = await cancelOpenPayments(uid, after.asaasId, apiKey);
+        console.log(`onAssociadoAtualizado: uid=${uid} cobranças canceladas ${canceled}/${found}`);
+        await setCustomerNotificationsEnabled(after.asaasId, apiKey, false);
+        console.log(`onAssociadoAtualizado: uid=${uid} notificações desativadas`);
+      }
+
+      // Reativação: religa notificações e gera uma cobrança avulsa imediata — a assinatura só
+      // gerará a próxima cobrança no ciclo natural dela, que pode estar meses à frente.
+      if (ativoToTrue && after.asaasId) {
+        await syncCustomerNotifications(after.asaasId, apiKey);
+        console.log(`onAssociadoAtualizado: uid=${uid} notificações reativadas`);
+        const charge = await createImmediateChargeOnReactivation(uid, after, apiKey);
+        console.log(`onAssociadoAtualizado: uid=${uid} cobrança de reativação criada payment=${charge.id}`);
+      }
+
+      if (ativoToFalse || ativoToTrue) {
+        await change.after.ref.update({
+          'asaasSync.lastLifecycleAction': ativoToFalse ? 'deactivate' : 'reactivate',
+          'asaasSync.lastLifecycleAt':     admin.firestore.FieldValue.serverTimestamp(),
+          'asaasSync.lastLifecycleResult': 'ok',
+          'asaasSync.lastLifecycleError':  null,
+        }).catch(e => console.warn('onAssociadoAtualizado: falha ao gravar asaasSync (ok)', uid, e.message));
       }
     } catch (err) {
-      console.error('onAssociadoAtualizado error:', context.params.uid, err.message);
+      console.error('onAssociadoAtualizado error:', uid, err.message);
+      if (ativoToFalse || ativoToTrue) {
+        // Best-effort: expõe a falha na aba Auditoria / pílula "Sem sinc. Asaas" do painel —
+        // sem isso, o associado aparece desativado/reativado no clube enquanto o Asaas diverge
+        // silenciosamente (foi o que produziu associados inativos com cobrança ainda aberta).
+        await change.after.ref.update({
+          'asaasSync.lastLifecycleAction': ativoToFalse ? 'deactivate' : 'reactivate',
+          'asaasSync.lastLifecycleAt':     admin.firestore.FieldValue.serverTimestamp(),
+          'asaasSync.lastLifecycleResult': 'error',
+          'asaasSync.lastLifecycleError':  err.message,
+        }).catch(e => console.warn('onAssociadoAtualizado: falha ao gravar asaasSync (error)', uid, e.message));
+      }
     }
 
     return null;
@@ -2000,10 +2210,6 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
       console.warn('asaasWebhook:', result.reason, uid);
       return res.status(200).send('OK');
     }
-    if (result.action === 'already_recorded') {
-      console.log('asaasWebhook: pagamento já registrado', payment.id);
-      return res.status(200).send('OK');
-    }
     console.log(`asaasWebhook: fatura ${result.action} uid=${uid} invoiceId=${result.invoiceId} payment=${payment.id}`);
 
     // Atualiza finance/summary com os dados mais recentes
@@ -2036,6 +2242,11 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
   // Impede que o master redefina a própria senha por esta rota
   if (targetUid === context.auth.uid) {
     throw new functions.https.HttpsError('invalid-argument', 'Use o formulário de troca de senha para alterar sua própria senha.');
+  }
+
+  const targetSnap = await admin.firestore().collection('users').doc(targetUid).get();
+  if (targetSnap.exists && targetSnap.data().categoriaAssociado === 'mirim') {
+    throw new functions.https.HttpsError('failed-precondition', 'Associado Mirim não tem conta de acesso — não há senha para redefinir.');
   }
 
   await admin.auth().updateUser(targetUid, { password: newPassword });

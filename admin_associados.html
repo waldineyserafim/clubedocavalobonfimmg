@@ -46,6 +46,7 @@
     .member-tag.tag-novo{ color:#0d6efd; }
     .member-tag.tag-renovou{ color:#198754; }
     .member-tag.tag-alerta{ color:#a16600; }
+    .member-tag.tag-mirim{ color:#7b1fa2; }
     .inconsistency-flag{ margin-left:.3rem; cursor:help; }
 
     .plan-display{ overflow:hidden; }
@@ -527,7 +528,7 @@
 
     const unpaid = invoices.filter(i => {
       const s = String(i.status || "").toLowerCase();
-      return !["pago", "paga", "paid"].includes(s);
+      return !["pago", "paga", "paid", "cancelado", "estornado"].includes(s);
     });
 
     let earliestDue = null;
@@ -632,7 +633,7 @@
     });
     if (covering) return covering;
     // 2) senão, a fatura em aberto/atrasada mais antiga (é a que deveria cobrir agora)
-    const unpaid = invoices.filter(i => !["pago","paga","paid","cancelado"].includes(String(i.status||"").toLowerCase()));
+    const unpaid = invoices.filter(i => !["pago","paga","paid","cancelado","estornado"].includes(String(i.status||"").toLowerCase()));
     if (unpaid.length) return unpaid[0]; // invoices já vem ordenado por dueDate asc
     // 3) senão, o último ciclo pago (não há ciclo em aberto — vigência está encerrada)
     return invoices[invoices.length-1] || null;
@@ -722,7 +723,12 @@
     const statusStr = String(userData?.status ?? userData?.situacao ?? userData?.sit ?? "")
       .normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
     const isInactive = userData?.ativo === false || userData?.isActive === false;
-    if (isInactive) return { code:"inativo", label:"Inativo", title:"Associado desligado do clube" };
+    if (isInactive) {
+      const desativadoMs = userData?.desativadoEm?.toMillis?.() ?? (userData?.desativadoEm ? new Date(userData.desativadoEm).getTime() : null);
+      const desdeStr = desativadoMs != null ? `Inativo desde ${fmtDateBRShort(new Date(desativadoMs))}` : "Associado desligado do clube";
+      const nota = String(userData?.notaDesativacao || "").trim();
+      return { code:"inativo", label:"Inativo", title: nota ? `${desdeStr} — ${nota}` : desdeStr };
+    }
     if (/suspens|bloquead/.test(statusStr)) return { code:"suspenso", label:"Suspenso", title:"" };
     const untilMs = summary.exemptUntil?.toMillis?.() ?? (summary.exemptUntil ? new Date(summary.exemptUntil).getTime() : null);
     if (summary.exempt === true && (!untilMs || untilMs > Date.now())){
@@ -877,7 +883,7 @@
       paidAt,
       planStart,
       planEnd,
-      dueDate: planEnd,
+      dueDate: planStart,
       method,
       notes,
       recordedByUid: operatorProfile.uid || null,
@@ -904,11 +910,21 @@
           <div class="modal-body">
             <div id="naMsg" class="d-none"></div>
             <div class="row g-3">
-              <div class="col-sm-6 col-md-3">
+              <div class="col-12">
+                <label class="form-label d-block">Tipo de associado</label>
+                <div class="btn-group" role="group">
+                  <input type="radio" class="btn-check" name="naCategoria" id="naCategoriaNormal" value="normal" checked>
+                  <label class="btn btn-outline-primary btn-sm" for="naCategoriaNormal">Normal</label>
+                  <input type="radio" class="btn-check" name="naCategoria" id="naCategoriaMirim" value="mirim">
+                  <label class="btn btn-outline-primary btn-sm" for="naCategoriaMirim">Mirim</label>
+                </div>
+                <div class="form-text">Mirim não acessa o portal (sem login próprio) e é cobrado no CPF do responsável, a 50% do valor do plano.</div>
+              </div>
+              <div class="col-sm-6 col-md-3 na-campo-normal">
                 <label class="form-label">CPF (somente números)</label>
                 <input type="text" class="form-control" id="naCPF" inputmode="numeric" required>
               </div>
-              <div class="col-sm-6 col-md-3">
+              <div class="col-sm-6 col-md-3 na-campo-normal">
                 <label class="form-label">Senha inicial</label>
                 <input type="password" class="form-control" id="naPass" required>
               </div>
@@ -927,6 +943,22 @@
               <div class="col-sm-6 col-md-8">
                 <label class="form-label">Endereço</label>
                 <input type="text" class="form-control" id="naEndereco">
+              </div>
+              <div class="col-12 na-campo-mirim d-none">
+                <hr>
+                <div class="fw-semibold mb-2">Responsável (cobrança e comunicação)</div>
+              </div>
+              <div class="col-md-4 na-campo-mirim d-none">
+                <label class="form-label">Nome do responsável</label>
+                <input type="text" class="form-control" id="naRespNome">
+              </div>
+              <div class="col-sm-6 col-md-4 na-campo-mirim d-none">
+                <label class="form-label">CPF do responsável</label>
+                <input type="text" class="form-control" id="naRespCPF" inputmode="numeric">
+              </div>
+              <div class="col-sm-6 col-md-4 na-campo-mirim d-none">
+                <label class="form-label">Telefone do responsável</label>
+                <input type="text" class="form-control" id="naRespTelefone">
               </div>
               ${renderFinanceSetupFields("na")}
             </div>
@@ -949,39 +981,85 @@
       msg.className = `alert alert-${kind}`;
       msg.classList.remove("d-none");
     };
+
+    // Alterna os campos visíveis conforme a categoria — mirim não tem CPF/senha próprios
+    // (não loga no portal) e ganha os campos do responsável, que é quem é cobrado no Asaas.
+    const naCPF = newAssocModalDiv.querySelector("#naCPF");
+    const naPass = newAssocModalDiv.querySelector("#naPass");
+    const camposNormal = newAssocModalDiv.querySelectorAll(".na-campo-normal");
+    const camposMirim = newAssocModalDiv.querySelectorAll(".na-campo-mirim");
+    const syncCategoriaFields = () => {
+      const isMirim = newAssocModalDiv.querySelector("#naCategoriaMirim").checked;
+      camposNormal.forEach(el => el.classList.toggle("d-none", isMirim));
+      camposMirim.forEach(el => el.classList.toggle("d-none", !isMirim));
+      naCPF.required = !isMirim;
+      naPass.required = !isMirim;
+    };
+    newAssocModalDiv.querySelectorAll('input[name="naCategoria"]').forEach(el =>
+      el.addEventListener("change", syncCategoriaFields));
+
     form.addEventListener("submit", async (e)=>{
       e.preventDefault();
       showMsg("Criando associado...");
       try{
-        const naCPF = newAssocModalDiv.querySelector("#naCPF");
-        const naPass = newAssocModalDiv.querySelector("#naPass");
+        const isMirim = newAssocModalDiv.querySelector("#naCategoriaMirim").checked;
         const naApelido = newAssocModalDiv.querySelector("#naApelido");
         const naNome = newAssocModalDiv.querySelector("#naNome");
         const naTel  = newAssocModalDiv.querySelector("#naTel");
         const naEndereco = newAssocModalDiv.querySelector("#naEndereco");
-        const email = cpfToEmail(naCPF.value);
-        const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
-        const uid = cred.user.uid;
-        await setDoc(doc(db,"users",uid), {
-          cpf: naCPF.value.trim().replace(/\D/g,""),
-          apelido: naApelido.value.trim() || null,
-          nome: naNome.value.trim(),
-          telefone: naTel.value.trim(),
-          endereco: naEndereco.value.trim(),
-          role: "Associado",
-          ativo: true,
-          primeiroAcesso: true,
-          orgId: currentOrgId,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
+
+        let uid;
+        if (isMirim) {
+          // Mirim não tem conta de acesso (Auth) — só um registro no Firestore, com id
+          // automático, cobrado no Asaas via CPF do responsável.
+          const naRespNome = newAssocModalDiv.querySelector("#naRespNome");
+          const naRespCPF = newAssocModalDiv.querySelector("#naRespCPF");
+          const naRespTelefone = newAssocModalDiv.querySelector("#naRespTelefone");
+          if (!naRespNome.value.trim() || !naRespCPF.value.trim()) {
+            throw new Error("Nome e CPF do responsável são obrigatórios para associado Mirim.");
+          }
+          const newRef = doc(collection(db,"users"));
+          uid = newRef.id;
+          await setDoc(newRef, {
+            categoriaAssociado: "mirim",
+            responsavelNome: naRespNome.value.trim(),
+            responsavelCpf: naRespCPF.value.trim().replace(/\D/g,""),
+            responsavelTelefone: naRespTelefone.value.trim(),
+            apelido: naApelido.value.trim() || null,
+            nome: naNome.value.trim(),
+            telefone: naTel.value.trim(),
+            endereco: naEndereco.value.trim(),
+            role: "Associado",
+            ativo: true,
+            orgId: currentOrgId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          const email = cpfToEmail(naCPF.value);
+          const cred = await createUserWithEmailAndPassword(secAuth, email, naPass.value);
+          uid = cred.user.uid;
+          await setDoc(doc(db,"users",uid), {
+            cpf: naCPF.value.trim().replace(/\D/g,""),
+            apelido: naApelido.value.trim() || null,
+            nome: naNome.value.trim(),
+            telefone: naTel.value.trim(),
+            endereco: naEndereco.value.trim(),
+            role: "Associado",
+            ativo: true,
+            primeiroAcesso: true,
+            orgId: currentOrgId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+        }
         await setDoc(doc(db,"users",uid,"finance","summary"), {
           lastPayment: null, lastAmount: null, nextDue: null, activeUntil: null,
           exempt: false, exemptUntil: null, updatedAt: serverTimestamp()
         }, { merge:true });
         await createInitialFinanceIfNeeded(uid, newAssocModalDiv, "na");
-        await signOutSec(secAuth);
-        await logAction("associado_criado", { uid, nome: naNome.value.trim() });
+        if (!isMirim) await signOutSec(secAuth);
+        await logAction("associado_criado", { uid, nome: naNome.value.trim(), categoria: isMirim ? "mirim" : "normal" });
         showMsg(`Associado criado! UID: ${uid}`, "success");
         setTimeout(async()=>{
           modal.hide();
@@ -1016,6 +1094,7 @@
   const callAsaasCancelPayment    = httpsCallable(asaasFns, "asaasCancelPayment");
   const callAsaasGetPaymentStatus = httpsCallable(asaasFns, "asaasGetPaymentStatus");
   const callAsaasSyncAssociado    = httpsCallable(asaasFns, "asaasSyncAssociado");
+  const callDeleteAssociado       = httpsCallable(asaasFns, "deleteAssociado");
 
   // Recalcula o modelo de 1 associado após uma ação que muda dados financeiros, sem refazer a
   // consulta inteira — atualiza allModels e redesenha (barato: é só reordenar/filtrar em memória).
@@ -1122,6 +1201,20 @@
       finally{ btn.disabled = false; }
       return;
     }
+
+    if (action === "delete-associado") {
+      const nome = row.dataset.nome || "este associado";
+      if (!confirm(`Excluir ${nome} definitivamente?\n\nIsso apaga o cadastro, o histórico financeiro e a conta de acesso, além de cancelar cliente/assinatura no Asaas. Esta ação NÃO pode ser desfeita.`)) return;
+      const digitado = prompt(`Para confirmar, digite o nome exatamente como aparece na lista:\n"${nome}"`);
+      if (digitado !== nome) { alert("Nome não confere. Exclusão cancelada."); return; }
+      btn.disabled = true;
+      try{
+        await callDeleteAssociado({ uid });
+        row.remove();
+      }catch(e){ alert("Erro ao excluir associado: " + e.message); }
+      finally{ btn.disabled = false; }
+      return;
+    }
   });
 
   function startOfDay(v){
@@ -1209,7 +1302,11 @@
     const planType = cycleInvoice?.planType || latestAnyPlan || userData.planType || null;
     const planName = cycleInvoice?.planName || null;
     const planValueRaw = cycleInvoice?.amount ?? null;
-    const planValue = planValueRaw ?? (planType && PLAN_PRICE_TABLE[planType] != null ? PLAN_PRICE_TABLE[planType] : null);
+    const planPriceEstimateBase = planType && PLAN_PRICE_TABLE[planType] != null ? PLAN_PRICE_TABLE[planType] : null;
+    const planPriceEstimate = planPriceEstimateBase != null && userData.categoriaAssociado === 'mirim'
+      ? planPriceEstimateBase / 2
+      : planPriceEstimateBase;
+    const planValue = planValueRaw ?? planPriceEstimate;
     const planValueIsEstimate = planValueRaw == null && planValue != null;
     const planDisplay = planName || (planType ? PLAN_LABEL[planType] || planType : "Sem plano");
 
@@ -1294,6 +1391,8 @@
     return {
       uid, nome:userData.nome||"", apelido:userData.apelido||"", cpf:userData.cpf||"",
       telefone:userData.telefone||"", email:userData.email||"",
+      categoriaAssociado: userData.categoriaAssociado||"normal",
+      responsavelNome: userData.responsavelNome||"",
       planType, planDisplay, planValue, planValueIsEstimate,
       vigStart, vigEnd, daysToEnd,
       cobranca: cycleInvoice, asaasChargeState, cobIcons, paidToday,
@@ -1539,6 +1638,10 @@
     // (eixo separado do financeiro) e estágio do ciclo de vida — só quando há algo notável.
     const subParts = [];
     if (m.apelido) subParts.push(escHtml(m.apelido));
+    if (m.categoriaAssociado === "mirim"){
+      const t = m.responsavelNome ? ` title="Responsável: ${escHtml(m.responsavelNome)}"` : "";
+      subParts.push(`<span class="member-tag tag-mirim"${t}>Mirim</span>`);
+    }
     if (m.tenureInfo) subParts.push(`<span title="${escHtml(m.tenureInfo.title)}">${m.tenureInfo.text}</span>`);
     if (m.membershipTag.code !== "ativo"){
       const t = m.membershipTag.title ? ` title="${escHtml(m.membershipTag.title)}"` : "";
@@ -1593,7 +1696,7 @@
       : `<span class="btn-next-action is-muted" title="${escHtml(m.nextAction.label)}">${escHtml(m.nextAction.label)}</span>`;
 
     return `
-      <div class="user-row tier-${m.tier}" id="row-${uid}" data-uid="${uid}" data-telefone="${escHtml(m.telefone)}" data-email="${escHtml(m.email)}" data-last-invoice-url="${escHtml(m.lastInvoiceUrl)}" data-last-asaas-payment-id="${escHtml(m.lastAsaasPaymentId)}">
+      <div class="user-row tier-${m.tier}" id="row-${uid}" data-uid="${uid}" data-nome="${escHtml(m.nome||"")}" data-telefone="${escHtml(m.telefone)}" data-email="${escHtml(m.email)}" data-last-invoice-url="${escHtml(m.lastInvoiceUrl)}" data-last-asaas-payment-id="${escHtml(m.lastAsaasPaymentId)}">
         <div><input type="checkbox" class="row-check" data-uid="${uid}"></div>
         <div>
           <button class="user-name" type="button" data-uid="${uid}" title="${assocTitle}">${escHtml(m.nome||"Sem nome")}${m.hasInconsistency ? `<i class="bi bi-exclamation-triangle-fill text-warning inconsistency-flag" title="Inconsistência entre o status local e o Asaas — veja a aba Auditoria"></i>` : ""}</button>
@@ -1626,6 +1729,10 @@
               <li><hr class="dropdown-divider"></li>
               <li><button class="dropdown-item" type="button" data-row-action="view-auditoria" data-uid="${uid}">Ver sincronização (Auditoria)</button></li>
               <li><button class="dropdown-item" type="button" data-row-action="sync" data-uid="${uid}">Atualizar dados</button></li>
+              ${currentRole === 'master' ? `
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item text-danger" type="button" data-row-action="delete-associado" data-uid="${uid}">Excluir associado</button></li>
+              ` : ''}
             </ul>
           </div>
         </div>
@@ -1687,7 +1794,7 @@
           </div>
           <div class="modal-footer">
             <span class="me-auto small text-secondary">Situação: <strong>${m.listBadge}</strong> • Próxima cobrança: <strong>${nextDueStr}</strong></span>
-            ${currentRole === 'master' ? `<button class="btn btn-outline-danger btn-reset-pw" data-uid="${uid}">Redefinir senha</button>` : ''}
+            ${(currentRole === 'master' && u.categoriaAssociado !== 'mirim') ? `<button class="btn btn-outline-danger btn-reset-pw" data-uid="${uid}">Redefinir senha</button>` : ''}
             <button class="btn btn-light" id="btnCloseModal">Fechar</button>
           </div>
         </div>
@@ -1703,17 +1810,33 @@
 
     const doSaveProfile = async () => {
       const roleEl = q('#pfRole');
+      const isMirim = u.categoriaAssociado === 'mirim';
+      const wasAtivo = u.ativo !== false; // valor ao abrir o modal, antes de qualquer edição
+      const novoAtivo = q('#pfAtivo').checked;
       const payload = {
         nome: q('#pfNome').value.trim(),
         apelido: q('#pfApelido').value.trim() || null,
-        cpf: q('#pfCPF').value.trim().replace(/\D/g,""),
         telefone: q('#pfTelefone').value.trim(),
         endereco: q('#pfEndereco').value.trim(),
         email: q('#pfEmail').value.trim() || null,
-        ativo: q('#pfAtivo').checked,
+        ativo: novoAtivo,
+        notaDesativacao: q('#pfNotaDesativacao').value.trim() || null,
         ...(roleEl ? { role: roleEl.value } : {}),
+        ...(isMirim
+          ? {
+              responsavelNome: q('#pfRespNome')?.value.trim() || '',
+              responsavelCpf: q('#pfRespCPF')?.value.trim().replace(/\D/g,"") || '',
+              responsavelTelefone: q('#pfRespTelefone')?.value.trim() || '',
+            }
+          : { cpf: q('#pfCPF').value.trim().replace(/\D/g,"") }),
         updatedAt: serverTimestamp()
       };
+      // Grava quem/quando desativou junto com o ativo:false — um único updateDoc, um único
+      // trigger, uma única chamada ao Asaas (evita duas gravações e duas execuções do trigger).
+      if (wasAtivo && !novoAtivo) {
+        payload.desativadoEm = serverTimestamp();
+        payload.desativadoPor = operatorProfile.uid || null;
+      }
       // Esta linha é a crítica — lança se falhar permissão ou conexão
       await updateDoc(doc(db,"users",uid), payload);
       // Recalcula o modelo completo da linha (perfil + financeiro) e redesenha — não bloqueia
@@ -1742,7 +1865,8 @@
       footerBtn.classList.replace("btn-light", "btn-primary");
     };
 
-    ["#pfNome","#pfApelido","#pfCPF","#pfTelefone","#pfEmail","#pfEndereco"]
+    ["#pfNome","#pfApelido","#pfCPF","#pfTelefone","#pfEmail","#pfEndereco","#pfNotaDesativacao",
+     "#pfRespNome","#pfRespCPF","#pfRespTelefone"]
       .forEach(sel => { q(sel)?.addEventListener("input",  markDirty);
                         q(sel)?.addEventListener("change", markDirty); });
     ["#pfAtivo","#pfRole"]
@@ -1806,12 +1930,19 @@
     const ativo = (u.ativo !== false);
     const isExempt = summary.exempt === true;
     const userRole = String(u.role || 'associado').trim().toLowerCase();
+    const isMirim = u.categoriaAssociado === 'mirim';
     const untilStr = summary.exemptUntil
         ? (summary.exemptUntil.toDate?.() ?? new Date(summary.exemptUntil))
         : null;
 
     return `
       <div class="row g-3 align-items-end">
+        ${isMirim ? `
+        <div class="col-12">
+          <span class="member-tag tag-mirim">Associado Mirim</span>
+          <span class="form-text d-block">Categoria definida na criação — não editável aqui. Não tem login próprio; cobrado no CPF do responsável abaixo.</span>
+        </div>
+        ` : ''}
         <div class="col-md-4">
           <label class="form-label">Nome</label>
           <input type="text" id="pfNome" class="form-control" value="${escHtml(u.nome||'')}">
@@ -1820,14 +1951,31 @@
           <label class="form-label">Apelido</label>
           <input type="text" id="pfApelido" class="form-control" value="${escHtml(u.apelido||'')}" placeholder="Opcional">
         </div>
+        ${!isMirim ? `
         <div class="col-md-2">
           <label class="form-label">CPF</label>
           <input type="text" id="pfCPF" class="form-control" value="${escHtml(u.cpf||'')}">
         </div>
+        ` : ''}
         <div class="col-md-3">
           <label class="form-label">Telefone</label>
           <input type="text" id="pfTelefone" class="form-control" value="${escHtml(u.telefone||'')}">
         </div>
+        ${isMirim ? `
+        <div class="col-12"><hr class="my-1"><div class="fw-semibold small">Responsável (cobrança e comunicação)</div></div>
+        <div class="col-md-4">
+          <label class="form-label">Nome do responsável</label>
+          <input type="text" id="pfRespNome" class="form-control" value="${escHtml(u.responsavelNome||'')}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">CPF do responsável</label>
+          <input type="text" id="pfRespCPF" class="form-control" value="${escHtml(u.responsavelCpf||'')}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Telefone do responsável</label>
+          <input type="text" id="pfRespTelefone" class="form-control" value="${escHtml(u.responsavelTelefone||'')}">
+        </div>
+        ` : ''}
         <div class="col-md-3">
           <label class="form-label">E-mail (opcional)</label>
           <input type="email" id="pfEmail" class="form-control" value="${escHtml(u.email||'')}" placeholder="ex.: pessoa@email.com">
@@ -1852,6 +2000,12 @@
             <input class="form-check-input" id="pfAtivo" type="checkbox" ${ativo?'checked':''}>
             <label class="form-check-label">Ativo</label>
           </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">Nota de desativação (opcional)</label>
+          <textarea id="pfNotaDesativacao" class="form-control" rows="2" placeholder="Motivo da desativação, combinado com o associado, etc.">${escHtml(u.notaDesativacao||'')}</textarea>
+          ${(!ativo && u.desativadoEm) ? `<div class="form-text">Inativo desde ${fmtBRDate(u.desativadoEm.toDate?.() ?? new Date(u.desativadoEm))}</div>` : ''}
         </div>
 
         <div class="col-12">
@@ -2154,7 +2308,7 @@
           paidAt: input("#pfPaidAt").value ? fromDateStr(input("#pfPaidAt").value) : null,
           planStart: input("#pfStart").value ? fromDateStr(input("#pfStart").value) : null,
           planEnd: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
-          dueDate: input("#pfEnd").value ? fromDateStr(input("#pfEnd").value) : null,
+          dueDate: input("#pfStart").value ? fromDateStr(input("#pfStart").value) : null,
           method: input("#pfMethod").value.trim() || null,
           notes: input("#pfNotes").value.trim() || null,
           recordedByUid: operatorProfile.uid || null,

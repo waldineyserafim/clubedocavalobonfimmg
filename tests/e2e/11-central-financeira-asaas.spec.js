@@ -80,7 +80,7 @@ test.describe('Cloud Functions — Central Financeira (novas)', () => {
     expect(fn).toContain('exports.asaasReconciliationDaily');
     const idx = fn.indexOf('exports.asaasReconciliationDaily');
     const body = fn.slice(idx, idx + 2000);
-    expect(body).toContain('functions.pubsub.schedule');
+    expect(body).toContain('.pubsub.schedule(');
     expect(body).toContain("timeZone('America/Sao_Paulo')");
     expect(body).toContain('syncOneAssociado(userDoc.id, { manual: false })');
     // não deve chamar as rotas de mutação (create/cancel) dentro do escopo da function
@@ -120,10 +120,13 @@ test.describe('Firestore Schema — Central Financeira (novos campos)', () => {
 });
 
 test.describe('Frontend — admin_associados.html (tabela + ações + modal)', () => {
-  test('Tabela consolida em coluna "Última Cobrança" e ganha coluna "Ações"', () => {
+  test('Tabela usa colunas Plano/Vigência/Situação/Cobrança/Ações (não mais Última Cobrança/Próx. Vencimento)', () => {
     const html = readFile('admin_associados.html');
-    expect(html).toContain('col-lastcharge');
-    expect(html).toContain('col-actions');
+    expect(html).toContain('col-plan');
+    expect(html).toContain('col-vigencia');
+    expect(html).toContain('col-status');
+    expect(html).toContain('col-cobranca');
+    expect(html).toContain('col-action');
     expect(html).not.toContain('col-lastpay');
     expect(html).not.toContain('col-value');
     expect(html).not.toContain('col-next');

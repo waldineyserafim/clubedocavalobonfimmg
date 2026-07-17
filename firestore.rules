@@ -54,7 +54,13 @@ service cloud.firestore {
         "asaasId",
         "asaasSubscriptionId",
         "asaasSync",
-        "orgId"
+        "orgId",
+        "desativadoEm",
+        "desativadoPor",
+        "notaDesativacao",
+        "categoriaAssociado",
+        "responsavelCpf",
+        "responsavelUid"
       ]);
     }
 
