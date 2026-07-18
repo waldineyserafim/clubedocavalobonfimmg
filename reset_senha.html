@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Redefinir senha — Clube do Cavalo - Bonfim MG</title>
-  <meta name="description" content="Instruções para redefinição de senha do portal de associados.">
+  <meta name="description" content="Redefinição de senha do portal de associados por SMS.">
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
@@ -14,7 +14,6 @@
   <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
 
   <style>
-    /* :root removido — usava cor incorreta #264653; design-system.css usa var(--brand) correto */
     .card-callout { border: 1px solid rgba(0,0,0,.06); border-radius: var(--radius-md); }
     .card-callout .card-body { padding: 1.5rem; }
   </style>
@@ -36,7 +35,7 @@
       <i class="bi bi-shield-lock text-white" style="font-size:1.25rem; opacity:.85;"></i>
       <div>
         <h1 class="fw-bold text-white mb-0" style="font-size:var(--text-lg);">Redefinir senha</h1>
-        <p class="mb-0 text-white" style="font-size:var(--text-xs); opacity:.75;">A redefinição é feita diretamente pela Secretaria do Clube</p>
+        <p class="mb-0 text-white" style="font-size:var(--text-xs); opacity:.75;">Confirmamos sua identidade por um código enviado ao seu celular</p>
       </div>
     </div>
   </div>
@@ -47,37 +46,73 @@
     <div class="col-12 col-lg-8">
       <div class="card card-callout shadow-sm">
         <div class="card-body">
-          <p class="lead mb-3">Entre em contato com o Clube do Cavalo para solicitar o <strong>reset da sua senha</strong>.</p>
 
-          <ul class="mb-3">
-            <li>Tenha em mãos seu <strong>CPF</strong> e, se possível, seu <strong>e‑mail cadastrado</strong>.</li>
-            <li>Após confirmarmos sua identidade, definiremos uma nova senha para sua conta.</li>
-          </ul>
+          <!-- Passo 1: CPF -->
+          <div id="stepCpf">
+            <p class="lead mb-3">Informe seu CPF para receber um código de verificação por SMS.</p>
+            <div id="cpfMsg" class="d-none alert"></div>
+            <label class="form-label" for="cpfInput">CPF</label>
+            <input id="cpfInput" type="text" class="form-control mb-3" inputmode="numeric" placeholder="000.000.000-00" maxlength="14">
+            <div class="d-flex flex-wrap gap-2">
+              <button type="button" id="btnCpfNext" class="btn btn-primary">
+                <i class="bi bi-send me-1"></i>Enviar código por SMS
+              </button>
+              <a class="btn btn-outline-secondary" href="login.html">
+                <i class="bi bi-arrow-left me-1"></i>Voltar ao login
+              </a>
+            </div>
+          </div>
 
-          <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-primary" href="https://wa.me/?text=Ol%C3%A1%2C%20preciso%20redefinir%20minha%20senha%20do%20portal%20de%20associados.%20Meu%20CPF%20%C3%A9%20_____.">
-              <i class="bi bi-whatsapp me-1"></i>Falar no WhatsApp
-            </a>
-            <a class="btn btn-outline-primary" href="mailto:contato@clubedocavalo.com.br?subject=Reset%20de%20senha%20-%20portal%20de%20associados&body=Ol%C3%A1%2C%20preciso%20redefinir%20minha%20senha.%20Meu%20CPF%20%C3%A9%20_____.">
-              <i class="bi bi-envelope me-1"></i>Enviar e‑mail
-            </a>
-            <a class="btn btn-outline-secondary" href="login.html">
-              <i class="bi bi-arrow-left me-1"></i>Voltar ao login
+          <!-- Passo 2: Código + nova senha -->
+          <div id="stepCode" class="d-none">
+            <p class="lead mb-1">Digite o código que enviamos.</p>
+            <p class="text-secondary small mb-3">Enviamos um SMS de 6 dígitos para o telefone <strong id="phoneMaskedText">—</strong>.</p>
+            <div id="codeMsg" class="d-none alert"></div>
+
+            <label class="form-label" for="codeInput">Código de verificação</label>
+            <input id="codeInput" type="text" class="form-control mb-3" inputmode="numeric" placeholder="000000" maxlength="6">
+
+            <label class="form-label" for="newPass1">Nova senha</label>
+            <input id="newPass1" type="password" class="form-control mb-3" autocomplete="new-password">
+
+            <label class="form-label" for="newPass2">Confirmar nova senha</label>
+            <input id="newPass2" type="password" class="form-control mb-3" autocomplete="new-password">
+
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              <button type="button" id="btnCodeConfirm" class="btn btn-primary">
+                <i class="bi bi-check2-circle me-1"></i>Confirmar e redefinir
+              </button>
+              <button type="button" id="btnResendCode" class="btn btn-outline-secondary btn-sm">Reenviar código</button>
+              <button type="button" id="btnBackToCpf" class="btn btn-link btn-sm text-secondary">Usar outro CPF</button>
+            </div>
+            <div class="form-text">Requisitos: mínimo de 8 caracteres.</div>
+          </div>
+
+          <!-- Passo 3: concluído -->
+          <div id="stepDone" class="d-none text-center py-3">
+            <i class="bi bi-check-circle-fill text-success" style="font-size:2.5rem;"></i>
+            <p class="lead mt-2 mb-3">Senha redefinida com sucesso!</p>
+            <a href="login.html" class="btn btn-primary">
+              <i class="bi bi-box-arrow-in-right me-1"></i>Ir para o login
             </a>
           </div>
 
           <hr class="my-4">
 
-          <p class="text-secondary small mb-2"><strong>Importante:</strong></p>
-          <ul class="text-secondary small mb-0">
-            <li>Não enviamos links automáticos de redefinição por e‑mail pelo site.</li>
-            <li>Se você não lembra o e‑mail cadastrado, informe o CPF para localizarmos sua conta.</li>
-          </ul>
+          <p class="text-secondary small mb-1"><strong>Não recebeu o código ou trocou de celular?</strong></p>
+          <p class="text-secondary small mb-0">
+            Fale com a secretaria pelo
+            <a href="https://wa.me/?text=Ol%C3%A1%2C%20preciso%20de%20ajuda%20para%20redefinir%20minha%20senha%20do%20portal%20de%20associados.%20Meu%20CPF%20%C3%A9%20_____.">WhatsApp</a>
+            ou
+            <a href="mailto:contato@clubedocavalo.com.br?subject=Ajuda%20com%20redefini%C3%A7%C3%A3o%20de%20senha">e-mail</a>.
+          </p>
         </div>
       </div>
     </div>
   </div>
 </main>
+
+<div id="recaptcha-container"></div>
 
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
@@ -94,5 +129,198 @@
 </footer>
 
 <script src="assets/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+  import * as fb from "./firebase.js";
+  fb.applyModuleVisibility();
+  import { RecaptchaVerifier, signInWithPhoneNumber, signOut }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { getFunctions, httpsCallable }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
+
+  const functionsInstance = getFunctions(fb.auth.app, "us-central1");
+  const callStartPasswordReset = httpsCallable(functionsInstance, "startPasswordReset");
+  const callCompletePasswordReset = httpsCallable(functionsInstance, "completePasswordReset");
+
+  const onlyDigits = (s) => (s || "").replace(/\D/g, "");
+  function formatCPF(v) {
+    const d = onlyDigits(v).slice(0, 11);
+    const p1 = d.slice(0, 3), p2 = d.slice(3, 6), p3 = d.slice(6, 9), p4 = d.slice(9, 11);
+    return [p1, p2 && "." + p2, p3 && "." + p3, p4 && "-" + p4].filter(Boolean).join("");
+  }
+  function isValidCPF(cpfDigits) {
+    const cpf = onlyDigits(cpfDigits);
+    if (!cpf || cpf.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(cpf)) return false;
+    let s = 0; for (let i = 0; i < 9; i++) s += +cpf[i] * (10 - i);
+    let d1 = (s * 10) % 11; if (d1 === 10) d1 = 0; if (d1 !== +cpf[9]) return false;
+    s = 0; for (let i = 0; i < 10; i++) s += +cpf[i] * (11 - i);
+    let d2 = (s * 10) % 11; if (d2 === 10) d2 = 0; if (d2 !== +cpf[10]) return false;
+    return true;
+  }
+  function maskPhoneDisplay(e164) {
+    const digits = onlyDigits(e164).replace(/^55/, "");
+    if (digits.length !== 11) return "seu celular cadastrado";
+    return `(${digits.slice(0, 2)}) 9****-${digits.slice(-4)}`;
+  }
+
+  // ===== DOM refs =====
+  const stepCpf   = document.getElementById("stepCpf");
+  const stepCode  = document.getElementById("stepCode");
+  const stepDone  = document.getElementById("stepDone");
+  const cpfInput  = document.getElementById("cpfInput");
+  const cpfMsg    = document.getElementById("cpfMsg");
+  const btnCpfNext = document.getElementById("btnCpfNext");
+  const codeInput = document.getElementById("codeInput");
+  const codeMsg   = document.getElementById("codeMsg");
+  const newPass1  = document.getElementById("newPass1");
+  const newPass2  = document.getElementById("newPass2");
+  const phoneMaskedText = document.getElementById("phoneMaskedText");
+  const btnCodeConfirm  = document.getElementById("btnCodeConfirm");
+  const btnResendCode   = document.getElementById("btnResendCode");
+  const btnBackToCpf    = document.getElementById("btnBackToCpf");
+
+  let currentCpfDigits = "";
+  let confirmationResult = null;
+  let recaptchaVerifier = null;
+
+  function setMsg(el, text, kind) {
+    if (!text) { el.classList.add("d-none"); el.textContent = ""; return; }
+    el.textContent = text;
+    el.className = `alert alert-${kind || "danger"}`;
+  }
+
+  function goToStep(step) {
+    stepCpf.classList.toggle("d-none", step !== "cpf");
+    stepCode.classList.toggle("d-none", step !== "code");
+    stepDone.classList.toggle("d-none", step !== "done");
+  }
+
+  function newRecaptchaVerifier() {
+    if (recaptchaVerifier) { try { recaptchaVerifier.clear(); } catch (_) {} }
+    recaptchaVerifier = new RecaptchaVerifier(fb.auth, "recaptcha-container", { size: "invisible" });
+    return recaptchaVerifier;
+  }
+
+  const CLOUD_FN_ERRORS = {
+    "functions/not-found": "CPF não encontrado.",
+    "functions/failed-precondition": null, // usa a mensagem vinda do servidor (já é específica)
+    "functions/resource-exhausted": null,
+    "functions/permission-denied": "Telefone verificado não confere com o cadastro. Tente novamente do início.",
+    "functions/invalid-argument": null,
+  };
+  function friendlyCloudFnError(e) {
+    if (e?.code && Object.prototype.hasOwnProperty.call(CLOUD_FN_ERRORS, e.code)) {
+      return CLOUD_FN_ERRORS[e.code] || e.message || "Não foi possível concluir. Tente novamente.";
+    }
+    return e?.message || "Não foi possível concluir. Tente novamente.";
+  }
+
+  const PHONE_AUTH_ERRORS = {
+    "auth/invalid-verification-code": "Código incorreto. Confira e tente novamente.",
+    "auth/code-expired": "O código expirou. Toque em \"Reenviar código\".",
+    "auth/too-many-requests": "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+    "auth/invalid-phone-number": "Telefone cadastrado em formato inválido. Fale com a secretaria.",
+    "auth/network-request-failed": "Sem conexão. Verifique sua internet e tente novamente.",
+  };
+  function friendlyPhoneAuthError(e) {
+    return PHONE_AUTH_ERRORS[e?.code] || e?.message || "Não foi possível enviar o código. Tente novamente.";
+  }
+
+  cpfInput?.addEventListener("input", () => { cpfInput.value = formatCPF(cpfInput.value); });
+
+  async function sendCode(cpfDigits) {
+    const res = await callStartPasswordReset({ cpf: cpfDigits });
+    const telefoneE164 = res.data.telefoneE164;
+    const verifier = newRecaptchaVerifier();
+    confirmationResult = await signInWithPhoneNumber(fb.auth, telefoneE164, verifier);
+    phoneMaskedText.textContent = maskPhoneDisplay(telefoneE164);
+  }
+
+  btnCpfNext?.addEventListener("click", async () => {
+    setMsg(cpfMsg, "");
+    const cpfDigits = onlyDigits(cpfInput.value);
+    if (!isValidCPF(cpfDigits)) { setMsg(cpfMsg, "CPF inválido. Verifique e tente novamente."); return; }
+
+    btnCpfNext.disabled = true;
+    setMsg(cpfMsg, "Enviando código...", "info");
+    try {
+      await sendCode(cpfDigits);
+      currentCpfDigits = cpfDigits;
+      setMsg(cpfMsg, "");
+      codeInput.value = ""; newPass1.value = ""; newPass2.value = "";
+      setMsg(codeMsg, "");
+      goToStep("code");
+      startResendCooldown();
+    } catch (e) {
+      console.error(e);
+      const msg = e?.code?.startsWith("functions/") ? friendlyCloudFnError(e) : friendlyPhoneAuthError(e);
+      setMsg(cpfMsg, msg, "danger");
+    } finally {
+      btnCpfNext.disabled = false;
+    }
+  });
+
+  let resendCooldown = 0;
+  let resendTimer = null;
+  function startResendCooldown() {
+    resendCooldown = 60;
+    btnResendCode.disabled = true;
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      resendCooldown--;
+      btnResendCode.textContent = resendCooldown > 0 ? `Reenviar código (${resendCooldown}s)` : "Reenviar código";
+      if (resendCooldown <= 0) { clearInterval(resendTimer); btnResendCode.disabled = false; }
+    }, 1000);
+  }
+
+  btnResendCode?.addEventListener("click", async () => {
+    btnResendCode.disabled = true;
+    setMsg(codeMsg, "Reenviando código...", "info");
+    try {
+      await sendCode(currentCpfDigits);
+      setMsg(codeMsg, "Código reenviado.", "success");
+      startResendCooldown();
+    } catch (e) {
+      console.error(e);
+      setMsg(codeMsg, friendlyPhoneAuthError(e), "danger");
+      btnResendCode.disabled = false;
+    }
+  });
+
+  btnBackToCpf?.addEventListener("click", () => {
+    confirmationResult = null;
+    setMsg(codeMsg, "");
+    goToStep("cpf");
+  });
+
+  btnCodeConfirm?.addEventListener("click", async () => {
+    setMsg(codeMsg, "");
+    const code = onlyDigits(codeInput.value);
+    const p1 = newPass1.value, p2 = newPass2.value;
+
+    if (code.length !== 6) { setMsg(codeMsg, "Informe o código de 6 dígitos recebido por SMS."); return; }
+    if (!p1 || p1.length < 8) { setMsg(codeMsg, "A nova senha deve ter pelo menos 8 caracteres."); return; }
+    if (p1 !== p2) { setMsg(codeMsg, "As senhas não conferem."); return; }
+    if (!confirmationResult) { setMsg(codeMsg, "Sessão expirada. Toque em \"Reenviar código\"."); return; }
+
+    btnCodeConfirm.disabled = true;
+    setMsg(codeMsg, "Confirmando...", "info");
+    try {
+      await confirmationResult.confirm(code);
+      await callCompletePasswordReset({ cpf: currentCpfDigits, newPassword: p1 });
+      await signOut(fb.auth);
+      goToStep("done");
+    } catch (e) {
+      console.error(e);
+      const msg = e?.code?.startsWith("functions/") ? friendlyCloudFnError(e) : friendlyPhoneAuthError(e);
+      setMsg(codeMsg, msg, "danger");
+    } finally {
+      btnCodeConfirm.disabled = false;
+    }
+  });
+
+  [cpfInput].forEach((el) => el?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") btnCpfNext.click(); }));
+  [codeInput, newPass1, newPass2].forEach((el) => el?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") btnCodeConfirm.click(); }));
+</script>
 </body>
 </html>

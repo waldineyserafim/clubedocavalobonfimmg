@@ -14,7 +14,7 @@ const PUBLIC_PAGES = [
   { path: '/classificados.html', title: 'Classificados', contentId: null },
 ];
 
-// reset_senha.html is a static info page (no form — by design)
+// reset_senha.html has a self-service SMS reset flow (see 03-navigation.spec.js)
 const AUTH_PAGES = [
   { path: '/login.html', title: 'Login', has: 'form' },
   { path: '/signup.html', title: 'Cadastro', has: 'form' },

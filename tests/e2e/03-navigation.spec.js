@@ -83,11 +83,15 @@ test.describe('Estrutura HTML — Verificação Estática', () => {
     expect(hasContent).toBeTruthy();
   });
 
-  test('reset_senha.html é página estática sem formulário (by design)', () => {
+  test('reset_senha.html tem fluxo self-service por SMS (CPF, código e nova senha)', () => {
     const html = readPage('reset_senha.html');
-    // Should have WhatsApp link and not have password input
+    // Fluxo self-service via Firebase Phone Auth: CPF -> código SMS -> nova senha
+    expect(html).toContain('id="cpfInput"');
+    expect(html).toContain('id="codeInput"');
+    expect(html).toContain('type="password"');
+    expect(html).toContain('signInWithPhoneNumber');
+    // Mantém o WhatsApp como fallback para quem não recebe o código
     expect(html).toContain('wa.me');
-    expect(html).not.toContain('type="password"');
   });
 });
 

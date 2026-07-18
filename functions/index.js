@@ -2439,6 +2439,126 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
   return { success: true };
 });
 
+/* =======================================================================
+   Reset de senha self-service via SMS (Firebase Phone Authentication)
+   ======================================================================= */
+
+// Limita tentativas de iniciar o fluxo a 5 por CPF por hora — mitiga flood/enumeração
+// contra um CPF específico. Não impede enumeração de CPFs existentes em geral (aceitável
+// na escala de um clube pequeno; o Firebase Phone Auth também tem proteção própria contra
+// abuso agressivo de envio de SMS via reCAPTCHA + cotas do projeto).
+async function checkAndIncrementResetAttempts(cpfDigits) {
+  const ref = db.collection('passwordResetAttempts').doc(cpfDigits);
+  const MAX_ATTEMPTS = 5;
+  const WINDOW_MS = 60 * 60 * 1000;
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    const windowStartMs = snap.exists
+      ? (snap.data().windowStart?.toMillis?.() ?? 0)
+      : 0;
+
+    if (!snap.exists || (now - windowStartMs) > WINDOW_MS) {
+      tx.set(ref, { count: 1, windowStart: admin.firestore.FieldValue.serverTimestamp() });
+      return;
+    }
+    if (snap.data().count >= MAX_ATTEMPTS) {
+      throw new functions.https.HttpsError('resource-exhausted', 'Muitas tentativas para este CPF. Tente novamente mais tarde.');
+    }
+    tx.update(ref, { count: admin.firestore.FieldValue.increment(1) });
+  });
+}
+
+// Callable: primeiro passo do reset self-service. Não exige autenticação (roda antes do
+// login). Recebe o CPF, localiza o telefone cadastrado e devolve em E.164 para o cliente
+// disparar signInWithPhoneNumber. O mascaramento do número na UI é só cosmético — quem já
+// tem o CPF de alguém não ganha nada de novo em saber o telefone completo, e a barreira de
+// segurança real é: só quem recebe o SMS consegue completar completePasswordReset depois.
+exports.startPasswordReset = functions.https.onCall(async (data, context) => {
+  const cpfDigits = String(data?.cpf || '').replace(/\D/g, '');
+  if (cpfDigits.length !== 11) {
+    throw new functions.https.HttpsError('invalid-argument', 'CPF inválido.');
+  }
+
+  await checkAndIncrementResetAttempts(cpfDigits);
+
+  const snap = await db.collection('users').where('cpf', '==', cpfDigits).limit(1).get();
+  if (snap.empty) {
+    throw new functions.https.HttpsError('not-found', 'CPF não encontrado.');
+  }
+  const userData = snap.docs[0].data();
+
+  if (userData.categoriaAssociado === 'mirim') {
+    throw new functions.https.HttpsError('failed-precondition', 'Associado Mirim não possui conta de acesso própria — fale com o responsável.');
+  }
+
+  const telDigits = String(userData.telefone || '').replace(/\D/g, '');
+  if (!telDigits) {
+    throw new functions.https.HttpsError('failed-precondition', 'Não há telefone cadastrado para esta conta. Entre em contato com a secretaria do clube.');
+  }
+
+  const telefoneE164 = telDigits.length === 13 && telDigits.startsWith('55')
+    ? `+${telDigits}`
+    : `+55${telDigits}`;
+
+  return { telefoneE164 };
+});
+
+// Callable: segundo/último passo do reset self-service. Exige uma sessão Firebase Auth
+// autenticada por telefone (criada no cliente por signInWithPhoneNumber + confirm(code)) —
+// context.auth.token.phone_number é um claim verificado pelo próprio Firebase, não pode ser
+// falsificado pelo cliente. Compara esse telefone com o cadastrado no CPF informado; só
+// troca a senha se baterem. context.auth.uid aqui é do usuário temporário criado pela
+// verificação de telefone — nunca o uid da conta CPF-based, que é sempre resolvido via CPF.
+exports.completePasswordReset = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Verificação de telefone necessária.');
+  }
+  const verifiedPhone = context.auth.token.phone_number;
+  if (!verifiedPhone) {
+    throw new functions.https.HttpsError('failed-precondition', 'Telefone não verificado.');
+  }
+
+  const cpfDigits = String(data?.cpf || '').replace(/\D/g, '');
+  const newPassword = String(data?.newPassword || '');
+  if (cpfDigits.length !== 11 || newPassword.length < 8) {
+    throw new functions.https.HttpsError('invalid-argument', 'CPF e senha (mínimo 8 caracteres) são obrigatórios.');
+  }
+
+  const snap = await db.collection('users').where('cpf', '==', cpfDigits).limit(1).get();
+  if (snap.empty) {
+    throw new functions.https.HttpsError('not-found', 'CPF não encontrado.');
+  }
+  const targetDoc = snap.docs[0];
+  const targetUid = targetDoc.id;
+  const userData = targetDoc.data();
+
+  const telStored = String(userData.telefone || '').replace(/\D/g, '');
+  const telVerified = verifiedPhone.replace(/\D/g, '').replace(/^55/, '');
+  if (!telStored || telStored !== telVerified) {
+    throw new functions.https.HttpsError('permission-denied', 'Telefone verificado não confere com o cadastro.');
+  }
+
+  await admin.auth().updateUser(targetUid, { password: newPassword });
+  await db.collection('users').doc(targetUid).update({
+    primeiroAcesso: false,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  // Best-effort: apaga o usuário Auth temporário criado só pra verificação de telefone.
+  await admin.auth().deleteUser(context.auth.uid).catch((err) =>
+    console.warn('completePasswordReset: falha ao limpar uid temporário de telefone:', err.message));
+
+  await notifyAdminsByEmail(
+    `CCBMG - Senha redefinida via SMS: ${userData.nome || targetUid}`,
+    `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) redefiniu a própria senha via verificação por SMS.</p>`
+  );
+
+  console.log(`completePasswordReset: uid=${targetUid} senha redefinida via SMS`);
+  return { success: true };
+});
+
 // Exclui definitivamente um associado: cobrança/cliente no Asaas, subcoleções do
 // Firestore, o documento em users/{uid} e a conta no Firebase Auth. Irreversível —
 // restrito ao perfil master.
