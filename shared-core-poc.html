@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Prova de consumo — Núcleo compartilhado (Portal Associativo)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1rem; color: #211D18; }
+    h1 { font-size: 1.25rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.25rem; margin-top: 1rem; }
+    .ok { color: #3F7D5C; }
+    .fail { color: #A23B2E; }
+    dt { font-weight: 700; margin-top: .5rem; }
+    dd { margin: 0 0 .25rem; font-family: ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <!--
+    Página TEMPORÁRIA de prova de consumo do núcleo compartilhado
+    (shared/, hospedado em portalassociativo.com.br) — Fase 0 do plano de
+    migração do Painel Master. Sem link de navegação em nenhum lugar do
+    site, sem interação com nenhum fluxo de autenticação ou dado real.
+    Remover (junto com tenant.config.js) depois de validada, ou quando a
+    Fase 3 (migração real do Painel Master) já estiver pronta para
+    consumir o núcleo de verdade.
+  -->
+  <h1>Prova de consumo — núcleo compartilhado</h1>
+  <p>Confirma, em produção real, que este site (clubedocavalobonfim.com.br) consegue importar módulos ES hospedados em portalassociativo.com.br (cross-origin, sem build step) e resolver o tenant local.</p>
+
+  <div class="card" id="resultado">Carregando…</div>
+
+  <script src="./tenant.config.js"></script>
+  <script type="module">
+    import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.0";
+    import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.0";
+    import { onlyDigits } from "https://portalassociativo.com.br/shared/utils/strings.js?v=2026.08.0";
+
+    const out = document.getElementById("resultado");
+
+    function render(lines, ok) {
+      out.innerHTML =
+        `<p class="${ok ? "ok" : "fail"}"><strong>${ok ? "✅ Núcleo compartilhado funcionando" : "❌ Falhou"}</strong></p>` +
+        `<dl>${lines.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+    }
+
+    (async () => {
+      try {
+        const tenant = await getTenant();
+
+        const mapRole = createRoleResolver(
+          [
+            ["master", (r) => r === "master"],
+            ["admin", (r) => r.includes("admin")],
+          ],
+          "associado"
+        );
+
+        render([
+          ["orgId resolvido", tenant.orgId],
+          ["firebase.projectId (do tenant.config.js)", tenant.firebase.projectId],
+          ["mapRole(\"Master\")", mapRole("Master")],
+          ["mapRole(\"algo qualquer\")", mapRole("algo qualquer")],
+          ["onlyDigits(\"123.456-789\")", onlyDigits("123.456-789")],
+          ["origem dos módulos importados", "portalassociativo.com.br (cross-origin)"],
+        ], true);
+      } catch (e) {
+        render([["erro", e.message]], false);
+      }
+    })();
+  </script>
+</body>
+</html>

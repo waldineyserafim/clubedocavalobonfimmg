@@ -36,6 +36,37 @@ service cloud.firestore {
     // Quem pode operar (admin OU master)
     function canOperate() { return isMaster() || isAdminRole(); }
 
+    // >>> G3 (docs/SAAS_MULTITENANT.md): isolamento por organização.
+    // canOperate() sozinho só checa PAPEL — um admin de qualquer org podia
+    // ler/escrever dados de qualquer outra org. Estas três variantes
+    // acrescentam a checagem de orgId; master continua cross-tenant por
+    // definição (nunca comparado a nenhuma organização específica).
+    function canOperateOrg(orgId) {
+      return isMaster() || (isAdminRole() && userOrgId() == orgId);
+    }
+
+    // Para subcoleções de users/{userId} que não carregam orgId próprio
+    // (finance/financeInvoices) — le o orgId do documento pai (o usuário
+    // dono da subcoleção, não o admin logado).
+    function canOperateOrgOfUser(userId) {
+      return isMaster() || (
+        isAdminRole() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        get(/databases/$(database)/documents/users/$(userId)).data.orgId == userOrgId()
+      );
+    }
+
+    // Para cms_gallery/{albumId}/fotos/{fotoId} — os documentos de foto não
+    // gravam orgId próprio, só o álbum pai grava.
+    function canOperateOrgOfAlbum(albumId) {
+      return isMaster() || (
+        isAdminRole() &&
+        exists(/databases/$(database)/documents/cms_gallery/$(albumId)) &&
+        get(/databases/$(database)/documents/cms_gallery/$(albumId)).data.orgId == userOrgId()
+      );
+    }
+    // <<< FIM G3
+
     // Associado ativo (pode criar lotes)
     function isAssociadoOrAdmin() {
       return isLoggedIn() && (
@@ -110,14 +141,20 @@ service cloud.firestore {
     // ===========================
     //   Catálogo: Serviços/Produtos
     // ===========================
+    // Leitura exige sessão (isLoggedIn) — por isso dá para comparar orgId
+    // aqui, diferente das coleções de CMS abaixo com leitura pública sem
+    // sessão (ver docs/SAAS_MULTITENANT.md e a nota de reconciliação em
+    // docs/architecture/README.md do Portal Associativo).
     match /memberServices/{docId} {
-      allow read:  if isLoggedIn();
-      allow write: if canOperate();     // admin/master
+      allow read:   if isMaster() || (isLoggedIn() && resource.data.orgId == userOrgId());
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
     match /memberProducts/{docId} {
-      allow read:  if isLoggedIn();
-      allow write: if canOperate();     // admin/master
+      allow read:   if isMaster() || (isLoggedIn() && resource.data.orgId == userOrgId());
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
     // ===========================
@@ -221,49 +258,61 @@ service cloud.firestore {
 
       // Leitura de 1 doc:
       // - dono lê o próprio
-      // - admin/master podem ler qualquer um
-      allow get: if isSelf(userId) || canOperate();
+      // - master lê qualquer um; admin só da própria org (G3)
+      allow get: if isSelf(userId) || isMaster() || (isAdminRole() && resource.data.orgId == userOrgId());
 
-      // Listagem (para grids/admin) — apenas admin/master
-      allow list: if canOperate();
+      // Listagem (para grids/admin) — master lista todas; admin só filtra
+      // (Firestore avalia "list" por documento candidato quando a regra usa
+      // resource.data — docs de outra org simplesmente não retornam, sem
+      // depender de nenhum where() do lado do cliente).
+      allow list: if isMaster() || (isAdminRole() && resource.data.orgId == userOrgId());
 
       // Criação:
       // - dono cria o próprio (signup)
-      // - admin/master podem criar perfis para associados
-      allow create: if isSelf(userId) || canOperate();
+      // - master cria qualquer perfil; admin só na própria org (G3)
+      allow create: if isSelf(userId) || isMaster() || (isAdminRole() && request.resource.data.orgId == userOrgId());
 
       // Atualização:
-      // - dono: tudo exceto 'role' e 'status'
-      // - admin/master: podem atualizar qualquer campo
+      // - dono: tudo exceto campos sensíveis (já bloqueia troca de orgId)
+      // - master: qualquer campo, qualquer org
+      // - admin: só da própria org, e nunca pode mudar o orgId do documento
+      //   (gap encontrado durante G3: canOperate() sozinho permitia trocar
+      //   orgId no mesmo update que qualquer outro campo)
       allow update: if
         (isSelf(userId) && noSensitiveFieldChange())
-        || canOperate();
+        || isMaster()
+        || (
+          isAdminRole()
+          && resource.data.orgId == userOrgId()
+          && !("orgId" in request.resource.data.diff(resource.data).changedKeys())
+        );
 
       // -------- FINANCE (doc 'summary' e outros docs soltos) --------
       match /finance/{docId} {
-        // dono, admin e master podem LER (summary, etc.)
-        allow read:  if isSelf(userId) || canOperate();
-        // admin/master podem ESCREVER (summary, etc.)
-        allow write: if canOperate();
+        // dono, master e admin-da-mesma-org podem LER (summary, etc.) — G3
+        allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
+        // master e admin-da-mesma-org podem ESCREVER (summary, etc.) — G3
+        allow write: if canOperateOrgOfUser(userId);
 
         // (Mantido por compatibilidade com estrutura antiga)
         match /invoices/{invId} {
-          allow read:  if isSelf(userId) || canOperate();
-          allow write: if canOperate();
+          allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
+          allow write: if canOperateOrgOfUser(userId);
         }
       }
 
       // -------- NOVA COLEÇÃO DE FATURAS --------
       // Subcoleção direta para faturas: users/{uid}/financeInvoices/{invoiceId}
       match /financeInvoices/{invId} {
-        // dono, admin e master podem LER
-        allow read:  if isSelf(userId) || canOperate();
+        // dono, master e admin-da-mesma-org podem LER — G3
+        allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
 
         // >>> ADIÇÃO: permitir o PRÓPRIO USUÁRIO criar a PRÓPRIA fatura
         allow create: if isSelf(userId) && _isInvoiceCreateValid();
 
-        // admin/master/superUID continuam podendo escrever (editar/cancelar/pagar)
-        allow write: if canOperate();
+        // master e admin-da-mesma-org continuam podendo escrever
+        // (editar/cancelar/pagar) — G3
+        allow write: if canOperateOrgOfUser(userId);
       }
     }
 
@@ -385,46 +434,53 @@ service cloud.firestore {
     //   CMS — Conteúdo do Site
     // ===========================
 
-    // Banners: leitura pública, escrita somente admin/master
+    // Banners: leitura pública, escrita só admin/master da mesma org (G3)
     match /cms_banners/{docId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
-    // Eventos: leitura pública, escrita somente admin/master
+    // Eventos: leitura pública, escrita só admin/master da mesma org (G3)
     match /cms_events/{docId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
-    // Parceiros: leitura pública, escrita somente admin/master
+    // Parceiros: leitura pública, escrita só admin/master da mesma org (G3)
     match /cms_partners/{docId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
-    // Diretoria: leitura pública, escrita somente admin/master
+    // Diretoria: leitura pública, escrita só admin/master da mesma org (G3)
     match /cms_board/{docId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
-    // Galeria (álbuns): leitura pública, escrita somente admin/master
+    // Galeria (álbuns): leitura pública, escrita só admin/master da mesma org (G3)
     match /cms_gallery/{albumId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow create: if canOperateOrg(request.resource.data.orgId);
+      allow update, delete: if canOperateOrg(resource.data.orgId);
 
-      // Fotos (subcoleção): leitura pública, escrita somente admin/master
+      // Fotos (subcoleção): não gravam orgId próprio — checa o álbum pai (G3)
       match /fotos/{fotoId} {
         allow read: if true;
-        allow write: if canOperate();
+        allow write: if canOperateOrgOfAlbum(albumId);
       }
     }
 
-    // Sobre o Clube (singleton): leitura pública, escrita somente admin/master
+    // Sobre o Clube (singleton, docId == orgId): leitura pública, escrita
+    // só admin/master da mesma org (G3) — usa o próprio docId, não precisa
+    // ler resource.data (funciona até no create, quando resource ainda não existe).
     match /cms_about/{docId} {
       allow read: if true;
-      allow write: if canOperate();
+      allow write: if canOperateOrg(docId);
     }
 
     // ===========================
@@ -436,8 +492,8 @@ service cloud.firestore {
       // Criação pública (sem login) — validação de negócio feita via Cloud Function
       allow create: if request.resource.data.orgId is string
                     && request.resource.data.orgId.size() > 0;
-      // Atualização apenas por admin/master (check-in, cancelamento)
-      allow update: if canOperate();
+      // Atualização por admin/master da mesma org (check-in, cancelamento) — G3
+      allow update: if canOperateOrg(resource.data.orgId);
       allow delete: if false;
     }
   }
