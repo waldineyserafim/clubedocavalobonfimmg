@@ -57,6 +57,15 @@
       ]
     },
     {
+      "collectionGroup": "auctionPayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",  "order": "ASCENDING"  },
+        { "fieldPath": "status", "order": "ASCENDING"  },
+        { "fieldPath": "dueDate", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "memberProducts",
       "queryScope": "COLLECTION",
       "fields": [

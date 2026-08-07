@@ -33,13 +33,11 @@ service cloud.firestore {
     function isMaster()    { return isLoggedIn() && roleLower() == "master"; }
     function isAdminRole() { return isLoggedIn() && roleLower() == "admin"; }
 
-    // Quem pode operar (admin OU master)
-    function canOperate() { return isMaster() || isAdminRole(); }
-
     // >>> G3 (docs/SAAS_MULTITENANT.md): isolamento por organização.
-    // canOperate() sozinho só checa PAPEL — um admin de qualquer org podia
-    // ler/escrever dados de qualquer outra org. Estas três variantes
-    // acrescentam a checagem de orgId; master continua cross-tenant por
+    // Nunca checar só PAPEL (admin/master) sem organização — um admin de
+    // qualquer org podia ler/escrever dados de qualquer outra org com só
+    // isso. As variantes abaixo acrescentam a checagem de orgId; master
+    // continua cross-tenant por
     // definição (nunca comparado a nenhuma organização específica).
     function canOperateOrg(orgId) {
       return isMaster() || (isAdminRole() && userOrgId() == orgId);
@@ -66,6 +64,16 @@ service cloud.firestore {
       );
     }
     // <<< FIM G3
+
+    // >>> Fase 2C: módulo de leilões passa a ter orgId (ver docs/FASE2C_*.md).
+    // Para auctionLots/{lotId}/bids/{bidId} — lances não gravam orgId próprio,
+    // herdam do lote pai (mesmo padrão de canOperateOrgOfAlbum acima).
+    function sameOrgAsLot(lotId) {
+      return isLoggedIn() &&
+        exists(/databases/$(database)/documents/auctionLots/$(lotId)) &&
+        get(/databases/$(database)/documents/auctionLots/$(lotId)).data.orgId == userOrgId();
+    }
+    // <<< Fase 2C
 
     // Associado ativo (pode criar lotes)
     function isAssociadoOrAdmin() {
@@ -164,19 +172,23 @@ service cloud.firestore {
       // leitura pública (ajuste se quiser privatizar)
       allow read: if true;
 
-      // CREATE: logado e dono informado por qualquer um dos campos aceitos
+      // CREATE: logado, dono informado por qualquer um dos campos aceitos, e
+      // sempre na própria organização (Fase 2C — antes não checava orgId
+      // nenhum; classificados.html já grava orgId:currentOrgId há tempo).
       allow create: if isLoggedIn() &&
                     (
                       ("createdBy" in request.resource.data && request.resource.data.createdBy == request.auth.uid)
                       ||
                       ("ownerUid"  in request.resource.data && request.resource.data.ownerUid  == request.auth.uid)
-                    );
+                    )
+                    && request.resource.data.orgId == userOrgId();
 
       // UPDATE:
-      // - admin/master/superUID: tudo
-      // - dono: pode atualizar, mas NÃO pode mudar campos de propriedade/approvação
+      // - admin/master da MESMA organização: tudo (Fase 2C — canOperate() sozinho
+      //   deixava admin de qualquer org editar classificado de qualquer outra)
+      // - dono: pode atualizar, mas NÃO pode mudar campos de propriedade/approvação/orgId
       allow update: if
-        canOperate()
+        canOperateOrg(resource.data.orgId)
         ||
         (
           isLoggedIn() &&
@@ -187,13 +199,14 @@ service cloud.firestore {
           !(
             "approved"  in request.resource.data.diff(resource.data).changedKeys() ||
             "createdBy" in request.resource.data.diff(resource.data).changedKeys() ||
-            "ownerUid"  in request.resource.data.diff(resource.data).changedKeys()
+            "ownerUid"  in request.resource.data.diff(resource.data).changedKeys() ||
+            "orgId"     in request.resource.data.diff(resource.data).changedKeys()
           )
         );
 
-      // DELETE: admin/master/superUID ou dono
+      // DELETE: admin/master da MESMA organização, ou dono
       allow delete: if
-        canOperate()
+        canOperateOrg(resource.data.orgId)
         ||
         (
           isLoggedIn() &&
@@ -205,7 +218,13 @@ service cloud.firestore {
     }
 
     // ===========================
-    //   Coleção pública 'classificados'
+    //   Coleção pública 'classificados' — LEGADA/NÃO UTILIZADA
+    //   (confirmado na Fase 2C: nenhuma página nem Cloud Function escreve
+    //   aqui hoje — classificados.html grava em memberClassifieds; esta
+    //   coleção só existe por compatibilidade com um nome antigo. Mantida
+    //   sem exigir orgId no create — se algum documento antigo existir sem
+    //   o campo, canOperateOrg() simplesmente não dá acesso admin cross-org
+    //   a ele, e o dono continua podendo editar o próprio, sem regressão.)
     // ===========================
     match /classificados/{docId} {
       // leitura pública (qualquer visitante)
@@ -220,10 +239,10 @@ service cloud.firestore {
                     );
 
       // UPDATE:
-      // - admin/master/superUID: tudo
+      // - admin/master da MESMA organização (Fase 2C): tudo
       // - dono: não pode mudar ownerUid/ownerEmail/createdBy
       allow update: if
-        canOperate()
+        canOperateOrg(resource.data.orgId)
         ||
         (
           isLoggedIn() &&
@@ -238,9 +257,9 @@ service cloud.firestore {
           )
         );
 
-      // DELETE: admin/master/superUID ou dono
+      // DELETE: admin/master da MESMA organização, ou dono
       allow delete: if
-        canOperate()
+        canOperateOrg(resource.data.orgId)
         ||
         (
           isLoggedIn() &&
@@ -321,53 +340,67 @@ service cloud.firestore {
     // ===========================
 
     match /auctionLots/{lotId} {
-      // Leitura pública para lotes publicados/encerrados/concluídos
+      // Leitura pública para lotes publicados/encerrados/concluídos (sem checagem de
+      // organização de propósito — é a vitrine pública do leilão, mesmo padrão de
+      // cms_* com allow read:true; leitura autenticada por dono/admin abaixo já é
+      // escopada por organização).
       allow get:  if resource.data.status in ["publicado","encerrado","pago","concluido","cancelado"]
                   || (isLoggedIn() && (
                        request.auth.uid == resource.data.sellerUid
-                       || canOperate()
+                       || canOperateOrg(resource.data.orgId)
                      ));
+      // Fase 2C: list agora exige mesma organização (antes, isAssociadoOrAdmin()
+      // sozinho deixava qualquer associado logado listar lotes de qualquer org —
+      // inofensivo hoje com 1 org só, mas o mesmo gap de G3, só que neste módulo).
       allow list: if
-        canOperate()
-        || isAssociadoOrAdmin(); // associados podem listar; participanteLeilao usa apenas get
+        canOperateOrg(resource.data.orgId)
+        || (isAssociadoOrAdmin() && resource.data.orgId == userOrgId());
 
-      // Criação: apenas associados (não participanteLeilao)
+      // Criação: apenas associados (não participanteLeilao), sempre na própria organização
       allow create: if isAssociadoOrAdmin()
                     && request.resource.data.sellerUid == request.auth.uid
+                    && request.resource.data.orgId == userOrgId()
                     && request.resource.data.status in ["rascunho","em_analise"];
 
-      // Atualização pelo dono (apenas em rascunho ou rejeitado; não pode alterar campos de aprovação)
+      // Atualização: orgId nunca muda depois de criado (nenhum fluxo legítimo hoje
+      // precisa "mover" um lote de organização); dono só edita dentro das mesmas
+      // janelas de status de sempre.
       allow update: if
-        canOperate()
-        || (
-          isLoggedIn()
-          && request.auth.uid == resource.data.sellerUid
-          && resource.data.status in ["rascunho","rejeitado"]
-          && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
-               ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
-        )
-        || (
-          // Envio para análise: dono pode mudar status rascunho → em_analise
-          isLoggedIn()
-          && request.auth.uid == resource.data.sellerUid
-          && resource.data.status == "rascunho"
-          && request.resource.data.status == "em_analise"
-          && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
-               ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
-        )
-        || (
-          // Cancelamento: dono pode cancelar lote em rascunho
-          isLoggedIn()
-          && request.auth.uid == resource.data.sellerUid
-          && resource.data.status == "rascunho"
-          && request.resource.data.status == "cancelado"
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status","updatedAt"])
+        !("orgId" in request.resource.data.diff(resource.data).changedKeys())
+        && (
+          canOperateOrg(resource.data.orgId)
+          || (
+            isLoggedIn()
+            && request.auth.uid == resource.data.sellerUid
+            && resource.data.status in ["rascunho","rejeitado"]
+            && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
+                 ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
+          )
+          || (
+            // Envio para análise: dono pode mudar status rascunho → em_analise
+            isLoggedIn()
+            && request.auth.uid == resource.data.sellerUid
+            && resource.data.status == "rascunho"
+            && request.resource.data.status == "em_analise"
+            && !(request.resource.data.diff(resource.data).changedKeys().hasAny(
+                 ["approvedBy","approvedAt","lastBid","lastBidderUid","bidCount"]))
+          )
+          || (
+            // Cancelamento: dono pode cancelar lote em rascunho
+            isLoggedIn()
+            && request.auth.uid == resource.data.sellerUid
+            && resource.data.status == "rascunho"
+            && request.resource.data.status == "cancelado"
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status","updatedAt"])
+          )
         );
     }
 
     match /auctionLots/{lotId}/bids/{bidId} {
-      // Lances: leitura para qualquer usuário autenticado
-      allow read: if isLoggedIn();
+      // Fase 2C: lances agora só são legíveis por usuários da MESMA organização do
+      // lote (antes, isLoggedIn() sozinho expunha lance/valor/identidade do lance
+      // para qualquer usuário autenticado de qualquer organização da plataforma).
+      allow read: if sameOrgAsLot(lotId);
       // Escrita: SOMENTE via Cloud Function (Admin SDK ignora essas regras)
       allow write: if false;
     }
@@ -376,7 +409,7 @@ service cloud.firestore {
       allow read: if isLoggedIn() && (
         request.auth.uid == resource.data.sellerUid
         || request.auth.uid == resource.data.buyerUid
-        || canOperate()
+        || canOperateOrg(resource.data.orgId)
       );
       allow write: if false; // Apenas Cloud Functions
     }
@@ -384,7 +417,7 @@ service cloud.firestore {
     match /auctionPayments/{paymentId} {
       allow read: if isLoggedIn() && (
         request.auth.uid == resource.data.buyerUid
-        || canOperate()
+        || canOperateOrg(resource.data.orgId)
       );
       allow write: if false; // Apenas Cloud Functions
     }

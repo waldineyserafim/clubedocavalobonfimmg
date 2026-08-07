@@ -15,74 +15,85 @@ function readFile(filename) {
   return fs.readFileSync(path.join(ROOT, filename), 'utf8');
 }
 
+// Fase 2B (Billing Provider) + Fase 2C (Organization Resolver/Authorization
+// Helpers) reestruturaram como estas functions checam permissão e chamam o
+// Asaas — as asserções abaixo foram atualizadas para a forma real atual
+// (ver docs/FASE2B_CLOUD_FUNCTIONS_MIGRATION_REPORT.md e
+// docs/FASE2C_MULTI_TENANT_FINALIZATION_REPORT.md), preservando a mesma
+// propriedade que cada teste sempre verificou.
 test.describe('Cloud Functions — Central Financeira (novas)', () => {
   test('upsertInvoiceFromAsaasPayment — helper único de reconciliação, usado pelo webhook', () => {
     const fn = readFile('functions/index.js');
-    expect(fn).toContain('async function upsertInvoiceFromAsaasPayment(uid, payment)');
-    expect(fn).toContain('billingType:    payment.billingType || null');
-    expect(fn).toContain('invoiceNumber:  payment.invoiceNumber || null');
-    // usado dentro do asaasWebhook, não duplicado
+    expect(fn).toContain('async function upsertInvoiceFromAsaasPayment(uid, normalizedPayment)');
+    expect(fn).toContain('billingType:    normalizedPayment.billingType || null');
+    expect(fn).toContain('invoiceNumber:  normalizedPayment.invoiceNumber || null');
+    // usado dentro do asaasWebhook (via o payment já normalizado pelo Billing Provider), não duplicado
     const webhookIdx = fn.indexOf('exports.asaasWebhook');
     const webhookBody = fn.slice(webhookIdx, webhookIdx + 3000);
-    expect(webhookBody).toContain('upsertInvoiceFromAsaasPayment(uid, verifyData)');
+    expect(webhookBody).toContain('upsertInvoiceFromAsaasPayment(uid, result.payment)');
   });
 
-  test('syncOneAssociado — helper único de sincronização, reusado pela callable e pelo scheduler', () => {
+  test('syncOneAssociado — helper único de sincronização, reusado pela callable e pelo scheduler, agora recebe o provider já resolvido', () => {
     const fn = readFile('functions/index.js');
-    expect(fn).toContain('async function syncOneAssociado(uid, { manual = false } = {})');
+    expect(fn).toContain('async function syncOneAssociado(provider, uid, { manual = false } = {})');
     expect(fn).toContain("'asaasSync.lastSyncedAt'");
     expect(fn).toContain("'asaasSync.lastSyncResult'");
     expect(fn).toContain("'asaasSync.lastApiCheckAt'");
     expect(fn).toContain("'asaasSync.lastApiCheckStatus'");
   });
 
-  test('asaasSyncAssociado — Callable, requer admin/master, chama syncOneAssociado(uid, {manual:true})', () => {
+  test('asaasSyncAssociado — Callable, requer admin/master da MESMA organização do alvo, chama syncOneAssociado(provider, uid, {manual:true})', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('exports.asaasSyncAssociado');
     expect(fn).toContain('onCall');
     const idx = fn.indexOf('exports.asaasSyncAssociado');
     const body = fn.slice(idx, idx + 1200);
-    expect(body).toContain("['admin', 'master'].includes(callerRole)");
-    expect(body).toContain('syncOneAssociado(uid, { manual: true })');
+    expect(body).toContain('auth.requireOrganizationAdmin(context)');
+    expect(body).toContain('auth.assertCallerCanManageTarget(caller, data?.uid)');
+    expect(body).toContain('syncOneAssociado(provider, data.uid, { manual: true })');
   });
 
-  test('asaasCreatePayment — Callable, POST /v3/payments, requer admin/master', () => {
+  test('asaasCreatePayment — Callable, requer admin/master da MESMA organização do alvo, cria cobrança via Billing Provider', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('exports.asaasCreatePayment');
     const idx = fn.indexOf('exports.asaasCreatePayment');
     const body = fn.slice(idx, idx + 1800);
-    expect(body).toContain("['admin', 'master'].includes(callerRole)");
-    expect(body).toContain('${ASAAS_BASE_URL}/payments`');
-    expect(body).toContain("method: 'POST'");
+    expect(body).toContain('auth.requireOrganizationAdmin(context)');
+    expect(body).toContain('auth.assertCallerCanManageTarget(caller, data?.uid)');
+    expect(body).toContain('provider.createCharge(');
   });
 
-  test('asaasCancelPayment — Callable, DELETE /v3/payments/{id}, marca invoice local como cancelado', () => {
+  test('asaasCancelPayment — Callable, requer admin/master da MESMA organização do alvo, cancela via Billing Provider, marca invoice local como cancelado', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('exports.asaasCancelPayment');
     const idx = fn.indexOf('exports.asaasCancelPayment');
     const body = fn.slice(idx, idx + 1800);
-    expect(body).toContain("['admin', 'master'].includes(callerRole)");
-    expect(body).toContain("method: 'DELETE'");
+    expect(body).toContain('auth.requireOrganizationAdmin(context)');
+    expect(body).toContain('auth.assertCallerCanManageTarget(caller, data?.uid)');
+    expect(body).toContain('provider.cancelCharge(');
     expect(body).toContain("status: 'cancelado'");
   });
 
-  test('asaasGetPaymentStatus — Callable somente leitura, GET /v3/payments/{id}', () => {
+  test('asaasGetPaymentStatus — Callable somente leitura, consulta via Billing Provider', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('exports.asaasGetPaymentStatus');
     const idx = fn.indexOf('exports.asaasGetPaymentStatus');
     const body = fn.slice(idx, idx + 1200);
-    expect(body).toContain("['admin', 'master'].includes(callerRole)");
-    expect(body).toContain('${ASAAS_BASE_URL}/payments/${asaasPaymentId}`');
+    expect(body).toContain('auth.requireOrganizationAdmin(context)');
+    expect(body).toContain('provider.getCharge(asaasPaymentId)');
   });
 
-  test('asaasReconciliationDaily — agendada de madrugada, só reconcilia (sem criar/cancelar cobrança)', () => {
+  test('asaasReconciliationDaily — agendada de madrugada, processa organização por organização, só reconcilia (sem criar/cancelar cobrança)', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('exports.asaasReconciliationDaily');
     const idx = fn.indexOf('exports.asaasReconciliationDaily');
-    const body = fn.slice(idx, idx + 2000);
+    const body = fn.slice(idx, idx + 2200);
     expect(body).toContain('.pubsub.schedule(');
     expect(body).toContain("timeZone('America/Sao_Paulo')");
-    expect(body).toContain('syncOneAssociado(userDoc.id, { manual: false })');
+    // Fase 2B: itera organizations e filtra users por orgId — antes lia `users` inteiro sem filtro.
+    expect(body).toContain("db.collection('organizations')");
+    expect(body).toContain("db.collection('users').where('orgId', '==', org.id)");
+    expect(body).toContain('syncOneAssociado(provider, userDoc.id, { manual: false })');
     // não deve chamar as rotas de mutação (create/cancel) dentro do escopo da function
     expect(body).not.toContain('asaasCreatePayment(');
     expect(body).not.toContain('asaasCancelPayment(');
@@ -91,7 +102,12 @@ test.describe('Cloud Functions — Central Financeira (novas)', () => {
   test('Webhook continua validando token e verificando pagamento na API (anti-fraude) após o refactor', () => {
     const fn = readFile('functions/index.js');
     expect(fn).toContain('asaas-access-token');
-    expect(fn).toContain("['RECEIVED', 'CONFIRMED'].includes(verifyData.status)");
+    expect(fn).toContain('defaultProvider.processWebhook({ event, payment })');
+    // a checagem RECEIVED/CONFIRMED (anti-fraude) agora mora no Billing Provider,
+    // não mais em index.js — ver mapPaymentStatus em lib/billing/asaas.js.
+    const provider = readFile('functions/lib/billing/asaas.js');
+    expect(provider).toContain("case 'RECEIVED':");
+    expect(provider).toContain("case 'CONFIRMED':");
   });
 });
 
@@ -105,7 +121,7 @@ test.describe('Firestore Schema — Central Financeira (novos campos)', () => {
 
   test('financeInvoices ganham billingType/invoiceNumber nas rotinas de sincronização', () => {
     const fn = readFile('functions/index.js');
-    expect(fn).toContain('billingType:    payment.billingType || null');
+    expect(fn).toContain('billingType:    normalizedPayment.billingType || null');
     expect(fn).toContain('billingType:    charge.billingType || null');
   });
 

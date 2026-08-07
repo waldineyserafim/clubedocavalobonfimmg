@@ -61,22 +61,26 @@ test.describe('Cloud Functions — Handlers Asaas', () => {
 });
 
 test.describe('Cloud Functions — Asaas API', () => {
+  // Fase 2B (Billing Provider): as chamadas cru à API do Asaas saíram de
+  // functions/index.js e foram para functions/lib/billing/asaas.js — nenhuma
+  // Cloud Function chama api.asaas.com diretamente mais (ver
+  // docs/FASE2B_CLOUD_FUNCTIONS_MIGRATION_REPORT.md).
   test('URL base da API Asaas está correta', () => {
-    const fn = readFile('functions/index.js');
-    expect(fn).toContain('api.asaas.com/v3');
+    const provider = readFile('functions/lib/billing/asaas.js');
+    expect(provider).toContain('api.asaas.com/v3');
   });
 
   test('Criação de cliente no Asaas (POST /customers)', () => {
-    const fn = readFile('functions/index.js');
-    expect(fn).toContain('/customers');
+    const provider = readFile('functions/lib/billing/asaas.js');
+    expect(provider).toContain('/customers');
     // Should include CPF normalization
-    expect(fn).toContain('cpf');
+    expect(provider).toContain('cpfCnpj');
   });
 
   test('Criação de assinatura no Asaas (POST /subscriptions)', () => {
-    const fn = readFile('functions/index.js');
-    expect(fn).toContain('/subscriptions');
-    expect(fn).toContain('billingType');
+    const provider = readFile('functions/lib/billing/asaas.js');
+    expect(provider).toContain('/subscriptions');
+    expect(provider).toContain('billingType');
   });
 
   test('Planos mapeados corretamente (mensal/trimestral/semestral)', () => {

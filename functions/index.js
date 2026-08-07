@@ -1,25 +1,16 @@
 const functions = require('firebase-functions');
-
 const admin = require('firebase-admin');
-
 const nodemailer = require('nodemailer');
-
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
-const ASAAS_BASE_URL      = 'https://api.asaas.com/v3';
-const ASAAS_SECRET        = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
+const { createOrganizationResolver } = require('./lib/organization');
+const { createAuthorizationHelpers } = require('./lib/authorization');
+const { createRoleResolver } = require('./lib/roles');
+const { getBillingProvider } = require('./lib/billing');
+
+const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
 const ASAAS_AUCTION_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-auction-webhook-token/versions/latest';
-
-// Mesma lógica do firebase.js: trim + normalize + includes
-function mapRoleServer(r) {
-  const n = (r || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase();
-  if (n.includes('master'))       return 'master';
-  if (n.includes('admin'))        return 'admin';
-  if (n.includes('operador'))     return 'operador';
-  if (n.includes('participante')) return 'participanteLeilao';
-  return 'associado';
-}
 
 // Remove prefixo 55 se o número já vier com código do país (13 dígitos)
 // Asaas espera número local: DDD + número (11 dígitos para celular)
@@ -30,394 +21,234 @@ function formatPhoneForAsaas(raw) {
   return d;
 }
 
-
 admin.initializeApp();
-
 const db = admin.firestore();
-
 const secretClient = new SecretManagerServiceClient();
 
- 
-
 async function getSecret(name) {
-
-  const [version] = await secretClient.accessSecretVersion({
-
-    name: name,
-
-  });
-
+  const [version] = await secretClient.accessSecretVersion({ name });
   return version.payload.data.toString();
-
 }
 
- 
+/* =========================================================================
+   INFRAESTRUTURA COMPARTILHADA (Fase 2B)
+   — Organization Resolver, Authorization Helpers, resolução de papel e Billing
+   Provider. Nenhuma regra de negócio do CCBMG mora em lib/ — só mecanismo.
+   ========================================================================= */
+
+const organizationResolver = createOrganizationResolver({ db });
+
+// Mesmo vocabulário e mesma ordem de prioridade que shared/core/auth/roles.js
+// usa do lado cliente (firebase.js) — elimina o drift que mapRoleServer() tinha
+// (faltava o ramo "adminView", então um Admin View virava admin pleno no servidor).
+const mapRole = createRoleResolver(
+  [
+    ['master', (n) => n.includes('master')],
+    ['adminView', (n) => n.includes('admin') && n.includes('view')],
+    ['admin', (n) => n.includes('admin')],
+    ['operador', (n) => n.includes('operador')],
+    ['participanteLeilao', (n) => n.includes('participante')],
+  ],
+  'associado'
+);
+
+const auth = createAuthorizationHelpers({ organizationResolver, mapRole });
+
+/** Provider da organização do documento/usuário em questão (resolve org → provider). */
+async function getProviderForOrg(orgId) {
+  const org = orgId ? await organizationResolver.getOrganization(orgId) : null;
+  return getBillingProvider({ org, getSecret, defaultSecretName: ASAAS_SECRET });
+}
+
+/**
+ * Provider "default" da plataforma — usado quando ainda não se sabe a
+ * organização (webhooks do Asaas chegam pra 1 conta/token só, antes de saber
+ * a qual venda/pagamento pertencem — ver auctionAsaasWebhook/asaasWebhook) ou
+ * como fallback para documentos de leilão anteriores à Fase 2C que ainda não
+ * passaram pelo backfillLeilaoOrgId. Resolve para o mesmo secret único de
+ * sempre — comportamento idêntico ao anterior, só que através do Billing
+ * Provider em vez de fetch() direto.
+ */
+async function getDefaultProvider() {
+  return getBillingProvider({ org: null, getSecret, defaultSecretName: ASAAS_SECRET });
+}
 
 // Função agendada para rodar a cada 10 minutos (para teste)
-
 exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
-
   .timeZone('America/Sao_Paulo')
-
   .onRun(async (context) => {
-
     try {
-
       console.log('Iniciando envio de relatório diário de vencimentos');
 
-     
-
-      // Buscar credenciais do Secret Manager
-
       const emailUser = await getSecret('projects/clubecavalobonfim/secrets/email-user/versions/latest');
-
       const emailPassword = await getSecret('projects/clubecavalobonfim/secrets/email-password/versions/latest');
 
-     
+      // Isolamento por organização: cada org processa só os próprios `users`
+      // (antes desta fase, a rotina lia `users` inteiro sem filtro nenhum).
+      const orgsSnap = await db.collection('organizations').get();
+      const orgs = orgsSnap.empty
+        ? [{ id: 'org_bonfim', nome: 'Clube do Cavalo Bonfim MG' }] // fallback: nenhuma org cadastrada ainda (estado pré-Fase 0)
+        : orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
 
-      // Buscar todos os usuários
+      const reportsByOrg = [];
 
-      const usersSnapshot = await db.collection('users').get();
+      for (const org of orgs) {
+        const usersSnapshot = await db.collection('users').where('orgId', '==', org.id).get();
 
-     
+        const expiring5Days = [];
+        const dueToday = [];
+        const overdue5to10Days = [];
+        const overdueMore10Days = [];
 
-      const expiring5Days = [];
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const dueToday = [];
+        for (const userDoc of usersSnapshot.docs) {
+          const userData = userDoc.data();
+          const uid = userDoc.id;
 
-      const overdue5to10Days = [];
+          if (userData.ativo === false) continue;
 
-      const overdueMore10Days = [];
-
-     
-
-      const now = new Date();
-
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-     
-
-      for (const userDoc of usersSnapshot.docs) {
-
-        const userData = userDoc.data();
-
-        const uid = userDoc.id;
-
-       
-
-        if (userData.ativo === false) continue;
-
-       
-
-        let invDocs = [];
-
-        try {
-
-          const invSnap = await db.collection('users').doc(uid).collection('financeInvoices').get();
-
-          invDocs = invSnap.docs.map(x => ({ id: x.id, ...x.data() }));
-
-        } catch (errInv) {
-
-          console.warn('Falha ao ler financeInvoices de', uid, errInv);
-
-          continue;
-
-        }
-
-       
-
-        let summary = {};
-
-        try {
-
-          const sumSnap = await db.collection('users').doc(uid).collection('finance').doc('summary').get();
-
-          if (!sumSnap.empty) {
-
-            summary = sumSnap.data();
-
+          let invDocs = [];
+          try {
+            const invSnap = await db.collection('users').doc(uid).collection('financeInvoices').get();
+            invDocs = invSnap.docs.map(x => ({ id: x.id, ...x.data() }));
+          } catch (errInv) {
+            console.warn('Falha ao ler financeInvoices de', uid, errInv);
+            continue;
           }
 
-        } catch (errSum) {
-
-          console.warn('Falha ao ler summary de', uid, errSum);
-
-        }
-
-       
-
-        const m = computeMembership({ invoices: invDocs, summary });
-
-       
-
-        if (m.listCode === 'isento') continue;
-
-       
-
-        // Se não tiver nextDue, tentar calcular a partir das faturas
-
-        let nextDue = m.nextDue;
-
-        if (!nextDue) {
-
-          // Buscar a data de vencimento mais recente ou fim de plano mais recente
-
-          const allDueDates = invDocs.map(i => {
-
-            const dueMs = i.dueDate?.toMillis?.() ?? (i.dueDate ? new Date(i.dueDate).getTime() : null);
-
-            return dueMs;
-
-          }).filter(d => d !== null);
-
-         
-
-          const allPlanEnds = invDocs.map(i => {
-
-            const endMs = i.planEnd?.toMillis?.() ?? (i.planEnd ? new Date(i.planEnd).getTime() : null);
-
-            return endMs;
-
-          }).filter(d => d !== null);
-
-         
-
-          if (allDueDates.length > 0) {
-
-            nextDue = Math.min(...allDueDates);
-
-          } else if (allPlanEnds.length > 0) {
-
-            nextDue = Math.max(...allPlanEnds);
-
+          let summary = {};
+          try {
+            const sumSnap = await db.collection('users').doc(uid).collection('finance').doc('summary').get();
+            if (!sumSnap.empty) summary = sumSnap.data();
+          } catch (errSum) {
+            console.warn('Falha ao ler summary de', uid, errSum);
           }
 
+          const m = computeMembership({ invoices: invDocs, summary });
+          if (m.listCode === 'isento') continue;
+
+          let nextDue = m.nextDue;
+          if (!nextDue) {
+            const allDueDates = invDocs.map(i => {
+              const dueMs = i.dueDate?.toMillis?.() ?? (i.dueDate ? new Date(i.dueDate).getTime() : null);
+              return dueMs;
+            }).filter(d => d !== null);
+
+            const allPlanEnds = invDocs.map(i => {
+              const endMs = i.planEnd?.toMillis?.() ?? (i.planEnd ? new Date(i.planEnd).getTime() : null);
+              return endMs;
+            }).filter(d => d !== null);
+
+            if (allDueDates.length > 0) nextDue = Math.min(...allDueDates);
+            else if (allPlanEnds.length > 0) nextDue = Math.max(...allPlanEnds);
+          }
+
+          if (!nextDue) continue;
+
+          const dueDate = new Date(nextDue);
+          const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+          const daysDiff = Math.floor((dueDay - today) / (24 * 3600 * 1000));
+
+          const userInfo = {
+            nome: userData.nome || 'Sem nome',
+            apelido: userData.apelido || '',
+            cpf: userData.cpf || '',
+            telefone: userData.telefone || '',
+            vencimento: formatDateBR(dueDate),
+            diasAtraso: daysDiff
+          };
+
+          if (daysDiff === 0) dueToday.push(userInfo);
+          else if (daysDiff > 0 && daysDiff <= 5) expiring5Days.push(userInfo);
+          else if (daysDiff < -10) overdueMore10Days.push(userInfo);
+          else if (daysDiff < 0 && daysDiff >= -10) overdue5to10Days.push(userInfo);
         }
 
-       
-
-        if (!nextDue) continue;
-
-       
-
-        const dueDate = new Date(nextDue);
-
-        const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-
-        const daysDiff = Math.floor((dueDay - today) / (24 * 3600 * 1000));
-
-       
-
-        const userInfo = {
-
-          nome: userData.nome || 'Sem nome',
-
-          apelido: userData.apelido || '',
-
-          cpf: userData.cpf || '',
-
-          telefone: userData.telefone || '',
-
-          vencimento: formatDateBR(dueDate),
-
-          diasAtraso: daysDiff
-
-        };
-
-       
-
-        // Vence hoje
-
-        if (daysDiff === 0) {
-
-          dueToday.push(userInfo);
-
-        }
-
-        // A vencer em 5 dias
-
-        else if (daysDiff > 0 && daysDiff <= 5) {
-
-          expiring5Days.push(userInfo);
-
-        }
-
-        // Vencido a mais de 10 dias
-
-        else if (daysDiff < -10) {
-
-          overdueMore10Days.push(userInfo);
-
-        }
-
-        // Vencido entre 5 e 10 dias
-
-        else if (daysDiff < 0 && daysDiff >= -10) {
-
-          overdue5to10Days.push(userInfo);
-
-        }
-
+        reportsByOrg.push({ org, expiring5Days, dueToday, overdue5to10Days, overdueMore10Days });
       }
 
-     
-
-      const emailHtml = generateEmailHtml({
-
-        expiring5Days,
-
-        dueToday,
-
-        overdue5to10Days,
-
-        overdueMore10Days
-
-      });
-
-     
+      const emailHtml = generateEmailHtml(reportsByOrg);
 
       const transporter = nodemailer.createTransport({
-
         service: 'gmail',
-
-        auth: {
-
-          user: emailUser,
-
-          pass: emailPassword
-
-        }
-
+        auth: { user: emailUser, pass: emailPassword }
       });
 
-     
+      // Destinatários: cada organização pode declarar `notificationEmails` no próprio
+      // documento (organizations/{orgId}); sem isso, cai no fallback global de sempre —
+      // 100% retrocompatível com o CCBMG, que ainda não tem esse campo.
+      const recipientSets = new Set();
+      for (const { org } of reportsByOrg) {
+        const emails = Array.isArray(org.notificationEmails) && org.notificationEmails.length
+          ? org.notificationEmails
+          : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
+        emails.forEach(e => recipientSets.add(e));
+      }
 
       await transporter.sendMail({
-
         from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
-
-        to: 'Waldiney.serafim@gmail.com, mpmarquesnutri@gmail.com',
-
-        subject: `CCBMG - Relatório de Associados - ${formatDateBR(now)}`,
-
+        to: Array.from(recipientSets).join(', '),
+        subject: `CCBMG - Relatório de Associados - ${formatDateBR(now())}`,
         html: emailHtml
-
       });
 
-     
-
       console.log('Relatório diário enviado com sucesso');
-
       return null;
-
     } catch (error) {
-
       console.error('Erro ao enviar relatório diário:', error);
-
       throw error;
-
     }
-
   });
-
- 
 
 // Função auxiliar para calcular membership (mesma lógica do frontend)
-
 function computeMembership({ invoices = [], summary = {} }) {
-
   if (summary.exempt === true) {
-
     const untilMs = summary.exemptUntil?.toMillis?.() ?? (summary.exemptUntil ? new Date(summary.exemptUntil).getTime() : null);
-
     if (!untilMs || untilMs > Date.now()) {
-
       return { listCode: 'isento', listBadge: 'Isento', detail: 'isento', nextDue: null };
-
     }
-
   }
-
- 
 
   const unpaid = invoices.filter(i => {
-
     const s = String(i.status || '').toLowerCase();
-
     return !['pago', 'paga', 'paid', 'cancelado', 'estornado'].includes(s);
-
   });
 
- 
-
   let earliestDue = null;
-
   for (const inv of unpaid) {
-
     const dueMs = inv.dueDate?.toMillis?.() ?? (inv.dueDate ? new Date(inv.dueDate).getTime() : null);
-
     if (dueMs && (earliestDue === null || dueMs < earliestDue)) earliestDue = dueMs;
-
   }
-
- 
 
   if (earliestDue && earliestDue < Date.now()) {
-
     const daysOver = Math.floor((Date.now() - earliestDue) / (24 * 3600 * 1000));
-
     const detail = daysOver <= 10 ? 'atrasado' : 'vencido';
-
     return { listCode: 'pendente', listBadge: 'Pendente', detail, nextDue: earliestDue };
-
   }
-
- 
 
   const paid = invoices.filter(i => ['pago', 'paid'].includes(String(i.status || '').toLowerCase()));
-
   let lastPaidEnd = null;
-
   if (paid.length) {
-
     const paidSorted = paid.sort((a, b) => {
-
       const aEnd = a.planEnd?.toMillis?.() ?? (a.planEnd ? new Date(a.planEnd).getTime() : 0);
-
       const bEnd = b.planEnd?.toMillis?.() ?? (b.planEnd ? new Date(b.planEnd).getTime() : 0);
-
       return bEnd - aEnd;
-
     });
-
     lastPaidEnd = paidSorted[0]?.planEnd?.toMillis?.() ?? (paidSorted[0]?.planEnd ? new Date(paidSorted[0]?.planEnd).getTime() : null);
-
   }
-
- 
 
   if (lastPaidEnd && lastPaidEnd > Date.now()) {
-
     return { listCode: 'em_dia', listBadge: 'Em dia', detail: 'em_dia', nextDue: lastPaidEnd };
-
   }
-
- 
 
   if (earliestDue && earliestDue > Date.now()) {
-
     return { listCode: 'em_dia', listBadge: 'Em dia', detail: 'em_dia', nextDue: earliestDue };
-
   }
 
- 
-
   return { listCode: 'inativo', listBadge: 'Inativo', detail: 'inativo', nextDue: null };
-
 }
-
- 
 
 // Escapa entidades HTML para evitar injeção no template de email
 function escHtml(s) {
@@ -430,302 +261,86 @@ function escHtml(s) {
 }
 
 // Função auxiliar para formatar data em português
-
 function formatDateBR(date) {
-
   const d = date instanceof Date ? date : new Date(date);
-
   return d.toLocaleDateString('pt-BR');
-
 }
 
- 
+function now() { return new Date(); }
 
-// Função auxiliar para gerar HTML do email
+// Função auxiliar para gerar HTML do email — recebe 1 bloco por organização
+// (reportsByOrg), renderizados em seções separadas, para nunca misturar dados
+// de organizações diferentes no mesmo relatório.
+function generateEmailHtml(reportsByOrg) {
+  const section = (title, cls, rows, withAtraso) => rows.length ? `
+    <h2 class="${cls}">${title} (${rows.length})</h2>
+    <table>
+      <thead><tr><th>Nome</th><th>Apelido</th><th>Telefone</th><th>Vencimento</th>${withAtraso ? '<th>Dias de Atraso</th>' : ''}</tr></thead>
+      <tbody>
+        ${rows.map(user => `
+          <tr>
+            <td>${escHtml(user.nome)}</td>
+            <td>${escHtml(user.apelido || '—')}</td>
+            <td>${escHtml(user.telefone || '—')}</td>
+            <td>${escHtml(user.vencimento)}</td>
+            ${withAtraso ? `<td>${Math.abs(user.diasAtraso)} dias</td>` : ''}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>` : '';
 
-function generateEmailHtml(data) {
+  const orgBlocks = reportsByOrg.map(({ org, expiring5Days, dueToday, overdue5to10Days, overdueMore10Days }) => {
+    const isEmpty = !expiring5Days.length && !dueToday.length && !overdue5to10Days.length && !overdueMore10Days.length;
+    return `
+    <div style="margin-top:30px;padding-top:10px;border-top:2px solid #eee;">
+      <h1 style="font-size:1.2rem;text-align:left;">${escHtml(org.nome || org.id)}</h1>
+      ${section('Vence Hoje', 'danger', dueToday, false)}
+      ${section('À Vencer em 5 Dias', 'warning', expiring5Days, false)}
+      ${section('Vencido a mais de 10 Dias', 'danger', overdueMore10Days, true)}
+      ${section('Vencido entre 5 e 10 Dias', 'warning', overdue5to10Days, true)}
+      ${isEmpty ? '<p style="text-align: center; color: #666; margin-top: 15px;">Nenhum associado com vencimento próximo encontrado.</p>' : ''}
+    </div>`;
+  }).join('');
 
   return `
-
 <!DOCTYPE html>
-
 <html>
-
 <head>
-
   <meta charset="UTF-8">
-
   <style>
-
     body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-
     .container { max-width: 800px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-
-    h1 { color: #333; text-align: center; margin-bottom: 30px; }
-
+    h1 { color: #333; margin-bottom: 10px; }
     h2 { color: #666; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-top: 30px; }
-
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-
     th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-
     th { background-color: #f8f9fa; font-weight: bold; }
-
     tr:hover { background-color: #f5f5f5; }
-
     .warning { color: #f59f00; }
-
     .danger { color: #dc3545; }
-
     .success { color: #198754; }
-
     .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-
   </style>
-
 </head>
-
 <body>
-
   <div class="container">
-
-    <h1>CCBMG - Relatório de Associados</h1>
-
-    <p style="text-align: center; color: #666;">Data: ${formatDateBR(new Date())}</p>
-
-   
-
-    ${data.dueToday.length > 0 ? `
-
-    <h2 class="danger">Vence Hoje (${data.dueToday.length})</h2>
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>Apelido</th>
-
-          <th>Telefone</th>
-
-          <th>Vencimento</th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${data.dueToday.map(user => `
-
-          <tr>
-
-            <td>${escHtml(user.nome)}</td>
-
-            <td>${escHtml(user.apelido || '—')}</td>
-
-            <td>${escHtml(user.telefone || '—')}</td>
-
-            <td>${escHtml(user.vencimento)}</td>
-
-          </tr>
-
-        `).join('')}
-
-      </tbody>
-
-    </table>
-
-    ` : ''}
-
-   
-
-    ${data.expiring5Days.length > 0 ? `
-
-    <h2 class="warning">À Vencer em 5 Dias (${data.expiring5Days.length})</h2>
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>Apelido</th>
-
-          <th>Telefone</th>
-
-          <th>Vencimento</th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${data.expiring5Days.map(user => `
-
-          <tr>
-
-            <td>${escHtml(user.nome)}</td>
-
-            <td>${escHtml(user.apelido || '—')}</td>
-
-            <td>${escHtml(user.telefone || '—')}</td>
-
-            <td>${escHtml(user.vencimento)}</td>
-
-          </tr>
-
-        `).join('')}
-
-      </tbody>
-
-    </table>
-
-    ` : ''}
-
-   
-
-    ${data.overdueMore10Days.length > 0 ? `
-
-    <h2 class="danger">Vencido a mais de 10 Dias (${data.overdueMore10Days.length})</h2>
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>Apelido</th>
-
-          <th>Telefone</th>
-
-          <th>Vencimento</th>
-
-          <th>Dias de Atraso</th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${data.overdueMore10Days.map(user => `
-
-          <tr>
-
-            <td>${escHtml(user.nome)}</td>
-
-            <td>${escHtml(user.apelido || '—')}</td>
-
-            <td>${escHtml(user.telefone || '—')}</td>
-
-            <td>${escHtml(user.vencimento)}</td>
-
-            <td>${Math.abs(user.diasAtraso)} dias</td>
-
-          </tr>
-
-        `).join('')}
-
-      </tbody>
-
-    </table>
-
-    ` : ''}
-
-   
-
-    ${data.overdue5to10Days.length > 0 ? `
-
-    <h2 class="warning">Vencido entre 5 e 10 Dias (${data.overdue5to10Days.length})</h2>
-
-    <table>
-
-      <thead>
-
-        <tr>
-
-          <th>Nome</th>
-
-          <th>Apelido</th>
-
-          <th>Telefone</th>
-
-          <th>Vencimento</th>
-
-          <th>Dias de Atraso</th>
-
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${data.overdue5to10Days.map(user => `
-
-          <tr>
-
-            <td>${escHtml(user.nome)}</td>
-
-            <td>${escHtml(user.apelido || '—')}</td>
-
-            <td>${escHtml(user.telefone || '—')}</td>
-
-            <td>${escHtml(user.vencimento)}</td>
-
-            <td>${Math.abs(user.diasAtraso)} dias</td>
-
-          </tr>
-
-        `).join('')}
-
-      </tbody>
-
-    </table>
-
-    ` : ''}
-
-   
-
-    ${data.expiring5Days.length === 0 && data.dueToday.length === 0 && data.overdue5to10Days.length === 0 && data.overdueMore10Days.length === 0 ? `
-
-    <p style="text-align: center; color: #666; margin-top: 30px;">Nenhum associado com vencimento próximo encontrado.</p>
-
-    ` : ''}
-
-   
-
+    <h1 style="text-align:center;">Relatório de Associados</h1>
+    <p style="text-align: center; color: #666;">Data: ${formatDateBR(now())}</p>
+    ${orgBlocks}
     <div class="footer">
-
-      <p>Relatório gerado automaticamente pelo sistema CCBMG - Clube do Cavalo Bonfim MG</p>
-
+      <p>Relatório gerado automaticamente pelo sistema</p>
     </div>
-
   </div>
-
 </body>
-
 </html>
-
   `;
-
 }
 
 /* =======================================================================
-   INTEGRAÇÃO ASAAS
+   INTEGRAÇÃO FINANCEIRA — via Billing Provider (Fase 2B)
+   Nenhuma Cloud Function chama api.asaas.com diretamente a partir daqui;
+   tudo passa por getProviderForOrg()/getDefaultProvider() (lib/billing).
    ======================================================================= */
-
-async function getAsaasApiKey() {
-  return getSecret(ASAAS_SECRET);
-}
 
 // Recalcula e persiste finance/summary a partir das financeInvoices (espelha refreshSummaryFromInvoices do frontend)
 async function updateFinanceSummary(uid) {
@@ -787,7 +402,7 @@ function calculatePlanEnd(startDate, planType) {
   return new Date(d.getFullYear(), d.getMonth() + months, 0); // dia 0 = último dia do mês anterior
 }
 
-// Sincroniza pagamento manual do Firebase → Asaas
+// Sincroniza pagamento manual do Firebase → provider financeiro da organização do uid.
 // Só executa se a fatura NÃO tem asaasPaymentId (ou seja, não veio do webhook)
 async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
   if (invoiceData.asaasPaymentId) return; // já sincronizado via webhook
@@ -797,7 +412,7 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
   const userData = userSnap.data();
   if (!userData.asaasId || !userData.asaasSubscriptionId) return;
 
-  const apiKey = await getAsaasApiKey();
+  const provider = await getProviderForOrg(userData.orgId);
 
   const dueDateMs = invoiceData.dueDate?.toMillis?.()
     ?? (invoiceData.dueDate ? new Date(invoiceData.dueDate).getTime() : null);
@@ -805,18 +420,11 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
 
   const dueDateStr = new Date(dueDateMs).toISOString().slice(0, 10);
 
-  // Busca cobranças pendentes e vencidas da assinatura com a mesma dueDate
-  const [pendingResp, overdueResp] = await Promise.all([
-    fetch(`${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=PENDING`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
-    fetch(`${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&status=OVERDUE`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
+  const [pending, overdue] = await Promise.all([
+    provider.listCharges({ subscriptionId: userData.asaasSubscriptionId, status: 'PENDING' }),
+    provider.listCharges({ subscriptionId: userData.asaasSubscriptionId, status: 'OVERDUE' }),
   ]);
-  const [pendingData, overdueData] = await Promise.all([
-    pendingResp.text().then(t => t ? JSON.parse(t) : {}),
-    overdueResp.text().then(t => t ? JSON.parse(t) : {}),
-  ]);
-  const allCharges = [...(pendingData.data || []), ...(overdueData.data || [])];
+  const allCharges = [...pending, ...overdue];
 
   const charge = allCharges.find(c => c.dueDate === dueDateStr);
   if (!charge) {
@@ -825,104 +433,65 @@ async function syncManualPaymentToAsaas(uid, invoiceRef, invoiceData) {
   }
 
   const paidAt = invoiceData.paidAt?.toDate?.() ?? invoiceData.recordedAt?.toDate?.() ?? new Date();
-  const receiveResp = await fetch(`${ASAAS_BASE_URL}/payments/${charge.id}/receiveInCash`, {
-    method: 'POST',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      paymentDate: paidAt.toISOString().slice(0, 10),
-      value: invoiceData.amount || charge.value,
-    }),
+  await provider.receiveInCash(charge.providerId, {
+    paymentDate: paidAt.toISOString().slice(0, 10),
+    value: invoiceData.amount || charge.value,
   });
-  const receiveText = await receiveResp.text();
-  const receiveData = receiveText ? JSON.parse(receiveText) : {};
-
-  if (!receiveResp.ok) {
-    throw new Error(receiveData.errors?.[0]?.description || `HTTP ${receiveResp.status}`);
-  }
 
   // Salva asaasPaymentId na fatura para idempotência (+ billingType/invoiceNumber para exibição no painel)
   await invoiceRef.update({
-    asaasPaymentId: charge.id,
+    asaasPaymentId: charge.providerId,
     billingType:    charge.billingType || null,
     invoiceNumber:  charge.invoiceNumber || null,
   });
-  console.log(`syncManualPaymentToAsaas: uid=${uid} charge=${charge.id} marcado como pago no Asaas`);
+  console.log(`syncManualPaymentToAsaas: uid=${uid} charge=${charge.providerId} marcado como pago no Asaas`);
 }
 
-// Traduz o estado de um payment do Asaas para o vocabulário local de financeInvoices.
-// `deleted` é um campo booleano independente de `status` (confirmado via API) — uma cobrança
-// excluída (PAYMENT_DELETED) mantém seu `status` anterior, então precisa ser checado primeiro.
-// Isso também cobre PAYMENT_RESTORED "de graça": ao restaurar, `deleted` volta a false e o
-// `status` natural (PENDING/OVERDUE/...) já reflete o estado correto, sem caso especial.
-function mapAsaasPaymentStatus(payment) {
-  if (payment.deleted === true) return 'cancelado';
-  switch (payment.status) {
-    case 'RECEIVED':
-    case 'CONFIRMED':
-    case 'RECEIVED_IN_CASH':
-      return 'pago';
-    case 'OVERDUE':
-      return 'atrasado';
-    case 'PENDING':
-      return 'em_aberto';
-    case 'REFUNDED':
-    case 'REFUND_REQUESTED':
-    case 'REFUND_IN_PROGRESS':
-      return 'estornado';
-    default:
-      return 'em_aberto';
-  }
-}
-
-// Cria ou atualiza uma financeInvoice a partir de um objeto payment do Asaas (idempotente por asaasPaymentId).
-// Usado pelo webhook, pela sincronização manual sob demanda, pela reconciliação diária e pelo
-// cancelamento/reativação de associado — única fonte da lógica de "achar/criar invoice por
-// dueDate ou por asaasPaymentId" para evitar divergência entre as rotinas. Entende qualquer
-// estado de cobrança (pago/pendente/vencido/cancelado), embora hoje só receba pagas e as
-// cobranças canceladas/recriadas pelo fluxo de desativação/reativação.
-async function upsertInvoiceFromAsaasPayment(uid, payment) {
+// Cria ou atualiza uma financeInvoice a partir de um payment normalizado do provider
+// (idempotente por asaasPaymentId). Usado pelo webhook, pela sincronização manual sob
+// demanda, pela reconciliação diária e pelo cancelamento/reativação de associado —
+// única fonte dessa lógica para as rotinas não divergirem.
+async function upsertInvoiceFromAsaasPayment(uid, normalizedPayment) {
   const invoicesRef = db.collection('users').doc(uid).collection('financeInvoices');
 
   const userSnap = await db.collection('users').doc(uid).get();
   if (!userSnap.exists) return { action: 'skipped', reason: 'user_not_found' };
 
   const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
-  const dueDate   = new Date(payment.dueDate);
+  const dueDate   = new Date(normalizedPayment.dueDate);
   const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
   const planEnd   = calculatePlanEnd(planStart, planType);
-  const now       = admin.firestore.FieldValue.serverTimestamp();
-  const status    = mapAsaasPaymentStatus(payment);
+  const nowTs     = admin.firestore.FieldValue.serverTimestamp();
+  const status    = normalizedPayment.status;
 
   const paymentPayload = {
     status,
-    amount:         payment.value,
-    asaasPaymentId: payment.id,
-    invoiceUrl:     payment.invoiceUrl || null,
-    billingType:    payment.billingType || null,
-    invoiceNumber:  payment.invoiceNumber || null,
+    amount:         normalizedPayment.value,
+    asaasPaymentId: normalizedPayment.providerId,
+    invoiceUrl:     normalizedPayment.invoiceUrl || null,
+    billingType:    normalizedPayment.billingType || null,
+    invoiceNumber:  normalizedPayment.invoiceNumber || null,
     planType,
     planStart:      admin.firestore.Timestamp.fromDate(planStart),
     planEnd:        admin.firestore.Timestamp.fromDate(planEnd),
-    updatedAt:      now,
+    updatedAt:      nowTs,
   };
 
   // Só grava data de pagamento quando o pagamento é real — nunca usar "agora" como fallback
   // para uma cobrança que não foi paga (isso carimbaria uma data de pagamento falsa).
   if (status === 'pago') {
-    const paidAt = new Date(payment.paymentDate || payment.confirmedDate || payment.clientPaymentDate || Date.now());
+    const paidAt = new Date(normalizedPayment.paymentDate || Date.now());
     paymentPayload.paidAt = admin.firestore.Timestamp.fromDate(paidAt);
   }
 
-  // 1) Já existe fatura vinculada a este payment.id? Converge (upsert) — cobre todo o ciclo de
-  //    vida da mesma cobrança (criada → vencida → paga, ou criada → cancelada) sem duplicar.
-  const byPaymentId = await invoicesRef.where('asaasPaymentId', '==', payment.id).limit(1).get();
+  // 1) Já existe fatura vinculada a este payment.id? Converge (upsert).
+  const byPaymentId = await invoicesRef.where('asaasPaymentId', '==', normalizedPayment.providerId).limit(1).get();
   if (!byPaymentId.empty) {
     await byPaymentId.docs[0].ref.update(paymentPayload);
     return { action: 'updated', invoiceId: byPaymentId.docs[0].id };
   }
 
-  // 2) Fatura pré-existente sem asaasPaymentId ainda (criada manualmente/migração), mesma
-  //    dueDate e em aberto — vincula a este payment ao invés de duplicar.
+  // 2) Fatura pré-existente sem asaasPaymentId ainda, mesma dueDate e em aberto — vincula.
   const existingSnap = await invoicesRef
     .where('dueDate', '==', admin.firestore.Timestamp.fromDate(dueDate))
     .where('status', 'in', ['em_aberto', 'atrasado', 'vencido'])
@@ -933,96 +502,23 @@ async function upsertInvoiceFromAsaasPayment(uid, payment) {
     return { action: 'updated', invoiceId: existingSnap.docs[0].id };
   }
 
-  // 3) Não havia nada — cria uma fatura nova espelhando esta cobrança do Asaas.
+  // 3) Não havia nada — cria uma fatura nova espelhando esta cobrança.
   const newRef = await invoicesRef.add({
     ...paymentPayload,
     dueDate:   admin.firestore.Timestamp.fromDate(dueDate),
-    createdAt: now,
+    createdAt: nowTs,
   });
   return { action: 'created', invoiceId: newRef.id };
 }
 
-// Busca cliente no Asaas (por externalReference, com fallback por CPF); cria se não existir.
-// Retorna { asaasId, action: 'found' | 'created' }
-async function findOrCreateAsaasCustomer(apiKey, user) {
-  const isMirim = user.categoriaAssociado === 'mirim';
-  const cpf = ((isMirim ? user.responsavelCpf : user.cpf) || '').replace(/\D/g, '');
-  if (!cpf) throw new Error(isMirim ? 'CPF do responsável ausente' : 'CPF ausente');
-
-  // 1) Casa por externalReference (UID Firebase) — idempotente e correto tanto para mirim
-  //    quanto para associado normal, sem depender do CPF.
-  if (user.uid) {
-    const refResp = await fetch(
-      `${ASAAS_BASE_URL}/customers?externalReference=${user.uid}`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-    );
-    const refData = await refResp.json();
-    if (refData.data && refData.data.length > 0) {
-      return { asaasId: refData.data[0].id, action: 'found' };
-    }
-  }
-
-  // 2) Só para associado normal: casa por CPF — cobre clientes já cadastrados manualmente no
-  //    Asaas ANTES da integração (sem externalReference ainda). Não se aplica a mirim: o CPF
-  //    é do responsável, então casar por ele encontraria o cliente ERRADO (o do próprio
-  //    responsável, se ele também for associado) em vez de criar um cliente distinto pro mirim.
-  //    O Asaas permite clientes duplicados por CPF — é seguro criar um novo para o mirim.
-  if (!isMirim) {
-    const cpfResp = await fetch(
-      `${ASAAS_BASE_URL}/customers?cpfCnpj=${cpf}`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-    );
-    const cpfData = await cpfResp.json();
-    if (cpfData.data && cpfData.data.length > 0) {
-      return { asaasId: cpfData.data[0].id, action: 'found' };
-    }
-  }
-
-  // 3) Cria novo cliente
-  const nome = isMirim
-    ? `${(user.nome || 'Associado').trim()} (Mirim) — resp. ${(user.responsavelNome || '').trim()}`
-    : (user.nome || 'Associado').trim();
-  const telefone = isMirim ? user.responsavelTelefone : user.telefone;
-
-  const body = {
-    name: nome,
-    cpfCnpj: cpf,
-    mobilePhone: formatPhoneForAsaas(telefone),
-    externalReference: user.uid || undefined,
-  };
-
-  const createResp = await fetch(`${ASAAS_BASE_URL}/customers`, {
-    method: 'POST',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const createData = await createResp.json();
-
-  if (!createResp.ok) {
-    const msg = createData.errors?.[0]?.description || `HTTP ${createResp.status}`;
-    throw new Error(msg);
-  }
-
-  return { asaasId: createData.id, action: 'created' };
-}
-
-// Callable: sincroniza todos os associados sem asaasId com o Asaas.
-// Requer role admin ou master.
+// Callable: sincroniza associados sem asaasId da PRÓPRIA organização do chamador.
 exports.syncAllAssociadosToAsaas = functions
   .runWith({ timeoutSeconds: 540, memory: '512MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
+    const provider = await getProviderForOrg(caller.orgId);
 
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
-
-    const apiKey = await getAsaasApiKey();
-    const usersSnap = await db.collection('users').get();
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
     const results = { synced: 0, skipped: 0, errors: [] };
 
     for (const userDoc of usersSnap.docs) {
@@ -1034,9 +530,9 @@ exports.syncAllAssociadosToAsaas = functions
       }
 
       try {
-        const { asaasId } = await findOrCreateAsaasCustomer(apiKey, userData);
+        const { providerId } = await findOrCreateCustomerForUser(provider, userData);
         await userDoc.ref.update({
-          asaasId,
+          asaasId: providerId,
           asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
         results.synced++;
@@ -1045,7 +541,6 @@ exports.syncAllAssociadosToAsaas = functions
         results.errors.push({ uid: userDoc.id, nome: userData.nome || '—', error: err.message });
       }
 
-      // Pausa para respeitar rate limits do Asaas
       await new Promise(r => setTimeout(r, 250));
     }
 
@@ -1053,7 +548,35 @@ exports.syncAllAssociadosToAsaas = functions
     return results;
   });
 
-// Trigger: ao criar um novo usuário → cria cliente e assinatura no Asaas automaticamente.
+/**
+ * Monta os dados de cliente a partir de um doc `users/{uid}` (regra do CCBMG:
+ * associado "mirim" é cobrado no CPF/telefone do responsável) e delega ao
+ * Billing Provider — mantém a mesma prioridade de busca (externalReference
+ * depois CPF) que findOrCreateAsaasCustomer tinha antes da Fase 2B.
+ */
+async function findOrCreateCustomerForUser(provider, user) {
+  const isMirim = user.categoriaAssociado === 'mirim';
+  const cpf = ((isMirim ? user.responsavelCpf : user.cpf) || '').replace(/\D/g, '');
+  if (!cpf) throw new Error(isMirim ? 'CPF do responsável ausente' : 'CPF ausente');
+
+  const nome = isMirim
+    ? `${(user.nome || 'Associado').trim()} (Mirim) — resp. ${(user.responsavelNome || '').trim()}`
+    : (user.nome || 'Associado').trim();
+  const telefone = isMirim ? user.responsavelTelefone : user.telefone;
+
+  // Mirim não casa por CPF (o CPF é do responsável — casar por ele encontraria o
+  // cliente do responsável, se ele também for associado, em vez de criar um cliente
+  // distinto pro mirim). O Asaas permite clientes duplicados por CPF, é seguro criar.
+  return provider.findOrCreateCustomer({
+    name: nome,
+    cpfCnpj: cpf,
+    mobilePhone: formatPhoneForAsaas(telefone),
+    externalReference: user.uid || undefined,
+    allowDocumentFallback: !isMirim,
+  });
+}
+
+// Trigger: ao criar um novo usuário → cria cliente e assinatura no provider da organização.
 exports.onNewAssociadoCriado = functions.firestore
   .document('users/{uid}')
   .onCreate(async (snap, context) => {
@@ -1064,45 +587,40 @@ exports.onNewAssociadoCriado = functions.firestore
     if (!cpfDisponivel || userData.ativo === false) return null;
 
     try {
-      const apiKey  = await getAsaasApiKey();
-      const { asaasId, action } = await findOrCreateAsaasCustomer(apiKey, userData);
+      const provider = await getProviderForOrg(userData.orgId);
+      const { providerId: asaasId, action } = await findOrCreateCustomerForUser(provider, userData);
 
       // Notificações (WhatsApp + SMS) precisam estar configuradas antes de
       // criar a assinatura, para que a 1ª cobrança já saia com o padrão certo.
-      const notifResult = await syncCustomerNotifications(asaasId, apiKey);
-      console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} notificações ajustadas=${notifResult.changed}/${notifResult.total}`);
+      // Extensão específica do provider Asaas — ver lib/billing/asaas.js.
+      if (provider.notifications) {
+        const notifResult = await provider.notifications.sync(asaasId);
+        console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} notificações ajustadas=${notifResult.changed}/${notifResult.total}`);
+      }
 
       const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
       const nextDueDate = getNextDueDate();
       const value       = resolvePlanValue(planType, userData.categoriaAssociado);
       const descricao   = `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'}${isMirim ? ' (Mirim)' : ''}`;
 
-      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
-        method: 'POST',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer:          asaasId,
-          billingType:       'UNDEFINED',
-          value,
-          nextDueDate,
-          cycle:             PLAN_CYCLE[planType] || 'MONTHLY',
-          description:       descricao,
-          externalReference: uid,
-          interest:          { value: 0.01 },
-          notificationEnabled: true,
-        }),
+      const { providerId: subscriptionId } = await provider.createSubscription({
+        customerId: asaasId,
+        value,
+        nextDueDate,
+        cycle: PLAN_CYCLE[planType] || 'MONTHLY',
+        description: descricao,
+        externalReference: uid,
+        interest: { value: 0.01 },
       });
-      const subText = await subResp.text();
-      const subData = subText ? JSON.parse(subText) : {};
 
       await snap.ref.update({
         asaasId,
         asaasSyncedAt:              admin.firestore.FieldValue.serverTimestamp(),
-        asaasSubscriptionId:        subData.id || null,
+        asaasSubscriptionId:        subscriptionId || null,
         asaasSubscriptionSyncedAt:  admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} action=${action} subscriptionId=${subData.id}`);
+      console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} action=${action} subscriptionId=${subscriptionId}`);
     } catch (err) {
       console.error('onNewAssociadoCriado error:', uid, err.message);
     }
@@ -1174,77 +692,52 @@ function getLastPlanEndDate(invoices) {
   return raw?.toDate?.() ?? new Date(raw);
 }
 
-// Callable: cria assinaturas no Asaas para todos os associados com asaasId
+// Callable: cria assinaturas no provider para associados com asaasId da PRÓPRIA organização.
 exports.createAsaasSubscriptions = functions
   .runWith({ timeoutSeconds: 540, memory: '512MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
+    const provider = await getProviderForOrg(caller.orgId);
 
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
-
-    const apiKey = await getAsaasApiKey();
-    const usersSnap = await db.collection('users').get();
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
     const results = { created: 0, skipped: 0, errors: [] };
 
     for (const userDoc of usersSnap.docs) {
       const userData = { uid: userDoc.id, ...userDoc.data() };
 
-      // Pula sem asaasId, já com assinatura ou inativos
       if (!userData.asaasId || userData.asaasSubscriptionId || userData.ativo === false) {
         results.skipped++;
         continue;
       }
 
       try {
-        const invSnap = await db
-          .collection('users').doc(userDoc.id)
-          .collection('financeInvoices').get();
+        const invSnap = await db.collection('users').doc(userDoc.id).collection('financeInvoices').get();
         const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         const planType = detectPlanType(invoices, userData.planType);
 
-        // Define data de vencimento da 1ª cobrança
         const membership = computeMembership({ invoices, summary: {} });
         let nextDueDate;
 
         if (membership.listCode === 'em_dia') {
           const planEnd = getLastPlanEndDate(invoices);
-          nextDueDate = planEnd
-            ? planEnd.toISOString().slice(0, 10)
-            : getPendingRestartDate();
+          nextDueDate = planEnd ? planEnd.toISOString().slice(0, 10) : getPendingRestartDate();
         } else {
           nextDueDate = getPendingRestartDate();
         }
 
-        const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions`, {
-          method: 'POST',
-          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customer: userData.asaasId,
-            billingType: 'UNDEFINED',
-            value: resolvePlanValue(planType, userData.categoriaAssociado),
-            nextDueDate,
-            cycle: PLAN_CYCLE[planType],
-            description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
-            externalReference: userDoc.id,
-            interest: { value: 0.01 },
-            notificationEnabled: true,
-          }),
+        const { providerId: subscriptionId } = await provider.createSubscription({
+          customerId: userData.asaasId,
+          value: resolvePlanValue(planType, userData.categoriaAssociado),
+          nextDueDate,
+          cycle: PLAN_CYCLE[planType],
+          description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
+          externalReference: userDoc.id,
+          interest: { value: 0.01 },
         });
-        const subData = await subResp.json();
-
-        if (!subResp.ok) {
-          throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
-        }
 
         const updatePayload = {
-          asaasSubscriptionId: subData.id,
+          asaasSubscriptionId: subscriptionId,
           asaasSubscriptionSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
         if (!userData.planType) updatePayload.planType = planType;
@@ -1262,323 +755,78 @@ exports.createAsaasSubscriptions = functions
     return results;
   });
 
-
-/* =======================================================================
-   ASAAS — PADRÃO DE NOTIFICAÇÕES (WhatsApp + SMS)
-   ======================================================================= */
-
-// Eventos padrão criados automaticamente pelo Asaas para cada cliente
-// (PAYMENT_CREATED, PAYMENT_UPDATED, PAYMENT_RECEIVED, PAYMENT_OVERDUE,
-// PAYMENT_DUEDATE_WARNING, SEND_LINHA_DIGITAVEL — alguns duplicados com
-// scheduleOffset diferente). SEND_LINHA_DIGITAVEL não aceita ativação de
-// WhatsApp (confirmado via teste em Sandbox); mantido como Set para permitir
-// fallback dinâmico caso o Asaas passe a rejeitar outro evento no futuro.
-const WHATSAPP_UNSUPPORTED_EVENTS = new Set(['SEND_LINHA_DIGITAVEL']);
-
-// Aplica o padrão institucional (WhatsApp + SMS ativos; e-mail e ligação
-// desativados) às notificações de 1 cliente do Asaas. Preserva scheduleOffset
-// e os campos *ForProvider (não são enviados no payload, então a API mantém
-// o valor atual). PUT /notifications/batch é atômico — se 1 notificação for
-// rejeitada, o lote inteiro falha — por isso o fallback abaixo reenvia sem o
-// campo problemático em vez de abortar a sincronização do cliente inteiro.
-async function syncCustomerNotifications(asaasId, apiKey) {
-  const listResp = await fetch(
-    `${ASAAS_BASE_URL}/customers/${asaasId}/notifications`,
-    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-  );
-  const listText = await listResp.text();
-  const listData = listText ? JSON.parse(listText) : {};
-  if (!listResp.ok) {
-    throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
-  }
-
-  const notifications = listData.data || [];
-  const byId = new Map(notifications.map(n => [n.id, n]));
-  const unsupported = new Set(WHATSAPP_UNSUPPORTED_EVENTS);
-
-  const buildChanged = () => notifications.reduce((acc, notif) => {
-    const desired = {
-      enabled:                     true,
-      whatsappEnabledForCustomer:  !unsupported.has(notif.event),
-      smsEnabledForCustomer:       true,
-      emailEnabledForCustomer:     false,
-      phoneCallEnabledForCustomer: false,
-    };
-    const isDifferent = Object.entries(desired).some(([k, v]) => notif[k] !== v);
-    if (isDifferent) acc.push({ id: notif.id, ...desired });
-    return acc;
-  }, []);
-
-  for (let attempt = 0; attempt <= notifications.length; attempt++) {
-    const changed = buildChanged();
-    if (!changed.length) return { total: notifications.length, changed: 0 };
-
-    const updResp = await fetch(`${ASAAS_BASE_URL}/notifications/batch`, {
-      method: 'PUT',
-      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer: asaasId, notifications: changed }),
-    });
-    if (updResp.ok) return { total: notifications.length, changed: changed.length };
-
-    const updText = await updResp.text();
-    const updData = updText ? JSON.parse(updText) : {};
-    const msg = updData.errors?.[0]?.description || `HTTP ${updResp.status}`;
-
-    // Só sabemos contornar rejeição de WhatsApp para um evento específico;
-    // qualquer outro erro propaga e interrompe a sincronização desse cliente.
-    const m = msg.match(/notifica(?:ç|c)ão (not_\w+).*whatsapp/i);
-    const badNotif = m && byId.get(m[1]);
-    if (!badNotif || unsupported.has(badNotif.event)) throw new Error(msg);
-    unsupported.add(badNotif.event);
-  }
-  throw new Error('Excedeu tentativas de ajuste do lote de notificações.');
-}
-
-// Liga/desliga TODAS as notificações de um cliente de uma vez (usado na desativação de
-// associado). Diferente de syncCustomerNotifications (que aplica o padrão institucional
-// completo por evento/canal), aqui só o campo `enabled` importa.
-async function setCustomerNotificationsEnabled(asaasId, apiKey, enabled) {
-  const listResp = await fetch(
-    `${ASAAS_BASE_URL}/customers/${asaasId}/notifications`,
-    { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-  );
-  const listText = await listResp.text();
-  const listData = listText ? JSON.parse(listText) : {};
-  if (!listResp.ok) throw new Error(listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
-
-  const notifications = listData.data || [];
-  const changed = notifications.filter(n => n.enabled !== enabled).map(n => ({ id: n.id, enabled }));
-  if (!changed.length) return { total: notifications.length, changed: 0 };
-
-  const updResp = await fetch(`${ASAAS_BASE_URL}/notifications/batch`, {
-    method: 'PUT',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customer: asaasId, notifications: changed }),
-  });
-  if (!updResp.ok) {
-    const updText = await updResp.text();
-    const updData = updText ? JSON.parse(updText) : {};
-    throw new Error(updData.errors?.[0]?.description || `HTTP ${updResp.status}`);
-  }
-  return { total: notifications.length, changed: changed.length };
-}
-
-// Cancela (DELETE) todas as cobranças em aberto (PENDING + OVERDUE) de um cliente no Asaas —
-// usado na desativação de associado, para que nada continue vencendo depois que ele saiu.
-// Espelha cada cancelamento como 'cancelado' no financeInvoices correspondente, sem round-trip
-// extra: já sabemos que a exclusão deu certo, então marcamos deleted:true localmente.
-async function cancelOpenPayments(uid, asaasId, apiKey) {
-  const [pendingResp, overdueResp] = await Promise.all([
-    fetch(`${ASAAS_BASE_URL}/payments?customer=${asaasId}&status=PENDING`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
-    fetch(`${ASAAS_BASE_URL}/payments?customer=${asaasId}&status=OVERDUE`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }),
-  ]);
-  const [pendingData, overdueData] = await Promise.all([
-    pendingResp.text().then(t => t ? JSON.parse(t) : {}),
-    overdueResp.text().then(t => t ? JSON.parse(t) : {}),
-  ]);
-  if (!pendingResp.ok || !overdueResp.ok) {
-    throw new Error(pendingData.errors?.[0]?.description || overdueData.errors?.[0]?.description || 'Falha ao listar cobranças em aberto.');
-  }
-  const openPayments = [...(pendingData.data || []), ...(overdueData.data || [])];
-
-  let canceled = 0;
-  for (const payment of openPayments) {
-    const delResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
-      method: 'DELETE',
-      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    });
-    if (!delResp.ok) {
-      console.warn(`cancelOpenPayments: falha ao cancelar payment=${payment.id} uid=${uid}: HTTP ${delResp.status}`);
-      continue; // não interrompe os demais por causa de 1 falha isolada
-    }
-    canceled++;
-    await upsertInvoiceFromAsaasPayment(uid, { ...payment, deleted: true });
-  }
-  return { found: openPayments.length, canceled };
-}
-
-// Cria uma cobrança avulsa imediata ao reativar um associado — equivalente a reiniciar o plano
-// hoje, em vez de esperar o próximo ciclo natural da assinatura (que pode estar meses à frente
-// sem cobrar nada nesse meio-tempo). Espelhada no Firestore via o mesmo upsert de sempre.
-async function createImmediateChargeOnReactivation(uid, after, apiKey) {
-  const planType = String(after.planType || 'mensal').toLowerCase().trim();
-  const value = resolvePlanValue(planType, after.categoriaAssociado);
-  const today = new Date().toISOString().slice(0, 10);
-
-  const resp = await fetch(`${ASAAS_BASE_URL}/payments`, {
-    method: 'POST',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      customer:    after.asaasId,
-      billingType: 'UNDEFINED',
-      value,
-      dueDate:     today,
-      description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
-    }),
-  });
-  const text = await resp.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
-
-  await upsertInvoiceFromAsaasPayment(uid, data);
-  return data;
-}
-
-// Callable: aplica o padrão institucional de notificações (WhatsApp + SMS
-// ativos; e-mail e ligação desativados) a TODOS os clientes cadastrados no
-// Asaas — não apenas os associados atualmente no Firestore.
+// Callable: aplica o padrão institucional de notificações aos clientes Asaas
+// CONHECIDOS pela própria organização do chamador (join por `asaasId` gravado em
+// `users` — antes desta fase, a rotina varria TODOS os clientes da conta Asaas
+// inteira, de qualquer organização).
 exports.configureAsaasNotifications = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
+    const provider = await getProviderForOrg(caller.orgId);
 
-    const apiKey  = await getAsaasApiKey();
-    const results = { totalClientes: 0, atualizados: 0, ignorados: 0, errors: [] };
-    const limit   = 100;
-    let offset    = 0;
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
+    const withAsaasId = usersSnap.docs.map(d => d.data()).filter(u => u.asaasId);
 
-    while (true) {
-      const listResp = await fetch(
-        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
-        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-      );
-      const listText = await listResp.text();
-      const listData = listText ? JSON.parse(listText) : {};
-      if (!listResp.ok) {
-        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
+    const results = { totalClientes: withAsaasId.length, atualizados: 0, ignorados: 0, errors: [] };
+
+    for (const u of withAsaasId) {
+      try {
+        const { changed } = await provider.notifications.sync(u.asaasId);
+        if (changed > 0) results.atualizados++; else results.ignorados++;
+      } catch (err) {
+        console.error('configureAsaasNotifications error:', u.asaasId, err.message);
+        results.errors.push({ asaasId: u.asaasId, nome: u.nome || '—', error: err.message });
       }
-
-      for (const customer of (listData.data || [])) {
-        results.totalClientes++;
-        try {
-          const { changed } = await syncCustomerNotifications(customer.id, apiKey);
-          if (changed > 0) results.atualizados++; else results.ignorados++;
-        } catch (err) {
-          console.error('configureAsaasNotifications error:', customer.id, err.message);
-          results.errors.push({ asaasId: customer.id, nome: customer.name || '—', error: err.message });
-        }
-        await new Promise(r => setTimeout(r, 150));
-      }
-
-      if (!listData.hasMore) break;
-      offset += limit;
+      await new Promise(r => setTimeout(r, 150));
     }
 
     console.log('configureAsaasNotifications result:', results);
     return results;
   });
 
-// Callable (diagnóstico, somente leitura): lista todos os clientes cadastrados
-// diretamente no Asaas (id, nome, cpfCnpj, externalReference), para cruzar com
-// os associados do Firestore e identificar quem ainda não tem cliente no Asaas.
+// Callable (diagnóstico, somente leitura): lista os clientes Asaas conhecidos
+// pela PRÓPRIA organização do chamador (mesmo join por asaasId — antes desta
+// fase, listava a conta Asaas inteira, de qualquer organização).
 exports.listAsaasCustomersRaw = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
 
-    const apiKey    = await getAsaasApiKey();
-    const customers  = [];
-    const limit = 100;
-    let offset  = 0;
-
-    while (true) {
-      const listResp = await fetch(
-        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
-        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-      );
-      const listText = await listResp.text();
-      const listData = listText ? JSON.parse(listText) : {};
-      if (!listResp.ok) {
-        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
-      }
-
-      for (const c of (listData.data || [])) {
-        customers.push({ id: c.id, name: c.name, cpfCnpj: c.cpfCnpj, externalReference: c.externalReference || null });
-      }
-
-      if (!listData.hasMore) break;
-      offset += limit;
-    }
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
+    const customers = usersSnap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .filter(u => u.asaasId)
+      .map(u => ({ id: u.asaasId, name: u.nome || '—', cpfCnpj: u.cpf || '—', externalReference: u.uid }));
 
     return { total: customers.length, customers };
   });
 
-// Callable (auditoria, somente leitura): abre a notificação individual de
-// TODOS os clientes do Asaas e confere, notificação por notificação, se o
-// padrão institucional (WhatsApp + SMS ativos, e-mail e ligação desativados)
-// está realmente aplicado — não confia no contador agregado de
-// configureAsaasNotifications, lê o estado atual direto da API.
+// Callable (auditoria, somente leitura): confere o padrão institucional de
+// notificações nos clientes Asaas da PRÓPRIA organização do chamador.
 exports.verifyAsaasNotificationStandard = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
+    const provider = await getProviderForOrg(caller.orgId);
 
-    const apiKey = await getAsaasApiKey();
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
+    const withAsaasId = usersSnap.docs.map(d => d.data()).filter(u => u.asaasId);
+
     const counts = {
-      totalClientes: 0,
-      totalNotificacoes: 0,
-      whatsappAtivo: 0,
-      whatsappInativo: 0,
-      smsAtivo: 0,
-      smsInativo: 0,
-      emailAtivo: 0,
-      ligacaoAtiva: 0,
+      totalClientes: 0, totalNotificacoes: 0,
+      whatsappAtivo: 0, whatsappInativo: 0,
+      smsAtivo: 0, smsInativo: 0,
+      emailAtivo: 0, ligacaoAtiva: 0,
     };
     const whatsappInativoPorEvento = {};
-    const naoConformes = []; // qualquer notificação fora do padrão, exceto a exceção conhecida (SEND_LINHA_DIGITAVEL sem whatsapp)
-    const limit = 100;
-    let offset  = 0;
+    const naoConformes = [];
 
-    while (true) {
-      const listResp = await fetch(
-        `${ASAAS_BASE_URL}/customers?limit=${limit}&offset=${offset}`,
-        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-      );
-      const listText = await listResp.text();
-      const listData = listText ? JSON.parse(listText) : {};
-      if (!listResp.ok) {
-        throw new functions.https.HttpsError('internal', listData.errors?.[0]?.description || `HTTP ${listResp.status}`);
-      }
-
-      for (const customer of (listData.data || [])) {
-        counts.totalClientes++;
-
-        const notifResp = await fetch(
-          `${ASAAS_BASE_URL}/customers/${customer.id}/notifications`,
-          { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-        );
-        const notifText = await notifResp.text();
-        const notifData = notifText ? JSON.parse(notifText) : {};
-        if (!notifResp.ok) {
-          naoConformes.push({ asaasId: customer.id, nome: customer.name, erro: notifData.errors?.[0]?.description || `HTTP ${notifResp.status}` });
-          await new Promise(r => setTimeout(r, 100));
-          continue;
-        }
-
-        for (const n of (notifData.data || [])) {
+    for (const u of withAsaasId) {
+      counts.totalClientes++;
+      try {
+        const notifs = await provider.notifications.list(u.asaasId);
+        for (const n of notifs) {
           counts.totalNotificacoes++;
           if (n.whatsappEnabledForCustomer) counts.whatsappAtivo++; else {
             counts.whatsappInativo++;
@@ -1594,35 +842,27 @@ exports.verifyAsaasNotificationStandard = functions
             n.phoneCallEnabledForCustomer === false &&
             (n.whatsappEnabledForCustomer === true || isKnownException);
           if (!conforme) {
-            naoConformes.push({ asaasId: customer.id, nome: customer.name, notifId: n.id, event: n.event, notif: n });
+            naoConformes.push({ asaasId: u.asaasId, nome: u.nome, notifId: n.id, event: n.event, notif: n });
           }
         }
-        await new Promise(r => setTimeout(r, 100));
+      } catch (err) {
+        naoConformes.push({ asaasId: u.asaasId, nome: u.nome, erro: err.message });
       }
-
-      if (!listData.hasMore) break;
-      offset += limit;
+      await new Promise(r => setTimeout(r, 100));
     }
 
     return { counts, whatsappInativoPorEvento, naoConformes };
   });
 
-// Callable: corrige os telefones no Asaas para todos os associados com asaasId
+// Callable: corrige os telefones no provider para associados com asaasId da PRÓPRIA organização.
 exports.fixAsaasPhoneNumbers = functions
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
+    const provider = await getProviderForOrg(caller.orgId);
 
-    const apiKey   = await getAsaasApiKey();
-    const usersSnap = await db.collection('users').get();
-    const results  = { updated: 0, skipped: 0, errors: [] };
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
+    const results = { updated: 0, skipped: 0, errors: [] };
 
     for (const userDoc of usersSnap.docs) {
       const userData = { uid: userDoc.id, ...userDoc.data() };
@@ -1633,17 +873,7 @@ exports.fixAsaasPhoneNumbers = functions
       if (!phone) { results.skipped++; continue; }
 
       try {
-        const resp = await fetch(`${ASAAS_BASE_URL}/customers/${userData.asaasId}`, {
-          method: 'POST',
-          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobilePhone: phone }),
-        });
-        const text = await resp.text();
-        const data = text ? JSON.parse(text) : {};
-
-        if (!resp.ok) {
-          throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
-        }
+        await provider.updateCustomer(userData.asaasId, { mobilePhone: phone });
         results.updated++;
       } catch (err) {
         console.error('fixAsaasPhoneNumbers error:', userDoc.id, err.message);
@@ -1661,7 +891,7 @@ exports.fixAsaasPhoneNumbers = functions
    SINCRONIZAÇÃO AUTOMÁTICA — FLUXOS BIDIRECIONAL
    ======================================================================= */
 
-// Trigger: quando dados cadastrais do associado mudam → atualiza cliente no Asaas
+// Trigger: quando dados cadastrais do associado mudam → atualiza cliente no provider.
 exports.onAssociadoAtualizado = functions.firestore
   .document('users/{uid}')
   .onUpdate(async (change, context) => {
@@ -1671,7 +901,6 @@ exports.onAssociadoAtualizado = functions.firestore
     if (!after.asaasId) return null;
 
     const isMirim         = after.categoriaAssociado === 'mirim';
-    // Mirim é cobrado nos dados do responsável — só esses campos importam para o Asaas.
     const dataChanged     = isMirim
       ? ['nome', 'responsavelNome', 'responsavelCpf', 'responsavelTelefone'].some(f => before[f] !== after[f])
       : ['nome', 'telefone', 'cpf'].some(f => before[f] !== after[f]);
@@ -1683,57 +912,37 @@ exports.onAssociadoAtualizado = functions.firestore
     const uid = context.params.uid;
 
     try {
-      const apiKey = await getAsaasApiKey();
+      const provider = await getProviderForOrg(after.orgId);
 
-      // Sincroniza dados cadastrais quando nome/telefone/CPF (ou os do responsável, se mirim) mudam
       if (dataChanged) {
-        const resp = await fetch(`${ASAAS_BASE_URL}/customers/${after.asaasId}`, {
-          method: 'POST',
-          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name:        isMirim
-              ? `${(after.nome || '').trim()} (Mirim) — resp. ${(after.responsavelNome || '').trim()}`
-              : (after.nome || '').trim(),
-            cpfCnpj:     ((isMirim ? after.responsavelCpf : after.cpf) || '').replace(/\D/g, ''),
-            mobilePhone: formatPhoneForAsaas(isMirim ? after.responsavelTelefone : after.telefone),
-          }),
+        await provider.updateCustomer(after.asaasId, {
+          name: isMirim
+            ? `${(after.nome || '').trim()} (Mirim) — resp. ${(after.responsavelNome || '').trim()}`
+            : (after.nome || '').trim(),
+          cpfCnpj: ((isMirim ? after.responsavelCpf : after.cpf) || '').replace(/\D/g, ''),
+          mobilePhone: formatPhoneForAsaas(isMirim ? after.responsavelTelefone : after.telefone),
         });
-        const text = await resp.text();
-        const data = text ? JSON.parse(text) : {};
-        if (!resp.ok) throw new Error(data.errors?.[0]?.description || `HTTP ${resp.status}`);
         console.log(`onAssociadoAtualizado: uid=${uid} dados sincronizados`);
       }
 
-      // Pausa ou reativa assinatura Asaas quando ativo muda
       if ((ativoToFalse || ativoToTrue) && after.asaasSubscriptionId) {
-        const newStatus = ativoToFalse ? 'INACTIVE' : 'ACTIVE';
-        const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${after.asaasSubscriptionId}`, {
-          method: 'POST',
-          headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
-        });
-        const subText = await subResp.text();
-        const subData = subText ? JSON.parse(subText) : {};
-        if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
-        console.log(`onAssociadoAtualizado: uid=${uid} assinatura ${newStatus}`);
+        if (ativoToFalse) await provider.cancelSubscription(after.asaasSubscriptionId);
+        else await provider.updateSubscriptionStatus(after.asaasSubscriptionId, 'ACTIVE');
+        console.log(`onAssociadoAtualizado: uid=${uid} assinatura ${ativoToFalse ? 'INACTIVE' : 'ACTIVE'}`);
       }
 
-      // Desativação: cancela tudo que está em aberto no Asaas e desliga notificações — sem
-      // isso, o associado inativo continua vencendo cobrança e recebendo aviso de cobrança.
       if (ativoToFalse && after.asaasId) {
-        const { found, canceled } = await cancelOpenPayments(uid, after.asaasId, apiKey);
+        const { found, canceled } = await cancelOpenPayments(provider, uid, after.asaasId);
         console.log(`onAssociadoAtualizado: uid=${uid} cobranças canceladas ${canceled}/${found}`);
-        await setCustomerNotificationsEnabled(after.asaasId, apiKey, false);
+        await provider.notifications.setEnabled(after.asaasId, false);
         console.log(`onAssociadoAtualizado: uid=${uid} notificações desativadas`);
       }
 
-      // Reativação: religa notificações e gera uma cobrança avulsa imediata — a assinatura só
-      // gerará a próxima cobrança no ciclo natural dela, que pode estar meses à frente.
       if (ativoToTrue && after.asaasId) {
-        await syncCustomerNotifications(after.asaasId, apiKey);
+        await provider.notifications.sync(after.asaasId);
         console.log(`onAssociadoAtualizado: uid=${uid} notificações reativadas`);
-        const charge = await createImmediateChargeOnReactivation(uid, after, apiKey);
-        console.log(`onAssociadoAtualizado: uid=${uid} cobrança de reativação criada payment=${charge.id}`);
+        const charge = await createImmediateChargeOnReactivation(provider, uid, after);
+        console.log(`onAssociadoAtualizado: uid=${uid} cobrança de reativação criada payment=${charge.providerId}`);
       }
 
       if (ativoToFalse || ativoToTrue) {
@@ -1747,9 +956,6 @@ exports.onAssociadoAtualizado = functions.firestore
     } catch (err) {
       console.error('onAssociadoAtualizado error:', uid, err.message);
       if (ativoToFalse || ativoToTrue) {
-        // Best-effort: expõe a falha na aba Auditoria / pílula "Sem sinc. Asaas" do painel —
-        // sem isso, o associado aparece desativado/reativado no clube enquanto o Asaas diverge
-        // silenciosamente (foi o que produziu associados inativos com cobrança ainda aberta).
         await change.after.ref.update({
           'asaasSync.lastLifecycleAction': ativoToFalse ? 'deactivate' : 'reactivate',
           'asaasSync.lastLifecycleAt':     admin.firestore.FieldValue.serverTimestamp(),
@@ -1762,7 +968,49 @@ exports.onAssociadoAtualizado = functions.firestore
     return null;
   });
 
-// Trigger: quando fatura é ATUALIZADA para status pago → baixa cobrança no Asaas
+// Cancela (via provider) todas as cobranças em aberto (PENDING + OVERDUE) de um cliente —
+// usado na desativação de associado. Espelha cada cancelamento como 'cancelado' no
+// financeInvoices correspondente.
+async function cancelOpenPayments(provider, uid, asaasId) {
+  const [pending, overdue] = await Promise.all([
+    provider.listCharges({ customerId: asaasId, status: 'PENDING' }),
+    provider.listCharges({ customerId: asaasId, status: 'OVERDUE' }),
+  ]);
+  const openPayments = [...pending, ...overdue];
+
+  let canceled = 0;
+  for (const payment of openPayments) {
+    try {
+      await provider.cancelCharge(payment.providerId);
+    } catch (err) {
+      console.warn(`cancelOpenPayments: falha ao cancelar payment=${payment.providerId} uid=${uid}: ${err.message}`);
+      continue;
+    }
+    canceled++;
+    await upsertInvoiceFromAsaasPayment(uid, { ...payment, status: 'cancelado', deleted: true });
+  }
+  return { found: openPayments.length, canceled };
+}
+
+// Cria uma cobrança avulsa imediata ao reativar um associado.
+async function createImmediateChargeOnReactivation(provider, uid, after) {
+  const planType = String(after.planType || 'mensal').toLowerCase().trim();
+  const value = resolvePlanValue(planType, after.categoriaAssociado);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { providerId, raw } = await provider.createCharge({
+    customerId: after.asaasId,
+    value,
+    dueDate: today,
+    description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
+  });
+
+  const normalized = provider.normalizePayment(raw);
+  await upsertInvoiceFromAsaasPayment(uid, normalized);
+  return { providerId, raw };
+}
+
+// Trigger: quando fatura é ATUALIZADA para status pago → baixa cobrança no provider
 exports.onInvoicePaid = functions.firestore
   .document('users/{uid}/financeInvoices/{invoiceId}')
   .onUpdate(async (change, context) => {
@@ -1772,7 +1020,6 @@ exports.onInvoicePaid = functions.firestore
     const beforeStatus = String(before.status || '').toLowerCase();
     const afterStatus  = String(after.status  || '').toLowerCase();
 
-    // Só age quando muda PARA pago
     if (['pago', 'paga', 'paid'].includes(beforeStatus)) return null;
     if (!['pago', 'paga', 'paid'].includes(afterStatus)) return null;
 
@@ -1785,7 +1032,7 @@ exports.onInvoicePaid = functions.firestore
     return null;
   });
 
-// Trigger: quando fatura é CRIADA já como paga (pagamento imediato pelo admin) → baixa no Asaas
+// Trigger: quando fatura é CRIADA já como paga (pagamento imediato pelo admin) → baixa no provider
 exports.onInvoiceCreatedPaid = functions.firestore
   .document('users/{uid}/financeInvoices/{invoiceId}')
   .onCreate(async (snap, context) => {
@@ -1807,33 +1054,19 @@ exports.onInvoiceCreatedPaid = functions.firestore
    getAsaasPaymentLink — retorna o link de pagamento da fatura aberta do associado
    ======================================================================= */
 exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-
-  const uid = context.auth.uid;
-  const userSnap = await db.collection('users').doc(uid).get();
-  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
-
+  const member = await auth.requireOrganizationMember(context);
+  const userSnap = await db.collection('users').doc(member.uid).get();
   const user = userSnap.data();
   if (!user.asaasSubscriptionId)
     throw new functions.https.HttpsError('not-found', 'Assinatura não configurada. Entre em contato com o clube.');
 
-  const apiKey = await getAsaasApiKey();
+  const provider = await getProviderForOrg(member.orgId);
 
   for (const st of ['PENDING', 'OVERDUE']) {
-    const resp = await fetch(
-      `${ASAAS_BASE_URL}/payments?subscription=${user.asaasSubscriptionId}&status=${st}&limit=1&sort=dueDate&order=asc`,
-      { headers: { 'access_token': apiKey } }
-    );
-    const result = await resp.json();
-    if (result.data?.length) {
-      const p = result.data[0];
-      return {
-        invoiceUrl:     p.invoiceUrl,
-        asaasPaymentId: p.id,
-        dueDate:        p.dueDate,
-        value:          p.value,
-        status:         p.status,
-      };
+    const charges = await provider.listCharges({ subscriptionId: user.asaasSubscriptionId, status: st, limit: 1, sort: 'dueDate', order: 'asc' });
+    if (charges.length) {
+      const p = charges[0];
+      return { invoiceUrl: p.invoiceUrl, asaasPaymentId: p.providerId, dueDate: p.dueDate, value: p.value, status: p.rawStatus };
     }
   }
 
@@ -1844,14 +1077,11 @@ exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
    Auto-cancelamento e reativação de assinatura pelo próprio associado
    ======================================================================= */
 
-// Envia um e-mail curto de aviso aos admins (mesmo transporter/credenciais de
-// sendDailyPaymentReport). Nunca lança — falha de e-mail não pode impedir o
-// cancelamento/reativação em si.
-async function notifyAdminsByEmail(subject, bodyHtml) {
-  // Timeout curto proposital: se o SMTP estiver lento/com credenciais inválidas, isso não pode
-  // atrasar (nem, em navegadores/proxies com timeout agressivo, derrubar do lado do cliente) a
-  // resposta de cancelMySubscription/reactivateMySubscription — o e-mail é só um aviso, não faz
-  // parte do resultado que o associado está esperando.
+// Envia um e-mail curto de aviso aos admins da ORGANIZAÇÃO do associado (campo
+// opcional `organizations/{orgId}.notificationEmails`; sem ele, cai no mesmo
+// fallback global de sempre — retrocompatível com o CCBMG). Nunca lança — falha
+// de e-mail não pode impedir o cancelamento/reativação em si.
+async function notifyAdminsByEmail(orgId, subject, bodyHtml) {
   const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
   const send = (async () => {
     try {
@@ -1861,9 +1091,15 @@ async function notifyAdminsByEmail(subject, bodyHtml) {
         service: 'gmail',
         auth: { user: emailUser, pass: emailPassword },
       });
+
+      const org = orgId ? await organizationResolver.getOrganization(orgId) : null;
+      const to = Array.isArray(org?.notificationEmails) && org.notificationEmails.length
+        ? org.notificationEmails.join(', ')
+        : 'waldiney.serafim@gmail.com, mpmarquesnutri@gmail.com';
+
       await transporter.sendMail({
         from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
-        to: 'waldiney.serafim@gmail.com, mpmarquesnutri@gmail.com',
+        to,
         subject,
         html: bodyHtml,
       });
@@ -1876,25 +1112,12 @@ async function notifyAdminsByEmail(subject, bodyHtml) {
 
 // Callable: o próprio associado cancela a assinatura, após confirmar CPF e telefone.
 //
-// Importante: NÃO grava ativo:false. login.html (routeAuthenticatedUser/deriveStatus) e
-// firebase.js (getUserStatus) tratam ativo:false como "conta desativada" e bloqueiam o acesso
-// já no próximo login — isso é o comportamento certo para desativação pelo admin (justa causa,
-// desligamento imediato), mas o requisito aqui é o oposto: o associado deve continuar acessando
-// o portal e os benefícios normalmente até finance/summary.activeUntil, só parando de ser
-// cobrado dali pra frente. Por isso esta function fala direto com o Asaas — pausa a assinatura
-// e cancela cobranças em aberto reaproveitando as mesmas rotinas que onAssociadoAtualizado usa
-// na desativação pelo admin (cancelOpenPayments/setCustomerNotificationsEnabled) — e grava só um
-// marcador dedicado (assinaturaCanceladaPeloAssociado). Quando activeUntil vencer, quem realmente
-// tira o acesso é o bloqueio de inadimplência que já existe em pg_associado.html.
+// Importante: NÃO grava ativo:false — ver comentário histórico completo em
+// docs/FASE2_CLOUD_FUNCTIONS_AUDIT.md / CLAUDE.md ("Autocancelamento pelo associado").
 exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-
-  const uid = context.auth.uid;
-  const userRef = db.collection('users').doc(uid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
-
-  const userData = userSnap.data();
+  const member = await auth.requireOrganizationMember(context);
+  const userRef = db.collection('users').doc(member.uid);
+  const userData = member.userDoc;
 
   const cpfInput  = String(data?.cpf || '').replace(/\D/g, '');
   const telInput  = String(data?.telefone || '').replace(/\D/g, '');
@@ -1912,25 +1135,17 @@ exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    const apiKey = await getAsaasApiKey();
+    const provider = await getProviderForOrg(member.orgId);
 
     if (userData.asaasSubscriptionId) {
-      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
-        method: 'POST',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'INACTIVE' }),
-      });
-      const subText = await subResp.text();
-      const subData = subText ? JSON.parse(subText) : {};
-      if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+      await provider.cancelSubscription(userData.asaasSubscriptionId);
     }
-
     if (userData.asaasId) {
-      await cancelOpenPayments(uid, userData.asaasId, apiKey);
-      await setCustomerNotificationsEnabled(userData.asaasId, apiKey, false);
+      await cancelOpenPayments(provider, member.uid, userData.asaasId);
+      await provider.notifications.setEnabled(userData.asaasId, false);
     }
   } catch (err) {
-    console.error('cancelMySubscription: falha ao cancelar no Asaas', uid, err.message);
+    console.error('cancelMySubscription: falha ao cancelar no provider', member.uid, err.message);
     throw new functions.https.HttpsError('internal', 'Não foi possível cancelar sua assinatura agora. Tente novamente ou contate o clube.');
   }
 
@@ -1942,36 +1157,28 @@ exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
 
   let activeUntilStr = '—';
   try {
-    await updateFinanceSummary(uid);
+    await updateFinanceSummary(member.uid);
     const summarySnap = await userRef.collection('finance').doc('summary').get();
     const activeUntil = summarySnap.exists ? summarySnap.data().activeUntil : null;
     if (activeUntil) activeUntilStr = formatDateBR(activeUntil.toDate ? activeUntil.toDate() : new Date(activeUntil));
   } catch (_) { /* opcional */ }
 
   await notifyAdminsByEmail(
-    `CCBMG - Associado cancelou a própria assinatura: ${userData.nome || uid}`,
+    member.orgId,
+    `CCBMG - Associado cancelou a própria assinatura: ${userData.nome || member.uid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}, tel. ${escHtml(userData.telefone || '—')}) cancelou a própria assinatura pelo portal.</p>
      <p>Plano: ${escHtml(userData.planType || '—')}<br>Acesso garantido até: ${escHtml(activeUntilStr)}</p>`
   );
 
-  console.log(`cancelMySubscription: uid=${uid} cancelado pelo próprio associado`);
+  console.log(`cancelMySubscription: uid=${member.uid} cancelado pelo próprio associado`);
   return { success: true, activeUntil: activeUntilStr };
 });
 
-// Callable: o próprio associado reativa uma assinatura que ele mesmo cancelou (reverte
-// exatamente o que cancelMySubscription fez, reaproveitando as mesmas rotinas que
-// onAssociadoAtualizado usa na reativação pelo admin: syncCustomerNotifications +
-// createImmediateChargeOnReactivation). Bloqueado se a conta foi desativada pelo admin
-// (ativo:false é um mecanismo totalmente separado — ver comentário de cancelMySubscription).
+// Callable: o próprio associado reativa uma assinatura que ele mesmo cancelou.
 exports.reactivateMySubscription = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-
-  const uid = context.auth.uid;
-  const userRef = db.collection('users').doc(uid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Usuário não encontrado.');
-
-  const userData = userSnap.data();
+  const member = await auth.requireOrganizationMember(context);
+  const userRef = db.collection('users').doc(member.uid);
+  const userData = member.userDoc;
 
   if (userData.ativo === false) {
     throw new functions.https.HttpsError('permission-denied', 'Sua conta foi desativada pela administração. Entre em contato com o clube para reativar.');
@@ -1981,25 +1188,17 @@ exports.reactivateMySubscription = functions.https.onCall(async (data, context) 
   }
 
   try {
-    const apiKey = await getAsaasApiKey();
+    const provider = await getProviderForOrg(member.orgId);
 
     if (userData.asaasSubscriptionId) {
-      const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
-        method: 'POST',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ACTIVE' }),
-      });
-      const subText = await subResp.text();
-      const subData = subText ? JSON.parse(subText) : {};
-      if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+      await provider.updateSubscriptionStatus(userData.asaasSubscriptionId, 'ACTIVE');
     }
-
     if (userData.asaasId) {
-      await syncCustomerNotifications(userData.asaasId, apiKey);
-      await createImmediateChargeOnReactivation(uid, userData, apiKey);
+      await provider.notifications.sync(userData.asaasId);
+      await createImmediateChargeOnReactivation(provider, member.uid, userData);
     }
   } catch (err) {
-    console.error('reactivateMySubscription: falha ao reativar no Asaas', uid, err.message);
+    console.error('reactivateMySubscription: falha ao reativar no provider', member.uid, err.message);
     throw new functions.https.HttpsError('internal', 'Não foi possível reativar sua assinatura agora. Tente novamente ou contate o clube.');
   }
 
@@ -2009,14 +1208,15 @@ exports.reactivateMySubscription = functions.https.onCall(async (data, context) 
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  try { await updateFinanceSummary(uid); } catch (_) { /* opcional */ }
+  try { await updateFinanceSummary(member.uid); } catch (_) { /* opcional */ }
 
   await notifyAdminsByEmail(
-    `CCBMG - Associado reativou a própria assinatura: ${userData.nome || uid}`,
+    member.orgId,
+    `CCBMG - Associado reativou a própria assinatura: ${userData.nome || member.uid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) reativou a própria assinatura pelo portal.</p>`
   );
 
-  console.log(`reactivateMySubscription: uid=${uid} reativado pelo próprio associado`);
+  console.log(`reactivateMySubscription: uid=${member.uid} reativado pelo próprio associado`);
   return { success: true };
 });
 
@@ -2024,10 +1224,11 @@ exports.reactivateMySubscription = functions.https.onCall(async (data, context) 
    CENTRAL FINANCEIRA — sincronização sob demanda + ações rápidas do painel admin
    ======================================================================= */
 
-// Busca assinatura + pagamentos recentes ao vivo no Asaas, reconcilia financeInvoices/finance/summary
-// e grava o resultado em asaasSync. Usado tanto pela callable interativa (manual=true) quanto pela
-// reconciliação diária agendada (manual=false) — única fonte dessa rotina para as duas não divergirem.
-async function syncOneAssociado(uid, { manual = false } = {}) {
+// Busca assinatura + pagamentos recentes ao vivo no provider, reconcilia
+// financeInvoices/finance/summary e grava o resultado em asaasSync. Usado tanto
+// pela callable interativa (manual=true) quanto pela reconciliação diária
+// (manual=false) — única fonte dessa rotina para as duas não divergirem.
+async function syncOneAssociado(provider, uid, { manual = false } = {}) {
   const userRef = db.collection('users').doc(uid);
 
   try {
@@ -2038,93 +1239,67 @@ async function syncOneAssociado(uid, { manual = false } = {}) {
       throw new Error('Associado sem assinatura Asaas configurada.');
     }
 
-    const apiKey = await getAsaasApiKey();
-
-    const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
-      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
+    const { subscription, recentPayments, notifications } = await provider.synchronize({
+      customerId: userData.asaasId,
+      subscriptionId: userData.asaasSubscriptionId,
     });
-    const subText = await subResp.text();
-    const subData = subText ? JSON.parse(subText) : {};
-    if (!subResp.ok) throw new Error(subData.errors?.[0]?.description || `HTTP ${subResp.status}`);
+    if (!subscription) throw new Error('Assinatura não encontrada no provider.');
 
-    // Reconcilia só os pagamentos já efetivamente recebidos — mesmo escopo do asaasWebhook,
-    // nunca mexe em cobranças pendentes/vencidas (essas continuam responsabilidade do Asaas).
-    const paymentsResp = await fetch(
-      `${ASAAS_BASE_URL}/payments?subscription=${userData.asaasSubscriptionId}&limit=10&sort=dueDate&order=desc`,
-      { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-    );
-    const paymentsText = await paymentsResp.text();
-    const paymentsData = paymentsText ? JSON.parse(paymentsText) : {};
-    const payments = paymentsData.data || [];
-
-    for (const p of payments) {
-      if (['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(p.status)) {
-        await upsertInvoiceFromAsaasPayment(uid, p);
-      }
+    // Reconcilia só os pagamentos já efetivamente recebidos — mesmo escopo do
+    // webhook, nunca mexe em cobranças pendentes/vencidas (responsabilidade do provider).
+    for (const p of recentPayments) {
+      if (p.status === 'pago') await upsertInvoiceFromAsaasPayment(uid, p);
     }
 
     await updateFinanceSummary(uid);
 
-    // Estado da automação de notificações POR CANAL (WhatsApp/SMS/E-mail) — alimenta o indicador
-    // na Central de Associados. Best-effort: se a leitura falhar, não interrompe a sincronização
-    // nem apaga o valor anterior (notifSummary fica null e não é gravado). Um canal é considerado
-    // habilitado só se estiver ligado em TODOS os eventos aplicáveis (WhatsApp não é suportado em
-    // SEND_LINHA_DIGITAVEL, então esse evento é ignorado no cálculo do WhatsApp).
+    // Estado da automação de notificações POR CANAL — alimenta o indicador na Central
+    // de Associados. Best-effort: se a leitura falhar, não interrompe a sincronização.
     let notifSummary = null;
     try {
-      const notifResp = await fetch(
-        `${ASAAS_BASE_URL}/customers/${userData.asaasId}/notifications`,
-        { headers: { access_token: apiKey, 'Content-Type': 'application/json' } }
-      );
-      const notifText = await notifResp.text();
-      const notifData = notifText ? JSON.parse(notifText) : {};
-      if (notifResp.ok) {
-        const notifs = notifData.data || [];
-        const whatsApplicable = notifs.filter(n => !WHATSAPP_UNSUPPORTED_EVENTS.has(n.event));
-        notifSummary = {
-          configured: notifs.length > 0,
-          whatsapp:   whatsApplicable.length > 0 && whatsApplicable.every(n => n.whatsappEnabledForCustomer === true),
-          sms:        notifs.length > 0 && notifs.every(n => n.smsEnabledForCustomer === true),
-          email:      notifs.length > 0 && notifs.every(n => n.emailEnabledForCustomer === true),
-          checkedAt:  admin.firestore.FieldValue.serverTimestamp(),
-        };
-      }
+      const whatsApplicable = notifications.filter(n => n.event !== 'SEND_LINHA_DIGITAVEL');
+      notifSummary = {
+        configured: notifications.length > 0,
+        whatsapp:   whatsApplicable.length > 0 && whatsApplicable.every(n => n.whatsappEnabledForCustomer === true),
+        sms:        notifications.length > 0 && notifications.every(n => n.smsEnabledForCustomer === true),
+        email:      notifications.length > 0 && notifications.every(n => n.emailEnabledForCustomer === true),
+        checkedAt:  admin.firestore.FieldValue.serverTimestamp(),
+      };
     } catch (e) {
       console.warn('syncOneAssociado: falha ao ler notificações', uid, e.message);
     }
 
-    // Status da assinatura não é gravado por nenhum outro fluxo — só aqui, sob demanda
     await userRef.collection('finance').doc('summary').set({
-      subscriptionStatus:      subData.status || null,
-      subscriptionValue:       subData.value ?? null,
-      subscriptionCycle:       subData.cycle || null,
-      subscriptionBillingType: subData.billingType || null,
-      subscriptionNextDueDate: subData.nextDueDate || null,
+      subscriptionStatus:      subscription.status || null,
+      subscriptionValue:       subscription.value ?? null,
+      subscriptionCycle:       subscription.cycle || null,
+      subscriptionBillingType: subscription.billingType || null,
+      subscriptionNextDueDate: subscription.nextDueDate || null,
       ...(notifSummary ? { notif: notifSummary } : {}),
     }, { merge: true });
 
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const nowTs = admin.firestore.FieldValue.serverTimestamp();
     const syncPatch = {
-      'asaasSync.lastSyncedAt':   now,
+      'asaasSync.lastSyncedAt':   nowTs,
       'asaasSync.lastSyncResult': 'ok',
       'asaasSync.lastSyncError':  null,
     };
     if (manual) {
-      syncPatch['asaasSync.lastApiCheckAt']     = now;
+      syncPatch['asaasSync.lastApiCheckAt']     = nowTs;
       syncPatch['asaasSync.lastApiCheckStatus'] = 'ok';
     }
     await userRef.update(syncPatch);
 
     return { ok: true };
   } catch (err) {
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const nowTs = admin.firestore.FieldValue.serverTimestamp();
     const syncPatch = {
-      'asaasSync.lastSyncedAt':   now,
+      'asaasSync.lastSyncedAt':   nowTs,
       'asaasSync.lastSyncResult': 'error',
       'asaasSync.lastSyncError':  err.message,
     };
     if (manual) {
-      syncPatch['asaasSync.lastApiCheckAt']     = now;
+      syncPatch['asaasSync.lastApiCheckAt']     = nowTs;
       syncPatch['asaasSync.lastApiCheckStatus'] = 'error';
     }
     await userRef.update(syncPatch).catch(() => {});
@@ -2132,109 +1307,66 @@ async function syncOneAssociado(uid, { manual = false } = {}) {
   }
 }
 
-// Callable: "Atualizar dados" no painel — consulta o Asaas ao vivo para 1 associado.
-// Requer role admin ou master.
+// Callable: "Atualizar dados" no painel — consulta o provider ao vivo para 1 associado
+// DA MESMA ORGANIZAÇÃO do chamador.
 exports.asaasSyncAssociado = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-  }
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.data()?.role);
-  if (!['admin', 'master'].includes(callerRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-  }
-
-  const uid = data?.uid;
-  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
+  const caller = await auth.requireOrganizationAdmin(context);
+  const target = await auth.assertCallerCanManageTarget(caller, data?.uid);
 
   try {
-    await syncOneAssociado(uid, { manual: true });
+    const provider = await getProviderForOrg(caller.orgId);
+    await syncOneAssociado(provider, data.uid, { manual: true });
   } catch (err) {
-    throw new functions.https.HttpsError('internal', err.message || 'Falha ao consultar o Asaas.');
+    throw new functions.https.HttpsError('internal', err.message || 'Falha ao consultar o provider.');
   }
 
-  const summarySnap = await db.collection('users').doc(uid).collection('finance').doc('summary').get();
+  const summarySnap = await db.collection('users').doc(data.uid).collection('finance').doc('summary').get();
   return { ok: true, summary: summarySnap.exists ? summarySnap.data() : null };
 });
 
-// Callable: "Gerar cobrança" no painel — cria uma cobrança avulsa para o associado (fora do ciclo da assinatura).
-// Requer role admin ou master.
+// Callable: "Gerar cobrança" no painel — cria uma cobrança avulsa para associado DA MESMA ORGANIZAÇÃO.
 exports.asaasCreatePayment = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-  }
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.data()?.role);
-  if (!['admin', 'master'].includes(callerRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-  }
+  const caller = await auth.requireOrganizationAdmin(context);
+  const target = await auth.assertCallerCanManageTarget(caller, data?.uid);
 
-  const uid = data?.uid;
   const value = Number(data?.value);
   const description = String(data?.description || '').trim();
-  if (!uid) throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
   if (!value || value <= 0) throw new functions.https.HttpsError('invalid-argument', 'Valor inválido.');
+  if (!target.userDoc.asaasId) throw new functions.https.HttpsError('failed-precondition', 'Associado sem cadastro no provider.');
 
-  const userSnap = await db.collection('users').doc(uid).get();
-  if (!userSnap.exists) throw new functions.https.HttpsError('not-found', 'Associado não encontrado.');
-  const userData = userSnap.data();
-  if (!userData.asaasId) throw new functions.https.HttpsError('failed-precondition', 'Associado sem cadastro no Asaas.');
-
-  const apiKey = await getAsaasApiKey();
+  const provider = await getProviderForOrg(caller.orgId);
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 5);
 
-  const payResp = await fetch(`${ASAAS_BASE_URL}/payments`, {
-    method: 'POST',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      customer:          userData.asaasId,
-      billingType:       'UNDEFINED',
-      value,
-      dueDate:           dueDate.toISOString().slice(0, 10),
-      description:       description || 'Cobrança avulsa CCBMG',
-      externalReference: uid,
-    }),
+  const { providerId, raw } = await provider.createCharge({
+    customerId: target.userDoc.asaasId,
+    value,
+    dueDate: dueDate.toISOString().slice(0, 10),
+    description: description || 'Cobrança avulsa CCBMG',
+    externalReference: data.uid,
   });
-  const payData = await payResp.json();
-  if (!payResp.ok || !payData.id) {
-    throw new functions.https.HttpsError('internal', payData.errors?.[0]?.description || 'Falha ao gerar cobrança no Asaas.');
-  }
 
-  console.log(`asaasCreatePayment: uid=${uid} payment=${payData.id} value=${value}`);
-  return { asaasPaymentId: payData.id, invoiceUrl: payData.invoiceUrl, dueDate: payData.dueDate };
+  console.log(`asaasCreatePayment: uid=${data.uid} payment=${providerId} value=${value}`);
+  return { asaasPaymentId: providerId, invoiceUrl: raw.invoiceUrl, dueDate: raw.dueDate };
 });
 
-// Callable: "Cancelar cobrança" no painel.
-// Requer role admin ou master.
+// Callable: "Cancelar cobrança" no painel, para associado DA MESMA ORGANIZAÇÃO.
 exports.asaasCancelPayment = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-  }
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.data()?.role);
-  if (!['admin', 'master'].includes(callerRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-  }
+  const caller = await auth.requireOrganizationAdmin(context);
+  await auth.assertCallerCanManageTarget(caller, data?.uid);
 
-  const uid = data?.uid;
   const asaasPaymentId = data?.asaasPaymentId;
-  if (!uid || !asaasPaymentId) {
-    throw new functions.https.HttpsError('invalid-argument', 'uid e asaasPaymentId são obrigatórios.');
+  if (!asaasPaymentId) {
+    throw new functions.https.HttpsError('invalid-argument', 'asaasPaymentId é obrigatório.');
   }
 
-  const apiKey = await getAsaasApiKey();
-  const delResp = await fetch(`${ASAAS_BASE_URL}/payments/${asaasPaymentId}`, {
-    method: 'DELETE',
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-  });
-  const delData = await delResp.json();
-  if (!delResp.ok || delData.deleted !== true) {
-    throw new functions.https.HttpsError('internal', delData.errors?.[0]?.description || 'Falha ao cancelar cobrança no Asaas.');
+  const provider = await getProviderForOrg(caller.orgId);
+  const { deleted } = await provider.cancelCharge(asaasPaymentId);
+  if (!deleted) {
+    throw new functions.https.HttpsError('internal', 'Falha ao cancelar cobrança no provider.');
   }
 
-  // Reflete localmente a cobrança cancelada, se existir uma financeInvoice correspondente
-  const invSnap = await db.collection('users').doc(uid).collection('financeInvoices')
+  const invSnap = await db.collection('users').doc(data.uid).collection('financeInvoices')
     .where('asaasPaymentId', '==', asaasPaymentId).limit(1).get();
   if (!invSnap.empty) {
     await invSnap.docs[0].ref.update({
@@ -2243,76 +1375,71 @@ exports.asaasCancelPayment = functions.https.onCall(async (data, context) => {
     });
   }
 
-  console.log(`asaasCancelPayment: uid=${uid} payment=${asaasPaymentId} cancelado`);
+  console.log(`asaasCancelPayment: uid=${data.uid} payment=${asaasPaymentId} cancelado`);
   return { ok: true };
 });
 
 // Callable: "Consultar cobrança" no painel — status ao vivo, somente leitura.
-// Requer role admin ou master.
 exports.asaasGetPaymentStatus = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-  }
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.data()?.role);
-  if (!['admin', 'master'].includes(callerRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-  }
+  const caller = await auth.requireOrganizationAdmin(context);
 
   const asaasPaymentId = data?.asaasPaymentId;
   if (!asaasPaymentId) throw new functions.https.HttpsError('invalid-argument', 'asaasPaymentId é obrigatório.');
 
-  const apiKey = await getAsaasApiKey();
-  const resp = await fetch(`${ASAAS_BASE_URL}/payments/${asaasPaymentId}`, {
-    headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-  });
-  const result = await resp.json();
-  if (!resp.ok) {
-    throw new functions.https.HttpsError('internal', result.errors?.[0]?.description || 'Falha ao consultar cobrança no Asaas.');
-  }
+  const provider = await getProviderForOrg(caller.orgId);
+  const payment = await provider.getCharge(asaasPaymentId);
 
   return {
-    status:        result.status,
-    value:         result.value,
-    dueDate:       result.dueDate,
-    paymentDate:   result.paymentDate || result.confirmedDate || null,
-    billingType:   result.billingType,
-    invoiceUrl:    result.invoiceUrl,
-    invoiceNumber: result.invoiceNumber,
+    status: payment.rawStatus,
+    value: payment.value,
+    dueDate: payment.dueDate,
+    paymentDate: payment.paymentDate,
+    billingType: payment.billingType,
+    invoiceUrl: payment.invoiceUrl,
+    invoiceNumber: payment.invoiceNumber,
   };
 });
 
-// Agendada: reconciliação diária de madrugada — autocorrige o Firestore caso algum webhook tenha falhado.
-// Escopo estritamente de leitura/reconciliação: nunca cria/cancela cobrança, nunca cria assinatura,
-// nunca altera valor ou data de vencimento. Só chama o mesmo syncOneAssociado usado pelo botão "Atualizar dados".
+// Agendada: reconciliação diária de madrugada — autocorrige o Firestore caso algum
+// webhook tenha falhado. Percorre organização por organização (isolamento) e, dentro
+// de cada uma, só os associados dela — antes desta fase, lia `users` inteiro de uma vez.
 exports.asaasReconciliationDaily = functions
-  // Percorre a base inteira chamando a API do Asaas por associado (assinatura + pagamentos +
-  // notificações) — no timeout padrão de 60s a rotina morria no meio, deixando parte da base
-  // sem reconciliar e sem ninguém perceber (roda de madrugada). 540s é o mesmo teto já usado
-  // pelas outras rotinas em lote deste arquivo.
   .runWith({ timeoutSeconds: 540, memory: '256MB' })
   .pubsub.schedule('0 4 * * *')
   .timeZone('America/Sao_Paulo')
   .onRun(async () => {
-    // Mesmo padrão de syncAllAssociadosToAsaas/auditAsaasSync: 1 leitura da coleção + filtro em memória,
-    // evita depender de um índice composto novo.
-    const usersSnap = await db.collection('users').get();
+    const orgsSnap = await db.collection('organizations').get();
+    const orgs = orgsSnap.empty
+      ? [{ id: 'org_bonfim' }]
+      : orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+
     const results = { synced: 0, errors: [] };
 
-    for (const userDoc of usersSnap.docs) {
-      const userData = userDoc.data();
-      if (!userData.asaasId || !userData.asaasSubscriptionId || userData.ativo === false) continue;
-
+    for (const org of orgs) {
+      let provider;
       try {
-        await syncOneAssociado(userDoc.id, { manual: false });
-        results.synced++;
+        provider = await getProviderForOrg(org.id);
       } catch (err) {
-        console.error('asaasReconciliationDaily error:', userDoc.id, err.message);
-        results.errors.push({ uid: userDoc.id, error: err.message });
+        console.error('asaasReconciliationDaily: falha ao resolver provider da organização', org.id, err.message);
+        continue; // 1 organização com provider quebrado não impede as demais
       }
 
-      // Pausa para respeitar rate limits do Asaas
-      await new Promise(r => setTimeout(r, 250));
+      const usersSnap = await db.collection('users').where('orgId', '==', org.id).get();
+
+      for (const userDoc of usersSnap.docs) {
+        const userData = userDoc.data();
+        if (!userData.asaasId || !userData.asaasSubscriptionId || userData.ativo === false) continue;
+
+        try {
+          await syncOneAssociado(provider, userDoc.id, { manual: false });
+          results.synced++;
+        } catch (err) {
+          console.error('asaasReconciliationDaily error:', org.id, userDoc.id, err.message);
+          results.errors.push({ orgId: org.id, uid: userDoc.id, error: err.message });
+        }
+
+        await new Promise(r => setTimeout(r, 250));
+      }
     }
 
     console.log('asaasReconciliationDaily result:', results);
@@ -2327,10 +1454,11 @@ exports.asaasReconciliationDaily = functions
 exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
-  // Valida token de autenticação do Asaas
   try {
     const expectedToken = await getSecret(ASAAS_WEBHOOK_TOKEN);
     const receivedToken = req.headers['asaas-access-token'];
+    // Token único/global — ver "Pendências" no relatório da Fase 2B: só passa a ser
+    // por-organização quando existir mais de uma conta Asaas na plataforma.
     if (!receivedToken || receivedToken !== expectedToken) {
       console.warn('asaasWebhook: token inválido ou ausente');
       return res.status(401).send('Unauthorized');
@@ -2342,57 +1470,32 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
 
   const { event, payment } = req.body || {};
 
-  // Só processa pagamentos confirmados
-  if (!['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'].includes(event)) {
-    return res.status(200).send('OK');
-  }
-  if (!payment?.id || !payment?.subscription) {
-    return res.status(200).send('OK');
-  }
-
   try {
-    const apiKey = await getAsaasApiKey();
+    // A verificação em si (anti-fraude) precisa de um provider — usa o default
+    // (única conta Asaas hoje) até existir mais de um provider na plataforma.
+    const defaultProvider = await getDefaultProvider();
+    const result = await defaultProvider.processWebhook({ event, payment });
+    if (!result.confirmed) return res.status(200).send('OK');
 
-    // Verifica o pagamento diretamente no Asaas (evita fraudes)
-    const verifyResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
-      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    });
-    const verifyText = await verifyResp.text();
-    const verifyData = verifyText ? JSON.parse(verifyText) : {};
-
-    if (!verifyResp.ok || !['RECEIVED', 'CONFIRMED'].includes(verifyData.status)) {
-      console.warn('asaasWebhook: pagamento não confirmado no Asaas', payment.id, verifyData.status);
-      return res.status(200).send('OK');
-    }
-
-    // Busca a assinatura para obter o externalReference (UID do Firebase)
-    const subResp = await fetch(`${ASAAS_BASE_URL}/subscriptions/${payment.subscription}`, {
-      headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-    });
-    const subText = await subResp.text();
-    const subData = subText ? JSON.parse(subText) : {};
-
-    const uid = subData.externalReference;
+    const uid = result.subscriptionExternalReference;
     if (!uid) {
       console.warn('asaasWebhook: assinatura sem externalReference', payment.subscription);
       return res.status(200).send('OK');
     }
 
-    // Marca que recebemos um webhook para este uid (aba Auditoria do painel admin) — best-effort
     await db.collection('users').doc(uid).update({
       'asaasSync.lastWebhookAt':    admin.firestore.FieldValue.serverTimestamp(),
       'asaasSync.lastWebhookEvent': event,
     }).catch(err => console.warn('asaasWebhook: falha ao gravar asaasSync', uid, err.message));
 
-    const result = await upsertInvoiceFromAsaasPayment(uid, verifyData);
+    const upsertResult = await upsertInvoiceFromAsaasPayment(uid, result.payment);
 
-    if (result.action === 'skipped') {
-      console.warn('asaasWebhook:', result.reason, uid);
+    if (upsertResult.action === 'skipped') {
+      console.warn('asaasWebhook:', upsertResult.reason, uid);
       return res.status(200).send('OK');
     }
-    console.log(`asaasWebhook: fatura ${result.action} uid=${uid} invoiceId=${result.invoiceId} payment=${payment.id}`);
+    console.log(`asaasWebhook: fatura ${upsertResult.action} uid=${uid} invoiceId=${upsertResult.invoiceId} payment=${payment.id}`);
 
-    // Atualiza finance/summary com os dados mais recentes
     await updateFinanceSummary(uid);
 
     return res.status(200).send('OK');
@@ -2402,40 +1505,30 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
   }
 });
 
-// Redefine a senha de um associado. Requer role master.
+// Redefine a senha de um associado DA MESMA ORGANIZAÇÃO. Requer role master.
 exports.resetUserPassword = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
-  }
-
-  const callerSnap = await admin.firestore().collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
-  if (callerRole !== 'master') {
-    throw new functions.https.HttpsError('permission-denied', 'Apenas o perfil master pode redefinir senhas.');
-  }
+  const caller = await auth.requireOrganizationMaster(context);
 
   const { targetUid, newPassword } = data;
   if (!targetUid || !newPassword || newPassword.length < 8) {
     throw new functions.https.HttpsError('invalid-argument', 'UID e senha (mínimo 8 caracteres) são obrigatórios.');
   }
-
-  // Impede que o master redefina a própria senha por esta rota
-  if (targetUid === context.auth.uid) {
+  if (targetUid === caller.uid) {
     throw new functions.https.HttpsError('invalid-argument', 'Use o formulário de troca de senha para alterar sua própria senha.');
   }
 
-  const targetSnap = await admin.firestore().collection('users').doc(targetUid).get();
-  if (targetSnap.exists && targetSnap.data().categoriaAssociado === 'mirim') {
+  const target = await auth.assertCallerCanManageTarget(caller, targetUid);
+  if (target.userDoc.categoriaAssociado === 'mirim') {
     throw new functions.https.HttpsError('failed-precondition', 'Associado Mirim não tem conta de acesso — não há senha para redefinir.');
   }
 
   await admin.auth().updateUser(targetUid, { password: newPassword });
-  await admin.firestore().collection('users').doc(targetUid).update({
+  await db.collection('users').doc(targetUid).update({
     primeiroAcesso: true,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${context.auth.uid}`);
+  console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${caller.uid}`);
   return { success: true };
 });
 
@@ -2443,10 +1536,7 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
    Reset de senha self-service via SMS (Firebase Phone Authentication)
    ======================================================================= */
 
-// Limita tentativas de iniciar o fluxo a 5 por CPF por hora — mitiga flood/enumeração
-// contra um CPF específico. Não impede enumeração de CPFs existentes em geral (aceitável
-// na escala de um clube pequeno; o Firebase Phone Auth também tem proteção própria contra
-// abuso agressivo de envio de SMS via reCAPTCHA + cotas do projeto).
+// Limita tentativas de iniciar o fluxo a 5 por CPF por hora — mitiga flood/enumeração.
 async function checkAndIncrementResetAttempts(cpfDigits) {
   const ref = db.collection('passwordResetAttempts').doc(cpfDigits);
   const MAX_ATTEMPTS = 5;
@@ -2454,12 +1544,10 @@ async function checkAndIncrementResetAttempts(cpfDigits) {
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    const now = Date.now();
-    const windowStartMs = snap.exists
-      ? (snap.data().windowStart?.toMillis?.() ?? 0)
-      : 0;
+    const nowMs = Date.now();
+    const windowStartMs = snap.exists ? (snap.data().windowStart?.toMillis?.() ?? 0) : 0;
 
-    if (!snap.exists || (now - windowStartMs) > WINDOW_MS) {
+    if (!snap.exists || (nowMs - windowStartMs) > WINDOW_MS) {
       tx.set(ref, { count: 1, windowStart: admin.firestore.FieldValue.serverTimestamp() });
       return;
     }
@@ -2470,11 +1558,11 @@ async function checkAndIncrementResetAttempts(cpfDigits) {
   });
 }
 
-// Callable: primeiro passo do reset self-service. Não exige autenticação (roda antes do
-// login). Recebe o CPF, localiza o telefone cadastrado e devolve em E.164 para o cliente
-// disparar signInWithPhoneNumber. O mascaramento do número na UI é só cosmético — quem já
-// tem o CPF de alguém não ganha nada de novo em saber o telefone completo, e a barreira de
-// segurança real é: só quem recebe o SMS consegue completar completePasswordReset depois.
+// Callable: primeiro passo do reset self-service. Não exige autenticação (roda antes
+// do login) — por isso não há "organização do chamador" pra comparar; a busca por CPF
+// é resolvida globalmente (ver nota de risco residual no relatório da Fase 2B: CPF
+// duplicado entre organizações — caso raro, hoje sem solução automática sem pedir
+// também o orgId do tenant de origem, que o cliente já conhece via tenant.config.js).
 exports.startPasswordReset = functions.https.onCall(async (data, context) => {
   const cpfDigits = String(data?.cpf || '').replace(/\D/g, '');
   if (cpfDigits.length !== 11) {
@@ -2483,7 +1571,9 @@ exports.startPasswordReset = functions.https.onCall(async (data, context) => {
 
   await checkAndIncrementResetAttempts(cpfDigits);
 
-  const snap = await db.collection('users').where('cpf', '==', cpfDigits).limit(1).get();
+  let query = db.collection('users').where('cpf', '==', cpfDigits);
+  if (data?.orgId) query = query.where('orgId', '==', String(data.orgId));
+  const snap = await query.limit(1).get();
   if (snap.empty) {
     throw new functions.https.HttpsError('not-found', 'CPF não encontrado.');
   }
@@ -2505,12 +1595,7 @@ exports.startPasswordReset = functions.https.onCall(async (data, context) => {
   return { telefoneE164 };
 });
 
-// Callable: segundo/último passo do reset self-service. Exige uma sessão Firebase Auth
-// autenticada por telefone (criada no cliente por signInWithPhoneNumber + confirm(code)) —
-// context.auth.token.phone_number é um claim verificado pelo próprio Firebase, não pode ser
-// falsificado pelo cliente. Compara esse telefone com o cadastrado no CPF informado; só
-// troca a senha se baterem. context.auth.uid aqui é do usuário temporário criado pela
-// verificação de telefone — nunca o uid da conta CPF-based, que é sempre resolvido via CPF.
+// Callable: segundo/último passo do reset self-service.
 exports.completePasswordReset = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Verificação de telefone necessária.');
@@ -2526,7 +1611,9 @@ exports.completePasswordReset = functions.https.onCall(async (data, context) => 
     throw new functions.https.HttpsError('invalid-argument', 'CPF e senha (mínimo 8 caracteres) são obrigatórios.');
   }
 
-  const snap = await db.collection('users').where('cpf', '==', cpfDigits).limit(1).get();
+  let query = db.collection('users').where('cpf', '==', cpfDigits);
+  if (data?.orgId) query = query.where('orgId', '==', String(data.orgId));
+  const snap = await query.limit(1).get();
   if (snap.empty) {
     throw new functions.https.HttpsError('not-found', 'CPF não encontrado.');
   }
@@ -2546,11 +1633,11 @@ exports.completePasswordReset = functions.https.onCall(async (data, context) => 
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Best-effort: apaga o usuário Auth temporário criado só pra verificação de telefone.
   await admin.auth().deleteUser(context.auth.uid).catch((err) =>
     console.warn('completePasswordReset: falha ao limpar uid temporário de telefone:', err.message));
 
   await notifyAdminsByEmail(
+    userData.orgId,
     `CCBMG - Senha redefinida via SMS: ${userData.nome || targetUid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) redefiniu a própria senha via verificação por SMS.</p>`
   );
@@ -2559,55 +1646,32 @@ exports.completePasswordReset = functions.https.onCall(async (data, context) => 
   return { success: true };
 });
 
-// Exclui definitivamente um associado: cobrança/cliente no Asaas, subcoleções do
-// Firestore, o documento em users/{uid} e a conta no Firebase Auth. Irreversível —
-// restrito ao perfil master.
+// Exclui definitivamente um associado DA MESMA ORGANIZAÇÃO: cobrança/cliente no
+// provider, subcoleções do Firestore, o documento em users/{uid} e a conta no
+// Firebase Auth. Irreversível — restrito ao perfil master.
 exports.deleteAssociado = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
-  }
-
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
-  if (callerRole !== 'master') {
-    throw new functions.https.HttpsError('permission-denied', 'Apenas o perfil master pode excluir associados.');
-  }
+  const caller = await auth.requireOrganizationMaster(context);
 
   const targetUid = data?.uid;
-  if (!targetUid) {
-    throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
-  }
-  if (targetUid === context.auth.uid) {
+  if (targetUid === caller.uid) {
     throw new functions.https.HttpsError('invalid-argument', 'Não é possível excluir a própria conta por esta rota.');
   }
 
+  const target = await auth.assertCallerCanManageTarget(caller, targetUid);
+  const userData = target.userDoc;
   const userRef = db.collection('users').doc(targetUid);
-  const userSnap = await userRef.get();
-  if (!userSnap.exists) {
-    throw new functions.https.HttpsError('not-found', 'Associado não encontrado no Firestore.');
-  }
-  const userData = userSnap.data();
 
-  // Cancela cliente/assinatura no Asaas antes de apagar o registro local (não bloqueia a exclusão em caso de falha)
+  // Cancela cliente/assinatura no provider antes de apagar o registro local (não bloqueia a exclusão em caso de falha)
   try {
-    const apiKey = await getAsaasApiKey();
-    if (userData.asaasSubscriptionId) {
-      await fetch(`${ASAAS_BASE_URL}/subscriptions/${userData.asaasSubscriptionId}`, {
-        method: 'DELETE',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-      });
-    }
-    if (userData.asaasId) {
-      await fetch(`${ASAAS_BASE_URL}/customers/${userData.asaasId}`, {
-        method: 'DELETE',
-        headers: { access_token: apiKey, 'Content-Type': 'application/json' },
-      });
-    }
+    const provider = await getProviderForOrg(caller.orgId);
+    if (userData.asaasSubscriptionId) await provider.deleteSubscription(userData.asaasSubscriptionId).catch(() => {});
+    // Fase 2C: deleteCustomer() de verdade (Fase 2B deixou isto como um no-op
+    // defensivo — provider ainda não expunha exclusão de cliente).
+    if (userData.asaasId) await provider.deleteCustomer(userData.asaasId).catch(() => {});
   } catch (e) {
-    console.warn(`deleteAssociado: falha ao remover uid=${targetUid} do Asaas (prosseguindo com exclusão local): ${e.message}`);
+    console.warn(`deleteAssociado: falha ao remover uid=${targetUid} do provider (prosseguindo com exclusão local): ${e.message}`);
   }
 
-  // Apaga subcoleções (financeInvoices, finance/summary) e o documento do usuário
   const invSnap = await userRef.collection('financeInvoices').get();
   const batch = db.batch();
   invSnap.docs.forEach(d => batch.delete(d.ref));
@@ -2615,7 +1679,6 @@ exports.deleteAssociado = functions.https.onCall(async (data, context) => {
   batch.delete(userRef);
   await batch.commit();
 
-  // Apaga a conta no Firebase Auth, se existir
   try {
     await admin.auth().deleteUser(targetUid);
   } catch (e) {
@@ -2624,33 +1687,36 @@ exports.deleteAssociado = functions.https.onCall(async (data, context) => {
     }
   }
 
-  console.log(`deleteAssociado: uid=${targetUid} excluído por master uid=${context.auth.uid}`);
+  console.log(`deleteAssociado: uid=${targetUid} excluído por master uid=${caller.uid}`);
   return { success: true };
 });
 
 
 /* ================================================================
    MÓDULO DE LEILÕES
+   Fase 2C: schema ganhou orgId de verdade. auctionLots já vinha recebendo
+   orgId do frontend desde jun/2026 (lote_form.html, commit 97a498ab) e
+   admin_leiloes.html já consultava auctionLots/auctionSales filtrando por
+   orgId — mas as Cloud Functions que CRIAM auctionSales/auctionPayments
+   nunca escreviam esse campo, e nenhuma delas validava organização na
+   autorização. Esta seção fecha essa lacuna (ver relatório da Fase 2C para
+   o achado completo e o backfill).
    ================================================================ */
 
 // ---- placeBid (onCall) ----
-// Lance atômico com Firestore Transaction: valida +2%, anti-sniper, inadimplente, dono
 exports.placeBid = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Faça login para dar lances.');
+  const bidder = await auth.requireOrganizationMember(context);
 
   const { lotId, amount } = data;
   if (!lotId || typeof amount !== 'number' || amount <= 0) {
     throw new functions.https.HttpsError('invalid-argument', 'Dados inválidos.');
   }
 
-  const bidderUid  = context.auth.uid;
+  const bidderUid  = bidder.uid;
   const lotRef     = db.collection('auctionLots').doc(lotId);
   const bidsRef    = lotRef.collection('bids');
-  const bidderRef  = db.collection('users').doc(bidderUid);
 
-  // Verificar inadimplência antes da transação (leitura rápida)
-  const bidderSnap = await bidderRef.get();
-  if (bidderSnap.exists && bidderSnap.data().inadimplenteLeilao === true) {
+  if (bidder.userDoc.inadimplenteLeilao === true) {
     throw new functions.https.HttpsError('permission-denied', 'Sua conta está bloqueada por inadimplência.');
   }
 
@@ -2660,13 +1726,15 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
 
     const lot = lotSnap.data();
 
+    auth.assertSameOrganization(bidder.orgId, lot.orgId, 'Este lote pertence a outra organização.');
+
     if (lot.status !== 'publicado') {
       throw new functions.https.HttpsError('failed-precondition', 'Este lote não está ativo.');
     }
 
-    const now     = Date.now();
+    const nowMs  = Date.now();
     const endMs   = lot.endTime?.toMillis?.() ?? 0;
-    if (endMs && now > endMs) {
+    if (endMs && nowMs > endMs) {
       throw new functions.https.HttpsError('failed-precondition', 'O leilão deste lote já encerrou.');
     }
 
@@ -2674,7 +1742,6 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('permission-denied', 'Você não pode dar lances em seu próprio lote.');
     }
 
-    // Calcular lance mínimo: primeiro lance usa initialBid*1.02; demais usam lastBid*1.02
     const base    = (lot.lastBid && lot.lastBid > 0) ? lot.lastBid : lot.initialBid;
     const minBid  = Math.ceil(base * 1.02 * 100) / 100;
     if (amount < minBid) {
@@ -2684,10 +1751,9 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
       );
     }
 
-    // Anti-sniper: se lance nos últimos 2 minutos, prolonga 2 minutos
     let newEndTime = lot.endTime;
-    if (endMs && (endMs - now) < 120000) {
-      newEndTime = new admin.firestore.Timestamp.fromMillis(now + 120000);
+    if (endMs && (endMs - nowMs) < 120000) {
+      newEndTime = new admin.firestore.Timestamp.fromMillis(nowMs + 120000);
     }
 
     const bidId  = bidsRef.doc().id;
@@ -2711,10 +1777,10 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
 // ---- encerrarLotesExpirados (scheduled, a cada minuto) ----
 exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
   .onRun(async () => {
-    const now = admin.firestore.Timestamp.now();
+    const nowTs = admin.firestore.Timestamp.now();
     const snap = await db.collection('auctionLots')
       .where('status', '==', 'publicado')
-      .where('endTime', '<=', now)
+      .where('endTime', '<=', nowTs)
       .get();
 
     if (snap.empty) return null;
@@ -2725,14 +1791,12 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
     }
     await batch.commit();
 
-    // Criar auctionSales para cada lote encerrado com lances
     for (const doc of snap.docs) {
       const lot = doc.data();
-      if (!lot.lastBid || !lot.lastBidderUid) continue; // sem lances: só encerra
+      if (!lot.lastBid || !lot.lastBidderUid) continue;
 
-      const existingSale = await db.collection('auctionSales')
-        .where('lotId', '==', doc.id).limit(1).get();
-      if (!existingSale.empty) continue; // já criou
+      const existingSale = await db.collection('auctionSales').where('lotId', '==', doc.id).limit(1).get();
+      if (!existingSale.empty) continue;
 
       const finalAmount       = lot.lastBid;
       const commissionClube   = Math.round(finalAmount * 0.05 * 100) / 100;
@@ -2740,11 +1804,11 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
       const commissionTotal   = Math.round((commissionClube + commissionSistema) * 100) / 100;
       const netSeller         = Math.round((finalAmount - commissionTotal) * 100) / 100;
 
-      // Buscar dados do comprador e vendedor para desnormalizar
       const buyerSnap  = await db.collection('users').doc(lot.lastBidderUid).get();
       const sellerSnap = await db.collection('users').doc(lot.sellerUid).get();
 
       await db.collection('auctionSales').add({
+        orgId:              lot.orgId,
         lotId:              doc.id,
         lotTitle:           lot.title || '',
         sellerUid:          lot.sellerUid,
@@ -2762,10 +1826,10 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
         createdAt:          admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // Notificar vencedor e vendedor
       const batch2 = db.batch();
       const notifRef = db.collection('auctionNotifications');
       batch2.set(notifRef.doc(), {
+        orgId: lot.orgId,
         recipientUid: lot.lastBidderUid,
         type: 'lote_arrematado',
         lotId: doc.id,
@@ -2775,6 +1839,7 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       batch2.set(notifRef.doc(), {
+        orgId: lot.orgId,
         recipientUid: lot.sellerUid,
         type: 'lote_vendido',
         lotId: doc.id,
@@ -2791,9 +1856,8 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
   });
 
 // ---- gerarCobrancaLeilao (onCall) ----
-// Gera cobrança avulsa no Asaas para o vencedor do lote
 exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const caller = await auth.requireOrganizationMember(context);
 
   const { saleId } = data;
   if (!saleId) throw new functions.https.HttpsError('invalid-argument', 'saleId obrigatório.');
@@ -2803,11 +1867,14 @@ exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
 
   const sale = saleSnap.data();
 
-  // Verificar autorização: apenas admin/master ou partes da venda (vendedor/comprador)
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.exists ? (callerSnap.data().role || '') : '');
-  const isAdmin = ['admin', 'master'].includes(callerRole);
-  const isParty = context.auth.uid === sale.sellerUid || context.auth.uid === sale.buyerUid;
+  // Vendas criadas antes da Fase 2C podem não ter orgId ainda (ver backfillLeilaoOrgId) —
+  // nesse caso só admin/master decide (não dá pra confirmar "mesma organização").
+  if (sale.orgId) {
+    auth.assertSameOrganization(caller.orgId, sale.orgId, 'Esta venda pertence a outra organização.');
+  }
+
+  const isAdmin = ['admin', 'master'].includes(caller.role);
+  const isParty = caller.uid === sale.sellerUid || caller.uid === sale.buyerUid;
   if (!isAdmin && !isParty) {
     throw new functions.https.HttpsError('permission-denied', 'Sem permissão para esta operação.');
   }
@@ -2816,86 +1883,61 @@ exports.gerarCobrancaLeilao = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('failed-precondition', 'Esta venda não está aguardando pagamento.');
   }
 
-  // Verificar cobrança já gerada
-  const existPay = await db.collection('auctionPayments')
-    .where('saleId', '==', saleId).limit(1).get();
+  const existPay = await db.collection('auctionPayments').where('saleId', '==', saleId).limit(1).get();
   if (!existPay.empty) return { paymentId: existPay.docs[0].id, alreadyExists: true };
 
-  const apiKey = await getSecret(ASAAS_SECRET);
+  const provider = sale.orgId ? await getProviderForOrg(sale.orgId) : await getDefaultProvider();
   const buyerSnap = await db.collection('users').doc(sale.buyerUid).get();
   const buyer = buyerSnap.exists ? buyerSnap.data() : {};
 
-  // Garantir que o comprador tem cliente no Asaas
   let asaasCustomerId = buyer.asaasId;
   if (!asaasCustomerId) {
-    const cResp = await fetch(`${ASAAS_BASE_URL}/customers`, {
-      method: 'POST',
-      headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name:              buyer.nome || buyer.email || 'Comprador',
-        cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
-        email:             buyer.email || undefined,
-        mobilePhone:       formatPhoneForAsaas(buyer.telefone),
-        externalReference: sale.buyerUid,
-      }),
+    const { providerId } = await provider.createCustomer({
+      name:              buyer.nome || buyer.email || 'Comprador',
+      cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
+      email:             buyer.email || undefined,
+      mobilePhone:       formatPhoneForAsaas(buyer.telefone),
+      externalReference: sale.buyerUid,
     });
-    const cData = await cResp.json();
-    if (!cData.id) {
-      console.error('gerarCobrancaLeilao: falha ao criar cliente Asaas', cData);
-      throw new functions.https.HttpsError('internal', 'Falha ao criar cliente no Asaas.');
-    }
-    asaasCustomerId = cData.id;
+    asaasCustomerId = providerId;
     await db.collection('users').doc(sale.buyerUid).update({
       asaasId: asaasCustomerId,
       asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   }
 
-  // Data de vencimento: 5 dias corridos a partir de hoje
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 5);
-  const dueDateStr = dueDate.toISOString().split('T')[0];
 
-  const payResp = await fetch(`${ASAAS_BASE_URL}/payments`, {
-    method: 'POST',
-    headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      customer:         asaasCustomerId,
-      billingType:      'UNDEFINED',
-      value:            sale.finalAmount,
-      dueDate:          dueDateStr,
-      description:      `Arrematação lote: ${sale.lotTitle}`,
-      externalReference: saleId,
-    }),
+  const { providerId: paymentId, raw } = await provider.createCharge({
+    customerId:  asaasCustomerId,
+    value:       sale.finalAmount,
+    dueDate:     dueDate.toISOString().split('T')[0],
+    description: `Arrematação lote: ${sale.lotTitle}`,
+    externalReference: saleId,
   });
-  const payData = await payResp.json();
-  if (!payData.id) {
-    console.error('gerarCobrancaLeilao: falha ao criar cobrança Asaas', payData);
-    throw new functions.https.HttpsError('internal', 'Falha ao gerar cobrança no Asaas.');
-  }
 
   const paymentRef = await db.collection('auctionPayments').add({
+    orgId:          sale.orgId || null,
     saleId,
     buyerUid:       sale.buyerUid,
     lotId:          sale.lotId,
     lotTitle:       sale.lotTitle,
     amount:         sale.finalAmount,
-    asaasPaymentId: payData.id,
-    asaasInvoiceUrl: payData.invoiceUrl || null,
+    asaasPaymentId: paymentId,
+    asaasInvoiceUrl: raw.invoiceUrl || null,
     status:         'pendente',
     dueDate:        admin.firestore.Timestamp.fromDate(dueDate),
     createdAt:      admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  return { paymentId: paymentRef.id, invoiceUrl: payData.invoiceUrl };
+  return { paymentId: paymentRef.id, invoiceUrl: raw.invoiceUrl };
 });
 
 // ---- auctionAsaasWebhook (HTTP público) ----
-// Recebe PAYMENT_RECEIVED/CONFIRMED do Asaas para cobranças de leilão
 exports.auctionAsaasWebhook = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
-  // Validar token exclusivo do webhook de leilões
   const webhookToken = await getSecret(ASAAS_AUCTION_WEBHOOK_TOKEN);
   const incomingToken = req.headers['asaas-access-token'];
   if (!incomingToken || incomingToken !== webhookToken) {
@@ -2911,45 +1953,41 @@ exports.auctionAsaasWebhook = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  // Verificar anti-fraude na API
-  const apiKey = await getSecret(ASAAS_SECRET);
-  const verResp = await fetch(`${ASAAS_BASE_URL}/payments/${payment.id}`, {
-    headers: { 'access_token': apiKey },
-  });
-  const verData = await verResp.json();
-  if (!verData.id || !['RECEIVED','CONFIRMED'].includes(verData.status)) {
-    console.warn('auctionAsaasWebhook: pagamento não confirmado na API', verData.status);
+  // Verificação anti-fraude via provider default: igual ao webhook principal
+  // (asaasWebhook), o Asaas manda o webhook pra 1 conta/token só — ainda não há
+  // como rotear por organização ANTES de saber a qual venda o payment pertence.
+  const provider = await getDefaultProvider();
+  const verified = await provider.getCharge(payment.id);
+  if (verified.status !== 'pago') {
+    console.warn('auctionAsaasWebhook: pagamento não confirmado na API', verified.rawStatus);
     res.status(200).send('ok');
     return;
   }
 
-  const saleId = verData.externalReference;
+  const saleId = verified.externalReference;
   if (!saleId) { res.status(200).send('ok'); return; }
 
-  // Idempotência: verificar se já processou este asaasPaymentId
-  const existSnap = await db.collection('auctionPayments')
-    .where('asaasPaymentId', '==', payment.id).limit(1).get();
+  const saleSnapForOrg = await db.collection('auctionSales').doc(saleId).get();
+  const saleOrgId = saleSnapForOrg.exists ? (saleSnapForOrg.data().orgId || null) : null;
+
+  const existSnap = await db.collection('auctionPayments').where('asaasPaymentId', '==', payment.id).limit(1).get();
 
   if (!existSnap.empty) {
     const payDoc = existSnap.docs[0];
     if (payDoc.data().status === 'pago') { res.status(200).send('ok'); return; }
-    await payDoc.ref.update({
-      status: 'pago',
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    await payDoc.ref.update({ status: 'pago', paidAt: admin.firestore.FieldValue.serverTimestamp() });
   } else {
-    // Registro não existia ainda
     await db.collection('auctionPayments').add({
+      orgId:          saleOrgId,
       saleId,
       asaasPaymentId: payment.id,
-      amount:         verData.value,
+      amount:         verified.value,
       status:         'pago',
       paidAt:         admin.firestore.FieldValue.serverTimestamp(),
       createdAt:      admin.firestore.FieldValue.serverTimestamp(),
     });
   }
 
-  // Atualizar auctionSales para pago
   const saleRef = db.collection('auctionSales').doc(saleId);
   await saleRef.update({
     status:    'pago',
@@ -2963,13 +2001,7 @@ exports.auctionAsaasWebhook = functions.https.onRequest(async (req, res) => {
 
 // ---- liberarRepasse (onCall, admin only) ----
 exports.liberarRepasse = functions.https.onCall(async (data, context) => {
-  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-
-  const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-  const callerRole = mapRoleServer(callerSnap.exists ? callerSnap.data().role : '');
-  if (!['admin','master'].includes(callerRole)) {
-    throw new functions.https.HttpsError('permission-denied', 'Acesso negado.');
-  }
+  const caller = await auth.requireOrganizationAdmin(context);
 
   const { saleId } = data;
   if (!saleId) throw new functions.https.HttpsError('invalid-argument', 'saleId obrigatório.');
@@ -2978,19 +2010,28 @@ exports.liberarRepasse = functions.https.onCall(async (data, context) => {
   if (!saleSnap.exists) throw new functions.https.HttpsError('not-found', 'Venda não encontrada.');
 
   const sale = saleSnap.data();
+
+  // Vendas anteriores à Fase 2C podem não ter orgId — só master (cross-org por
+  // definição) consegue liberar repasse dessas; admin comum precisa da mesma org.
+  if (sale.orgId) {
+    auth.assertSameOrganization(caller.orgId, sale.orgId, 'Esta venda pertence a outra organização.');
+  } else if (caller.role !== 'master') {
+    throw new functions.https.HttpsError('failed-precondition', 'Venda sem organização definida — só o perfil master pode liberar este repasse (ver backfillLeilaoOrgId).');
+  }
+
   if (sale.status !== 'pago') {
     throw new functions.https.HttpsError('failed-precondition', 'Repasse só pode ser liberado após o pagamento.');
   }
 
   await db.collection('auctionSales').doc(saleId).update({
     status:      'repasse_liberado',
-    releasedBy:  context.auth.uid,
+    releasedBy:  caller.uid,
     releasedAt:  admin.firestore.FieldValue.serverTimestamp(),
     updatedAt:   admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  // Notificar vendedor
   await db.collection('auctionNotifications').add({
+    orgId:        sale.orgId || null,
     recipientUid: sale.sellerUid,
     type:         'repasse_liberado',
     lotId:        sale.lotId,
@@ -3004,7 +2045,6 @@ exports.liberarRepasse = functions.https.onCall(async (data, context) => {
 });
 
 // ---- onSaleCreated (Firestore trigger) ----
-// Cria cliente Asaas para ParticipanteLeilao vencedor, se ainda não tiver asaasId
 exports.onSaleCreated = functions.firestore
   .document('auctionSales/{saleId}')
   .onCreate(async (snap) => {
@@ -3016,64 +2056,53 @@ exports.onSaleCreated = functions.firestore
     if (!buyerSnap.exists) return null;
 
     const buyer = buyerSnap.data();
-    if (buyer.asaasId) return null; // já tem cliente no Asaas
+    if (buyer.asaasId) return null;
 
-    const apiKey = await getSecret(ASAAS_SECRET);
-    const resp = await fetch(`${ASAAS_BASE_URL}/customers`, {
-      method: 'POST',
-      headers: { 'access_token': apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name:              buyer.nome || buyer.email || 'Comprador',
-        cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
-        email:             buyer.email || undefined,
-        mobilePhone:       formatPhoneForAsaas(buyer.telefone),
-        externalReference: sale.buyerUid,
-      }),
+    const provider = sale.orgId ? await getProviderForOrg(sale.orgId) : await getDefaultProvider();
+    const { providerId } = await provider.createCustomer({
+      name:              buyer.nome || buyer.email || 'Comprador',
+      cpfCnpj:           (buyer.cpf || '').replace(/\D/g,''),
+      email:             buyer.email || undefined,
+      mobilePhone:       formatPhoneForAsaas(buyer.telefone),
+      externalReference: sale.buyerUid,
     });
-    const data = await resp.json();
-    if (!data.id) {
-      console.error('onSaleCreated: falha ao criar cliente Asaas', data);
-      return null;
-    }
 
     await buyerRef.update({
-      asaasId:       data.id,
+      asaasId:       providerId,
       asaasSyncedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    console.log(`onSaleCreated: cliente Asaas criado para ${sale.buyerUid} → ${data.id}`);
+    console.log(`onSaleCreated: cliente Asaas criado para ${sale.buyerUid} → ${providerId}`);
     return null;
   });
 
 // ---- verificarInadimplentesDiarios (scheduled, diário às 09:00 BRT) ----
-// Bloqueia compradores que não pagaram a cobrança de leilão no prazo
 exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
   .timeZone('America/Sao_Paulo')
   .onRun(async () => {
-    const now = admin.firestore.Timestamp.now();
-    // Cobranças pendentes com dueDate vencida
+    const nowTs = admin.firestore.Timestamp.now();
     const snap = await db.collection('auctionPayments')
       .where('status', '==', 'pendente')
-      .where('dueDate', '<', now)
+      .where('dueDate', '<', nowTs)
       .get();
 
     if (snap.empty) return null;
 
     const batch = db.batch();
     const uidsToBlock = new Set();
+    const orgIdByUid = new Map();
 
     for (const doc of snap.docs) {
       const pay = doc.data();
       batch.update(doc.ref, { status: 'vencido', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      if (pay.buyerUid) uidsToBlock.add(pay.buyerUid);
+      if (pay.buyerUid) {
+        uidsToBlock.add(pay.buyerUid);
+        if (pay.orgId) orgIdByUid.set(pay.buyerUid, pay.orgId);
+      }
 
-      // Atualizar sale para cancelado se ainda em aguardando_pagamento
       if (pay.saleId) {
         const saleSnap = await db.collection('auctionSales').doc(pay.saleId).get();
         if (saleSnap.exists && saleSnap.data().status === 'aguardando_pagamento') {
-          batch.update(saleSnap.ref, {
-            status:    'cancelado',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          batch.update(saleSnap.ref, { status: 'cancelado', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         }
       }
     }
@@ -3085,8 +2114,8 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
         inadimplenteLeilao: true,
         updatedAt:          admin.firestore.FieldValue.serverTimestamp(),
       });
-      // Notificar usuário
       await db.collection('auctionNotifications').add({
+        orgId:        orgIdByUid.get(uid) || null,
         recipientUid: uid,
         type:         'bloqueio_inadimplencia',
         message:      'Sua conta foi bloqueada para participação em leilões por inadimplência. Entre em contato com o clube para regularizar.',
@@ -3099,12 +2128,53 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
     return null;
   });
 
+// ---- backfillLeilaoOrgId (onCall, master only — uso pontual da Fase 2C) ----
+// Preenche `orgId` em documentos de auctionLots/auctionSales/auctionPayments/
+// auctionNotifications criados ANTES desta fase (nunca sobrescreve quem já
+// tem orgId). auctionLots normalmente já vem preenchido pelo frontend desde
+// jun/2026 — o alvo real são auctionSales/auctionPayments/auctionNotifications,
+// que só a partir desta fase passaram a ser criados com orgId pelas Cloud
+// Functions. Idempotente: rodar de novo não faz nada nos docs já corrigidos.
+exports.backfillLeilaoOrgId = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    const caller = await auth.requireOrganizationMaster(context);
+    const targetOrgId = data?.orgId || caller.orgId;
+    if (!targetOrgId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Informe orgId (ou tenha uma organização associada ao seu usuário).');
+    }
+
+    const collections = ['auctionLots', 'auctionSales', 'auctionPayments', 'auctionNotifications'];
+    const results = {};
+
+    for (const col of collections) {
+      const snap = await db.collection(col).get();
+      const missing = snap.docs.filter(d => !d.data().orgId);
+
+      let updated = 0;
+      const BATCH_LIMIT = 400; // margem sob o limite de 500 escritas/batch do Firestore
+      for (let i = 0; i < missing.length; i += BATCH_LIMIT) {
+        const batch = db.batch();
+        for (const doc of missing.slice(i, i + BATCH_LIMIT)) {
+          batch.update(doc.ref, { orgId: targetOrgId });
+          updated++;
+        }
+        await batch.commit();
+      }
+
+      results[col] = { total: snap.size, semOrgId: missing.length, atualizados: updated };
+    }
+
+    console.log('backfillLeilaoOrgId result:', targetOrgId, results);
+    return { orgId: targetOrgId, results };
+  });
+
 // ─── VALIDAÇÃO DE CPF ─────────────────────────────────────────────────────────
 
 function validateCPF(cpf) {
   const d = String(cpf || '').replace(/\D/g, '');
   if (d.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(d)) return false; // todos dígitos iguais
+  if (/^(\d)\1{10}$/.test(d)) return false;
   let s = 0;
   for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i);
   let r1 = (s * 10) % 11;
@@ -3117,130 +2187,82 @@ function validateCPF(cpf) {
   return r2 === parseInt(d[10]);
 }
 
-// Callable: audita CPFs de todos os associados ativos.
-// Retorna listas separadas por tipo de problema.
-// Requer role admin ou master.
+// Callable: audita CPFs de todos os associados ativos DA PRÓPRIA ORGANIZAÇÃO do chamador.
 exports.auditCpfs = functions
   .runWith({ timeoutSeconds: 120, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
 
-    const usersSnap = await db.collection('users').get();
-    const ausente  = [];   // sem CPF
-    const tamanho  = [];   // CPF tem dígitos mas ≠ 11
-    const invalido = [];   // 11 dígitos mas dígito verificador errado
-    const valido   = [];   // CPF matematicamente correto
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
+    const ausente  = [];
+    const tamanho  = [];
+    const invalido = [];
+    const valido   = [];
     let inativos = 0;
     let naoAssociado = 0;
 
     for (const docSnap of usersSnap.docs) {
       const u = { uid: docSnap.id, ...docSnap.data() };
       if (u.ativo === false) { inativos++; continue; }
-      const role = mapRoleServer(u.role);
+      const role = mapRole(u.role);
       if (role !== 'associado') { naoAssociado++; continue; }
 
       const cpfRaw = String(u.cpf || '').replace(/\D/g, '');
       const info = { uid: u.uid, nome: u.nome || '—', cpf: cpfRaw || '(vazio)' };
 
-      if (!cpfRaw) {
-        ausente.push(info);
-      } else if (cpfRaw.length !== 11) {
-        tamanho.push({ ...info, digitos: cpfRaw.length });
-      } else if (!validateCPF(cpfRaw)) {
-        invalido.push(info);
-      } else {
-        valido.push(u.uid);
-      }
+      if (!cpfRaw) ausente.push(info);
+      else if (cpfRaw.length !== 11) tamanho.push({ ...info, digitos: cpfRaw.length });
+      else if (!validateCPF(cpfRaw)) invalido.push(info);
+      else valido.push(u.uid);
     }
 
     return {
       geradoEm: new Date().toISOString(),
       totais: {
-        validos:     valido.length,
-        ausentes:    ausente.length,
-        tamanhoErrado: tamanho.length,
-        invalidos:   invalido.length,
-        inativos,
-        naoAssociado,
+        validos: valido.length, ausentes: ausente.length,
+        tamanhoErrado: tamanho.length, invalidos: invalido.length,
+        inativos, naoAssociado,
       },
-      ausente,
-      tamanhoErrado: tamanho,
-      invalido,
+      ausente, tamanhoErrado: tamanho, invalido,
     };
   });
 
 // ─── AUDITORIA ASAAS ─────────────────────────────────────────────────────────
 
-// Callable: retorna diagnóstico de sincronização entre Firestore e Asaas.
-// Verifica quais usuários ativos estão sem asaasId ou sem asaasSubscriptionId.
-// Requer role admin ou master.
+// Callable: diagnóstico de sincronização entre Firestore e provider, restrito à
+// PRÓPRIA ORGANIZAÇÃO do chamador.
 exports.auditAsaasSync = functions
   .runWith({ timeoutSeconds: 300, memory: '256MB' })
   .https.onCall(async (_data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Requer autenticação.');
-    }
-    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
-    const callerRole = mapRoleServer(callerSnap.data()?.role);
-    if (!['admin', 'master'].includes(callerRole)) {
-      throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin ou master.');
-    }
+    const caller = await auth.requireOrganizationAdmin(context);
 
-    const usersSnap = await db.collection('users').get();
+    const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
     const semAsaasId      = [];
     const semSubscription = [];
-    let completos   = 0;
-    let inativos    = 0;
-    let semCpf      = 0;
-    let naoAssociado = 0;
+    let completos = 0, inativos = 0, semCpf = 0, naoAssociado = 0;
 
     for (const doc of usersSnap.docs) {
       const u = { uid: doc.id, ...doc.data() };
 
       if (u.ativo === false) { inativos++; continue; }
-
-      const role = mapRoleServer(u.role);
-      if (!['associado'].includes(role)) { naoAssociado++; continue; }
-
+      const role = mapRole(u.role);
+      if (role !== 'associado') { naoAssociado++; continue; }
       if (!u.cpf) { semCpf++; continue; }
 
       const info = {
-        uid:    u.uid,
-        nome:   u.nome   || '—',
-        cpf:    u.cpf,
-        planType: u.planType || '—',
-        asaasId:           u.asaasId           || null,
-        asaasSubscriptionId: u.asaasSubscriptionId || null,
+        uid: u.uid, nome: u.nome || '—', cpf: u.cpf, planType: u.planType || '—',
+        asaasId: u.asaasId || null, asaasSubscriptionId: u.asaasSubscriptionId || null,
       };
 
-      if (!u.asaasId) {
-        semAsaasId.push(info);
-      } else if (!u.asaasSubscriptionId) {
-        semSubscription.push(info);
-      } else {
-        completos++;
-      }
+      if (!u.asaasId) semAsaasId.push(info);
+      else if (!u.asaasSubscriptionId) semSubscription.push(info);
+      else completos++;
     }
 
     return {
-      geradoEm:   new Date().toISOString(),
-      totais: {
-        inativos,
-        semCpf,
-        naoAssociado,
-        semAsaasId:      semAsaasId.length,
-        semSubscription: semSubscription.length,
-        completos,
-      },
-      semAsaasId,
-      semSubscription,
+      geradoEm: new Date().toISOString(),
+      totais: { inativos, semCpf, naoAssociado, semAsaasId: semAsaasId.length, semSubscription: semSubscription.length, completos },
+      semAsaasId, semSubscription,
     };
   });
 
@@ -3248,11 +2270,12 @@ exports.auditAsaasSync = functions
 
 /* =======================================================================
    createEventRegistration — inscreve participante em evento (sem auth)
-   Validações: evento ativo, prazo, vagas, adimplência, duplicata
+   orgId resolvido dinamicamente a partir do PRÓPRIO evento (cms_events já
+   grava orgId, ver Fase 0) — antes desta fase, o literal 'org_bonfim' estava
+   hardcoded aqui (o mesmo padrão do G1, do lado servidor).
    ======================================================================= */
 exports.createEventRegistration = functions.https.onCall(async (data, _context) => {
   const { eventoId, cpf, nome, telefone } = data || {};
-  const orgId = 'org_bonfim';
 
   if (!eventoId || !cpf || !nome)
     throw new functions.https.HttpsError('invalid-argument', 'Dados incompletos. Informe evento, CPF e nome.');
@@ -3261,26 +2284,27 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
   if (cpfDigits.length < 11)
     throw new functions.https.HttpsError('invalid-argument', 'CPF inválido.');
 
-  // Carrega evento
   const eventoSnap = await db.collection('cms_events').doc(eventoId).get();
   if (!eventoSnap.exists || eventoSnap.data().deleted)
     throw new functions.https.HttpsError('not-found', 'Evento não encontrado.');
 
   const evento = eventoSnap.data();
+  const orgId = evento.orgId;
+  if (!orgId)
+    throw new functions.https.HttpsError('failed-precondition', 'Evento sem organização associada — contate o suporte.');
+
   if (!evento.permiteInscricao)
     throw new functions.https.HttpsError('failed-precondition', 'Inscrições não habilitadas para este evento.');
 
   if (!evento.ativo)
     throw new functions.https.HttpsError('failed-precondition', 'Evento inativo.');
 
-  // Verifica prazo de inscrição
   if (evento.dataEncerramento) {
     const deadline = evento.dataEncerramento.toDate ? evento.dataEncerramento.toDate() : new Date(evento.dataEncerramento);
     if (new Date() > deadline)
       throw new functions.https.HttpsError('failed-precondition', 'O prazo de inscrições para este evento encerrou.');
   }
 
-  // Verifica vagas
   if (evento.maxInscritos > 0) {
     const countSnap = await db.collection('eventRegistrations')
       .where('eventoId', '==', eventoId)
@@ -3291,7 +2315,6 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
       throw new functions.https.HttpsError('resource-exhausted', 'Vagas esgotadas para este evento.');
   }
 
-  // Resolução de uid e validação de adimplência
   let resolvedUid = null;
   let resolvedNome = String(nome).trim();
 
@@ -3324,7 +2347,6 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
     if (!emDia)
       throw new functions.https.HttpsError('permission-denied', 'INADIMPLENTE');
   } else {
-    // Evento aberto: tenta resolver uid por CPF (best effort, sem exigir)
     try {
       const userSnap = await db.collection('users')
         .where('cpf', '==', cpfDigits)
@@ -3335,7 +2357,6 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
     } catch (_) {}
   }
 
-  // Verifica duplicata
   const dupSnap = await db.collection('eventRegistrations')
     .where('eventoId', '==', eventoId)
     .where('cpf', '==', cpfDigits)
@@ -3349,7 +2370,6 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
       return { duplicate: true, regId: existing.id, viewToken: existing.data().viewToken };
   }
 
-  // Gera tokens únicos (Node.js 22 — crypto disponível nativamente)
   const { randomUUID } = require('crypto');
   const token     = randomUUID();
   const viewToken = randomUUID();
@@ -3378,11 +2398,12 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
 
 /* =======================================================================
    confirmEventCheckin — confirma presença via token de QR Code
-   Requer auth (admin/master/operador/adminView)
+   Requer auth (admin/master/operador/adminView). Token é UUID (não
+   adivinhável); mesmo assim, valida que o registro pertence à MESMA
+   organização de quem está confirmando.
    ======================================================================= */
 exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
-  if (!context.auth)
-    throw new functions.https.HttpsError('unauthenticated', 'Login necessário para confirmar check-in.');
+  const caller = await auth.requireOrganizationMember(context);
 
   const { token } = data || {};
   if (!token)
@@ -3397,6 +2418,8 @@ exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
 
   const regDoc  = snap.docs[0];
   const reg     = regDoc.data();
+
+  auth.assertSameOrganization(caller.orgId, reg.orgId, 'Este registro de inscrição pertence a outra organização.');
 
   if (reg.status === 'cancelado')
     return { result: 'canceled', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
@@ -3416,6 +2439,11 @@ exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
   return { result: 'confirmed', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
 });
 
-// ─── SAAS MULTI-TENANT ────────────────────────────────────────────────────────
-
-
+// ─── EXPORTS INTERNOS (para testes) ────────────────────────────────────────
+if (process.env.FUNCTIONS_TEST_EXPORTS) {
+  module.exports._internal = {
+    organizationResolver, auth, mapRole, getProviderForOrg, getDefaultProvider,
+    computeMembership, validateCPF, upsertInvoiceFromAsaasPayment, syncOneAssociado,
+    findOrCreateCustomerForUser, cancelOpenPayments, createImmediateChargeOnReactivation,
+  };
+}
