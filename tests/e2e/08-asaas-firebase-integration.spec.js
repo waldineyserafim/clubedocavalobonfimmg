@@ -227,9 +227,11 @@ test.describe('Firebase Frontend — firebase.js', () => {
     expect(fb).toContain('role');
   });
 
-  test('firebase.js — config com projectId clubecavalobonfim', () => {
-    const fb = readFile('firebase.js');
-    expect(fb).toContain('clubecavalobonfim');
+  test('tenant.config.js — config com projectId clubecavalobonfim', () => {
+    // Fase 1: firebaseConfig (com o projectId) saiu de firebase.js e agora
+    // vive em tenant.config.js, lido via window.__TENANT_CONFIG__.
+    const cfg = readFile('tenant.config.js');
+    expect(cfg).toContain('clubecavalobonfim');
   });
 });
 

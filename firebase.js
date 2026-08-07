@@ -1,20 +1,33 @@
-// firebase.js (com Storage unificado + compressão ~200 KB)
+// firebase.js — camada específica do CCBMG sobre o núcleo compartilhado da
+// plataforma (Portal Associativo, shared/). Toda a mecânica genérica (init
+// do Firebase, sessão/papel, módulos por organização, auditoria, compressão
+// e upload de imagem) vem de lá — aqui fica só o que é deste tenant: CPF↔e-mail,
+// vocabulário de papel, status de inadimplência, schema de catálogo
+// (produtos/serviços) e o navbar/botão de administração.
+//
+// Requer que a página carregue <script src="./tenant.config.js"></script>
+// ANTES deste módulo (script clássico, síncrono) — é de lá que vem a config
+// real do Firebase e o orgId. Ver tenant.config.js e o contrato completo em
+// shared/README.md (repositório portal-associativo).
 
-// IMPORTS (via CDN do Firebase modular)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.2";
+import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.2";
+import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.2";
+import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.2";
+import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.2";
+import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.2";
+import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.2";
 
 import {
-  getAuth,
-  setPersistence,
-  browserLocalPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
-  signOut
+  signOut,
+  setPersistence,
+  browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
 import {
-  getFirestore,
   doc,
   getDoc,
   setDoc,
@@ -22,101 +35,81 @@ import {
   collection,
   addDoc,
   updateDoc,
-  Timestamp
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-// ==== STORAGE (UNIFICADO) ====
 import {
-  getStorage,
-  ref,                    // reexportado como sRef (compat)
-  uploadBytes,            // compat
-  uploadBytesResumable,   // usado no progresso
-  getDownloadURL
+  ref,
+  uploadBytes,
+  uploadBytesResumable,
+  getDownloadURL,
 } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
 
-// === Configuração do Firebase (seus dados) ===
-// OBS: se tiver erro 403 no Storage, teste trocar storageBucket para "clubecavalobonfim.appspot.com".
-const firebaseConfig = {
-  apiKey: "AIzaSyB1HBodrFRmgGKnYtX2v0X5LiIkowhR9wg",
-  authDomain: "clubecavalobonfim.firebaseapp.com",
-  projectId: "clubecavalobonfim",
-  storageBucket: "clubecavalobonfim.firebasestorage.app",
-  messagingSenderId: "115015503370",
-  appId: "1:115015503370:web:3864e3e55714d33f8319f3"
-};
+// === Config do tenant (window.__TENANT_CONFIG__, ver tenant.config.js) ===
+const _tenantConfig = window.__TENANT_CONFIG__;
+if (!_tenantConfig || !_tenantConfig.orgId) {
+  throw new Error(
+    "[firebase.js] window.__TENANT_CONFIG__ ausente ou sem orgId. " +
+    'Adicione <script src="./tenant.config.js"></script> ANTES deste módulo (ver tenant.config.js).'
+  );
+}
 
-// 2) INICIALIZA
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
-export const storage = getStorage(app);
+// ─── MULTI-TENANT ───────────────────────────────────────────────────────────
+export const currentOrgId = _tenantConfig.orgId;
+async function getOrgId() {
+  return (await getTenant()).orgId;
+}
 
-// ─── MULTI-TENANT ──────────────────────────────────────────────────────────────
-// Identificador da organização ativa. Em fase futura será derivado do domínio.
-export const currentOrgId = "org_bonfim";
+const { auth, db, storage } = initTenantFirebase(_tenantConfig.firebase, { persistence: true });
+export { auth, db, storage };
 
 // Compatibilidade: reexports (sem redeclarar nada)
 export { ref as sRef, uploadBytes, getDownloadURL };
 
-// NÃO usar top-level await: setPersistence em background
-setPersistence(auth, browserLocalPersistence)
-  .catch((e) => console.warn("Não foi possível setar persistence (ignorado):", e));
-
-// ===== Utils gerais =====
+// ===== Utils gerais (específico do CCBMG: CPF → e-mail interno) =====
 export const onlyDigits = (s) => (s || "").replace(/\D/g, "");
 export function cpfToEmail(cpfDigits) {
   const clean = onlyDigits(cpfDigits).slice(0, 11);
   return `${clean}@cpf.local`;
 }
 
-// normaliza acentos/caixa e reduz a 3 papéis conhecidos
-const norm = (s) =>
-  (s || "")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim()
-    .toLowerCase();
+// ===== Papel: vocabulário do CCBMG sobre o resolver genérico do núcleo =====
+// Mesma ordem/prioridade de sempre: master > adminView > admin > operador >
+// participanteLeilao > associado (fallback).
+const mapRole = createRoleResolver(
+  [
+    ["master", (n) => n.includes("master")],
+    ["adminView", (n) => n.includes("admin") && n.includes("view")],
+    ["admin", (n) => n.includes("admin")],
+    ["operador", (n) => n.includes("operador")],
+    ["participanteLeilao", (n) => n.includes("participante")],
+  ],
+  "associado"
+);
 
-const mapRole = (r) => {
-  const n = norm(r || "");
-  if (n.includes("master"))                          return "master";
-  if (n.includes("admin") && n.includes("view"))     return "adminView";
-  if (n.includes("admin"))                           return "admin";
-  if (n.includes("operador"))                        return "operador";
-  if (n.includes("participante"))                    return "participanteLeilao";
-  return "associado";
-};
+const _session = createAuthSession({
+  auth,
+  db,
+  mapRole,
+  roleField: "role",
+  roleCollection: "users",
+  cacheKey: "userRole",
+});
 
-// 3) CACHE DE PAPEL EM SESSION STORAGE (entre páginas)
-const ROLE_KEY = "userRole";
-function cacheRole(role) { sessionStorage.setItem(ROLE_KEY, mapRole(role)); }
-function loadCachedRole() { 
-  const raw = sessionStorage.getItem(ROLE_KEY);
-  return raw ? mapRole(raw) : "associado";
-}
-function clearCachedRole() { sessionStorage.removeItem(ROLE_KEY); }
-
-// 4) BUSCAR PAPEL NO FIRESTORE PELO UID
 async function fetchRoleByUid(uid) {
   if (!uid) return "associado";
-  const refDoc = doc(db, "users", uid);
-  const snap = await getDoc(refDoc);
-  if (snap.exists()) {
-    const data = snap.data();
-    return mapRole(data.role || "associado");
-  }
-  return "associado";
+  return _session.fetchRoleByUid(uid);
 }
 
 // 4.1) Buscar perfil completo
 export async function getUserProfile(uid) {
   if (!uid) return null;
-  const refDoc = doc(db, "users", uid);
-  const snap = await getDoc(refDoc);
+  const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data() : null;
 }
 
-// 4.2) Derivar status ativo/pendente de forma resiliente
+// 4.2) Derivar status ativo/pendente de forma resiliente (heurística do
+// CCBMG sobre campos legados — específico deste tenant, não migra pro núcleo)
 export async function getUserStatus(uid) {
   const profile = await getUserProfile(uid);
   if (!profile) return { active: false, pending: false, profile: null };
@@ -155,7 +148,7 @@ export async function doLogin(email, password) {
   await signInWithEmailAndPassword(auth, email, password);
   const uid = auth.currentUser?.uid;
   const role = await fetchRoleByUid(uid);
-  cacheRole(role);
+  try { sessionStorage.setItem("userRole", role); } catch { /* ambiente sem sessionStorage */ }
   return role;
 }
 
@@ -179,7 +172,7 @@ export async function doSignupWithProfile({ cpf, password, nome, telefone, ender
     createdAt: serverTimestamp()
   }, { merge: true });
 
-  cacheRole("associado");
+  try { sessionStorage.setItem("userRole", "associado"); } catch { /* ambiente sem sessionStorage */ }
   return { uid };
 }
 
@@ -203,63 +196,39 @@ export async function doSignupParticipanteLeilao({ cpf, email, password, nome, t
     createdAt: serverTimestamp()
   }, { merge: true });
 
-  cacheRole("participanteLeilao");
+  try { sessionStorage.setItem("userRole", "participanteLeilao"); } catch { /* ambiente sem sessionStorage */ }
   return { uid };
 }
 
-// 7) GUARDA DE ROTA (protege páginas e/ou exige papel)
+// 7) GUARDA DE ROTA — delega ao núcleo compartilhado, preservando o
+// comportamento exato do CCBMG: default de loginUrl, redirecionamento de
+// mismatch sempre para "./index.html" (independente de loginUrl), e o
+// banner sticky de "Admin View" com o mesmo markup/estilo de sempre.
 export function requireAuth(options = {}) {
   const { requiredRole, loginUrl = "./login.html" } = options;
 
-  onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      redirect(loginUrl);
-      return;
-    }
-
-    let role = loadCachedRole();
-    if (!role || role === "associado") {
-      role = await fetchRoleByUid(user.uid);
-      cacheRole(role);
-    }
-
-    if (requiredRole) {
-      const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-      const ok = required.map(mapRole).includes(mapRole(role));
-      if (!ok) {
-        redirect("./index.html");
-        return;
+  _session.requireAuth({
+    requiredRole,
+    loginUrl,
+    unauthorizedUrl: "./index.html",
+    onRole: (role) => {
+      if (role === "adminView") {
+        document.body.classList.add("admin-view-mode");
+        if (!document.getElementById("__adminViewBanner")) {
+          const b = document.createElement("div");
+          b.id = "__adminViewBanner";
+          b.style.cssText = "background:#fff3cd;color:#664d03;text-align:center;padding:.3rem;font-size:.78rem;font-weight:600;border-bottom:1px solid #ffda6a;position:sticky;top:0;z-index:1030;letter-spacing:.03em;";
+          b.textContent = "Acesso somente leitura — Admin View";
+          document.body.prepend(b);
+        }
       }
-    }
-
-    window.__userRole = mapRole(role);
-    window.__userEmail = user.email || "";
-    window.__userUid  = user.uid;
-
-    if (mapRole(role) === "adminView") {
-      document.body.classList.add("admin-view-mode");
-      if (!document.getElementById("__adminViewBanner")) {
-        const b = document.createElement("div");
-        b.id = "__adminViewBanner";
-        b.style.cssText = "background:#fff3cd;color:#664d03;text-align:center;padding:.3rem;font-size:.78rem;font-weight:600;border-bottom:1px solid #ffda6a;position:sticky;top:0;z-index:1030;letter-spacing:.03em;";
-        b.textContent = "Acesso somente leitura — Admin View";
-        document.body.prepend(b);
-      }
-    }
+    },
   });
 }
 
 // 8) LOGOUT
 export function doLogout() {
-  return signOut(auth).then(() => {
-    clearCachedRole();
-    redirect("./login.html?logout=1");
-  });
-}
-
-// 9) Helper para redirecionar
-function redirect(relativePath) {
-  window.location.href = relativePath;
+  return _session.doLogout({ redirectUrl: "./login.html?logout=1" });
 }
 
 /* =========================================================================
@@ -359,83 +328,23 @@ export {
 };
 
 /* ============================
-   Multi-Tenant: módulos e logs
+   Multi-Tenant: módulos e logs — delegados ao núcleo compartilhado
    ============================ */
 
-/**
- * Verifica se um módulo está habilitado para a organização atual.
- * Cacheia em sessionStorage por 10 min. Retorna true por padrão (fail-safe).
- */
-export async function checkModuleEnabled(moduleName) {
-  const cacheKey = `modules_${currentOrgId}`;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (cached) {
-    try {
-      const { modules, ts } = JSON.parse(cached);
-      if (Date.now() - ts < 600000) return modules[moduleName] !== false;
-    } catch (_) {}
-  }
-  try {
-    const snap = await getDoc(doc(db, "organizations", currentOrgId));
-    const modules = snap.exists() ? (snap.data()?.modules || {}) : {};
-    sessionStorage.setItem(cacheKey, JSON.stringify({ modules, ts: Date.now() }));
-    return modules[moduleName] !== false;
-  } catch {
-    return true; // fail-safe: não bloquear se Firestore inacessível
-  }
-}
+const _moduleGate = createModuleGate({ db, getOrgId, orgCollection: "organizations", cacheTtlMs: 600000 });
+export const checkModuleEnabled = _moduleGate.checkModuleEnabled;
+export const applyModuleVisibility = _moduleGate.applyModuleVisibility;
 
-/**
- * Verifica todos os módulos e oculta elementos com data-module="X" quando desativados.
- * Chame uma vez por página para manter o nav sincronizado com os módulos ativos.
- */
-export async function applyModuleVisibility() {
-  // Sempre busca dados frescos do Firestore — evita cache stale quando módulos são alterados
-  sessionStorage.removeItem(`modules_${currentOrgId}`);
-  const mods = ["leiloes","classificados","eventos","parcerias","galeria","diretoria","produtos","servicos","associados","financeiro"];
-  const results = await Promise.all(mods.map(m => checkModuleEnabled(m)));
-  mods.forEach((m, i) => {
-    if (!results[i]) {
-      document.querySelectorAll(`[data-module="${m}"]`).forEach(el => el.classList.add("d-none"));
-    }
-  });
-}
-
-/**
- * Registra uma ação auditável na coleção systemLogs.
- * Falha silenciosamente para não interromper o fluxo principal.
- */
-export async function logAction(action, details = {}) {
-  const user = auth.currentUser;
-  if (!user) return;
-  try {
-    await addDoc(collection(db, "systemLogs"), {
-      userId:    user.uid,
-      userEmail: user.email || "",
-      orgId:     currentOrgId,
-      action,
-      details,
-      timestamp: serverTimestamp()
-    });
-  } catch (e) {
-    console.warn("logAction falhou:", e);
-  }
-}
+const _audit = createAuditLogger({ db, auth, getOrgId, collectionName: "systemLogs" });
+export const logAction = _audit.logAction;
 
 /* ============================
-   Helpers do botão Administração
+   Helpers do botão Administração (navegação — específico do CCBMG)
    ============================ */
 
 export async function getCurrentRole() {
-  if (auth?.currentUser?.uid) {
-    let role = loadCachedRole();
-    if (!role) {
-      role = await fetchRoleByUid(auth.currentUser.uid);
-      cacheRole(role);
-    }
-    return mapRole(role || "associado");
-  }
-  return "associado";
+  const role = await _session.getCurrentRole();
+  return role || "associado";
 }
 
 export function setupAdminButton(target, { href = 'admin.html', label = 'Administração' } = {}) {
@@ -489,136 +398,18 @@ export function setupAdminButton(target, { href = 'admin.html', label = 'Adminis
 }
 
 /* ============================
-   IMAGENS: compressão + upload + exclusão
+   IMAGENS: compressão + upload — delegados ao núcleo compartilhado
    ============================ */
 
-// === Compressão de imagem no navegador (alvo ~200 KB) ===
-export async function compressImage(
-  file,
-  {
-    maxWidth = 1200,
-    maxHeight = 1200,
-    targetKB = 200,
-    initialQuality = 0.8,
-    minQuality = 0.5,
-    step = 0.1
-  } = {}
-) {
-  if (!file || !file.type?.startsWith("image/")) {
-    throw new Error("Arquivo inválido: apenas imagens são suportadas.");
-  }
-
-  // carrega a imagem em memória
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = reject;
-    i.src = URL.createObjectURL(file);
-  });
-
-  // calcula dimensões mantendo proporção
-  let { width, height } = img;
-  if (width > maxWidth) {
-    height = Math.round((maxWidth / width) * height);
-    width = maxWidth;
-  }
-  if (height > maxHeight) {
-    width = Math.round((maxHeight / height) * width);
-    height = maxHeight;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, width, height);
-
-  // gera JPEG reduzindo qualidade até bater o alvo ou chegar no mínimo
-  let q = initialQuality;
-  let blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", q)
-  );
-
-  while (blob && blob.size > targetKB * 1024 && q - step >= minQuality) {
-    q = Math.max(minQuality, q - step);
-    // eslint-disable-next-line no-await-in-loop
-    blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", q)
-    );
-  }
-
-  if (!blob) throw new Error("Falha ao comprimir imagem.");
-  return new File([blob], file.name.replace(/\.(png|webp|gif)$/i, ".jpg"), {
-    type: "image/jpeg",
-  });
-}
-
-/**
- * Faz upload de imagem e retorna { url, path }.
- * - Por padrão, comprime para ~200 KB e 1200x1200 máx.
- * @param {File} file
- * @param {string} pathBase - ex.: `classifieds/${uid}/${docId}`
- * @param {(pct:number)=>void} onProgress
- * @param {{ autoCompress?: boolean, maxWidth?:number, maxHeight?:number, targetKB?:number }} opts
- */
-export async function uploadImageFile(file, pathBase, onProgress, opts = {}) {
-  const {
-    autoCompress = true,
-    maxWidth = 1200,
-    maxHeight = 1200,
-    targetKB = 200
-  } = opts;
-
-  if (!file) throw new Error("Arquivo não informado.");
-  if (!file.type?.startsWith("image/")) throw new Error("Envie apenas imagens.");
-
-  // 1) Comprime antes de enviar (por padrão)
-  let fileToUpload = file;
-  if (autoCompress) {
-    fileToUpload = await compressImage(file, { maxWidth, maxHeight, targetKB });
-  }
-
-  // 2) Valida tamanho final (hard limit 5 MB)
-  if (fileToUpload.size > 5 * 1024 * 1024) {
-    throw new Error("Imagem acima de 5MB após compressão.");
-  }
-
-  // 3) Prepara caminho/nome e envia
-  const name = (function uniqueName(originalName = "file") {
-    const base = originalName.replace(/[^\w.\-]+/g, "_").slice(-80);
-    const ts = Date.now();
-    return `${ts}_${base}`;
-  })(fileToUpload.name);
-
-  const objectPath = `${pathBase}/${name}`;
-  const storageRef = ref(storage, objectPath);
-
-  const task = uploadBytesResumable(storageRef, fileToUpload, {
-    contentType: fileToUpload.type || "image/jpeg",
-    cacheControl: "public, max-age=31536000, immutable"
-  });
-
-  await new Promise((resolve, reject) => {
-    task.on(
-      "state_changed",
-      (snap) => {
-        if (onProgress) {
-          const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-          onProgress(pct);
-        }
-      },
-      reject,
-      resolve
-    );
-  });
-
-  const url = await getDownloadURL(storageRef);
-  return { url, path: objectPath };
-}
+export { compressImage };
+export const uploadImageFile = createImageUploader(storage);
 
 // ── Navbar user (auto) ───────────────────────────────────────────────────────
 // Detecta #btnAssociado e atualiza com primeiro nome quando logado.
 // Roda automaticamente em todas as páginas que importam firebase.js.
+// (Efeito colateral automático específico do CCBMG — deliberadamente NÃO
+// migrado pro núcleo compartilhado, que nunca roda nada sozinho ao ser
+// importado; ver shared/README.md, "O que NUNCA vai para o núcleo".)
 const _initNavbarUser = () => {
   const btn = document.getElementById('btnAssociado');
   if (!btn) return;
@@ -645,4 +436,3 @@ if (typeof document !== 'undefined') {
     _initNavbarUser();
   }
 }
-

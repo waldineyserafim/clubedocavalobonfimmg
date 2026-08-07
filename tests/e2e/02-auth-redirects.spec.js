@@ -100,9 +100,11 @@ test.describe('Proteção Auth — Verificação Estática', () => {
 
   test.describe('requireAuth — implementação em firebase.js', () => {
     test('suporta opção loginUrl', () => {
+      // Fase 1: requireAuth() delega pro núcleo compartilhado (shared/core/auth/session.js),
+      // que recebe loginUrl explicitamente em vez de firebase.js redirecionar direto.
       const html = readPage('firebase.js');
       expect(html).toContain('loginUrl');
-      expect(html).toContain('redirect(loginUrl)');
+      expect(html).toContain('_session.requireAuth({');
     });
 
     test('default loginUrl é login.html', () => {
