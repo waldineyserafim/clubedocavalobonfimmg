@@ -1660,20 +1660,67 @@ async function checkAndIncrementResetAttempts(cpfDigits) {
 }
 
 // Callable: primeiro passo do reset self-service. Não exige autenticação (roda antes
-// do login) — por isso não há "organização do chamador" pra comparar; a busca por CPF
-// é resolvida globalmente (ver nota de risco residual no relatório da Fase 2B: CPF
-// duplicado entre organizações — caso raro, hoje sem solução automática sem pedir
-// também o orgId do tenant de origem, que o cliente já conhece via tenant.config.js).
+// do login) — por isso não há "organização do chamador" pra comparar.
+//
+// PATCH DE SEGURANÇA (Auditoria Final RC1, achado P1): antes desta correção,
+// qualquer chamada anônima com um CPF válido recebia o telefone COMPLETO de
+// volta (necessário pro signInWithPhoneNumber() do cliente — ver análise
+// completa no relatório da auditoria) e a busca por CPF era GLOBAL entre
+// organizações quando orgId não era informado. Duas mitigações, sem mudar o
+// mecanismo de SMS (Firebase Phone Auth client-driven não tem alternativa
+// server-side — ver relatório): orgId passou a ser OBRIGATÓRIO (fecha a
+// amplificação cross-tenant) e um token de reCAPTCHA Enterprise (independente
+// do RecaptchaVerifier do Phone Auth, que não expõe secret nenhum pro nosso
+// servidor verificar) passou a ser exigido e verificado antes de qualquer
+// busca no Firestore — eleva o custo de automação/enumeração em massa. Não
+// elimina 100% o risco pra um ataque manual e direcionado com CPF já
+// conhecido — limitação técnica documentada, não um bug não tratado.
+const { GoogleAuth } = require('google-auth-library');
+const recaptchaAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+const RECAPTCHA_SITE_KEY = '6Ld-m38tAAAAAI6Useox6aHfJ6WpxySYIfzl_Qx7';
+const RECAPTCHA_MIN_SCORE = 0.5;
+
+async function verifyRecaptchaToken(token, expectedAction) {
+  if (!token) {
+    throw new functions.https.HttpsError('failed-precondition', 'Verificação de segurança ausente. Recarregue a página e tente novamente.');
+  }
+  let assessment;
+  try {
+    const client = await recaptchaAuth.getClient();
+    const { token: accessToken } = await client.getAccessToken();
+    const resp = await fetch(`https://recaptchaenterprise.googleapis.com/v1/projects/clubecavalobonfim/assessments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: { token, siteKey: RECAPTCHA_SITE_KEY, expectedAction } }),
+    });
+    assessment = await resp.json();
+  } catch (e) {
+    logger.error('verifyRecaptchaToken: falha ao chamar reCAPTCHA Enterprise', e.message);
+    throw new functions.https.HttpsError('internal', 'Não foi possível validar a verificação de segurança. Tente novamente.');
+  }
+  const valid = assessment?.tokenProperties?.valid;
+  const action = assessment?.tokenProperties?.action;
+  const score = assessment?.riskAnalysis?.score;
+  if (!valid || action !== expectedAction || typeof score !== 'number' || score < RECAPTCHA_MIN_SCORE) {
+    logger.warn(`verifyRecaptchaToken: rejeitado (valid=${valid}, action=${action}, score=${score}, invalidReason=${assessment?.tokenProperties?.invalidReason})`);
+    throw new functions.https.HttpsError('permission-denied', 'Verificação de segurança falhou. Tente novamente.');
+  }
+}
+
 exports.startPasswordReset = functions.https.onCall(async (data, context) => {
   const cpfDigits = String(data?.cpf || '').replace(/\D/g, '');
   if (cpfDigits.length !== 11) {
     throw new functions.https.HttpsError('invalid-argument', 'CPF inválido.');
   }
+  const orgId = String(data?.orgId || '').trim();
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId é obrigatório.');
+  }
 
+  await verifyRecaptchaToken(data?.recaptchaToken, 'start_password_reset');
   await checkAndIncrementResetAttempts(cpfDigits);
 
-  let query = db.collection('users').where('cpf', '==', cpfDigits);
-  if (data?.orgId) query = query.where('orgId', '==', String(data.orgId));
+  const query = db.collection('users').where('cpf', '==', cpfDigits).where('orgId', '==', orgId);
   const snap = await query.limit(1).get();
   if (snap.empty) {
     throw new functions.https.HttpsError('not-found', 'CPF não encontrado.');
