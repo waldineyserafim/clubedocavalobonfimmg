@@ -1,4 +1,5 @@
 const functions = require('firebase-functions');
+const logger = require('firebase-functions/logger');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
@@ -701,7 +702,7 @@ exports.onNewAssociadoCriado = functions.firestore
 
       console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} action=${action} subscriptionId=${subscriptionId}`);
     } catch (err) {
-      console.error('onNewAssociadoCriado error:', uid, err.message);
+      logger.error('onNewAssociadoCriado error:', uid, err.message);
       // Patch (Fase 3.6): antes, uma falha aqui (Asaas fora do ar, chave
       // expirada) deixava o associado criado sem asaasId/assinatura e SEM
       // NENHUM sinal — só essa linha de console.error, que ninguém observa.
@@ -712,7 +713,7 @@ exports.onNewAssociadoCriado = functions.firestore
         'asaasSync.lastSyncedAt':   admin.firestore.FieldValue.serverTimestamp(),
         'asaasSync.lastSyncResult': 'error',
         'asaasSync.lastSyncError':  err.message,
-      }).catch((e) => console.error('onNewAssociadoCriado: falha ao gravar asaasSync.lastSyncError (ignorado):', uid, e.message));
+      }).catch((e) => logger.error('onNewAssociadoCriado: falha ao gravar asaasSync.lastSyncError (ignorado):', uid, e.message));
     }
 
     return null;
@@ -1041,17 +1042,17 @@ exports.onAssociadoAtualizado = functions.firestore
           'asaasSync.lastLifecycleAt':     admin.firestore.FieldValue.serverTimestamp(),
           'asaasSync.lastLifecycleResult': 'ok',
           'asaasSync.lastLifecycleError':  null,
-        }).catch(e => console.warn('onAssociadoAtualizado: falha ao gravar asaasSync (ok)', uid, e.message));
+        }).catch(e => logger.warn('onAssociadoAtualizado: falha ao gravar asaasSync (ok)', uid, e.message));
       }
     } catch (err) {
-      console.error('onAssociadoAtualizado error:', uid, err.message);
+      logger.error('onAssociadoAtualizado error:', uid, err.message);
       if (ativoToFalse || ativoToTrue) {
         await change.after.ref.update({
           'asaasSync.lastLifecycleAction': ativoToFalse ? 'deactivate' : 'reactivate',
           'asaasSync.lastLifecycleAt':     admin.firestore.FieldValue.serverTimestamp(),
           'asaasSync.lastLifecycleResult': 'error',
           'asaasSync.lastLifecycleError':  err.message,
-        }).catch(e => console.warn('onAssociadoAtualizado: falha ao gravar asaasSync (error)', uid, e.message));
+        }).catch(e => logger.warn('onAssociadoAtualizado: falha ao gravar asaasSync (error)', uid, e.message));
       }
     }
 
@@ -1116,7 +1117,7 @@ exports.onInvoicePaid = functions.firestore
     try {
       await syncManualPaymentToAsaas(context.params.uid, change.after.ref, after);
     } catch (err) {
-      console.error('onInvoicePaid error:', context.params.uid, context.params.invoiceId, err.message);
+      logger.error('onInvoicePaid error:', context.params.uid, context.params.invoiceId, err.message);
     }
 
     return null;
@@ -1134,7 +1135,7 @@ exports.onInvoiceCreatedPaid = functions.firestore
     try {
       await syncManualPaymentToAsaas(context.params.uid, snap.ref, data);
     } catch (err) {
-      console.error('onInvoiceCreatedPaid error:', context.params.uid, context.params.invoiceId, err.message);
+      logger.error('onInvoiceCreatedPaid error:', context.params.uid, context.params.invoiceId, err.message);
     }
 
     return null;
@@ -1235,7 +1236,7 @@ exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
       await provider.notifications.setEnabled(userData.asaasId, false);
     }
   } catch (err) {
-    console.error('cancelMySubscription: falha ao cancelar no provider', member.uid, err.message);
+    logger.error('cancelMySubscription: falha ao cancelar no provider', member.uid, err.message);
     throw new functions.https.HttpsError('internal', 'Não foi possível cancelar sua assinatura agora. Tente novamente ou contate o clube.');
   }
 
@@ -1288,7 +1289,7 @@ exports.reactivateMySubscription = functions.https.onCall(async (data, context) 
       await createImmediateChargeOnReactivation(provider, member.uid, userData);
     }
   } catch (err) {
-    console.error('reactivateMySubscription: falha ao reativar no provider', member.uid, err.message);
+    logger.error('reactivateMySubscription: falha ao reativar no provider', member.uid, err.message);
     throw new functions.https.HttpsError('internal', 'Não foi possível reativar sua assinatura agora. Tente novamente ou contate o clube.');
   }
 
@@ -1519,7 +1520,7 @@ exports.asaasReconciliationDaily = functions
       try {
         provider = await getProviderForOrg(org.id);
       } catch (err) {
-        console.error('asaasReconciliationDaily: falha ao resolver provider da organização', org.id, err.message);
+        logger.error('asaasReconciliationDaily: falha ao resolver provider da organização', org.id, err.message);
         continue; // 1 organização com provider quebrado não impede as demais
       }
 
@@ -1533,7 +1534,7 @@ exports.asaasReconciliationDaily = functions
           await syncOneAssociado(provider, userDoc.id, { manual: false });
           results.synced++;
         } catch (err) {
-          console.error('asaasReconciliationDaily error:', org.id, userDoc.id, err.message);
+          logger.error('asaasReconciliationDaily error:', org.id, userDoc.id, err.message);
           results.errors.push({ orgId: org.id, uid: userDoc.id, error: err.message });
         }
 
@@ -1559,11 +1560,11 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
     // Token único/global — ver "Pendências" no relatório da Fase 2B: só passa a ser
     // por-organização quando existir mais de uma conta Asaas na plataforma.
     if (!receivedToken || receivedToken !== expectedToken) {
-      console.warn('asaasWebhook: token inválido ou ausente');
+      logger.warn('asaasWebhook: token inválido ou ausente');
       return res.status(401).send('Unauthorized');
     }
   } catch (err) {
-    console.error('asaasWebhook: erro ao validar token', err.message);
+    logger.error('asaasWebhook: erro ao validar token', err.message);
     return res.status(500).send('Error');
   }
 
@@ -1578,19 +1579,19 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
 
     const uid = result.subscriptionExternalReference;
     if (!uid) {
-      console.warn('asaasWebhook: assinatura sem externalReference', payment.subscription);
+      logger.warn('asaasWebhook: assinatura sem externalReference', payment.subscription);
       return res.status(200).send('OK');
     }
 
     await db.collection('users').doc(uid).update({
       'asaasSync.lastWebhookAt':    admin.firestore.FieldValue.serverTimestamp(),
       'asaasSync.lastWebhookEvent': event,
-    }).catch(err => console.warn('asaasWebhook: falha ao gravar asaasSync', uid, err.message));
+    }).catch(err => logger.warn('asaasWebhook: falha ao gravar asaasSync', uid, err.message));
 
     const upsertResult = await upsertInvoiceFromAsaasPayment(uid, result.payment);
 
     if (upsertResult.action === 'skipped') {
-      console.warn('asaasWebhook:', upsertResult.reason, uid);
+      logger.warn('asaasWebhook:', upsertResult.reason, uid);
       return res.status(200).send('OK');
     }
     console.log(`asaasWebhook: fatura ${upsertResult.action} uid=${uid} invoiceId=${upsertResult.invoiceId} payment=${payment.id}`);
@@ -1599,7 +1600,7 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
 
     return res.status(200).send('OK');
   } catch (err) {
-    console.error('asaasWebhook error:', err.message);
+    logger.error('asaasWebhook error:', err.message);
     return res.status(500).send('Error');
   }
 });

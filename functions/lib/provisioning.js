@@ -13,6 +13,7 @@
 // depender de sorte no timing (ver Contexto do plano da Fase 3.3).
 
 const functions = require('firebase-functions');
+const logger = require('firebase-functions/logger');
 
 const PROVISIONING_STEPS = ['organization', 'masterAccount', 'modules', 'billing', 'branding', 'storage', 'cms'];
 
@@ -121,6 +122,12 @@ function createProvisioningService({ db, authAdmin, serverTimestamp } = {}) {
       } catch (e) {
         entry = { name, status: 'error', startedAt, finishedAt: new Date(), error: e.message || String(e) };
         stepResults.push(entry);
+        // Antes desta correção, uma falha aqui só existia em
+        // provisioningRuns/{runId}.steps — nenhum sinal em Cloud Logging.
+        // step() nunca relança (idempotência/reprocessamento é a estratégia,
+        // ver Contexto), então sem isto o alerta de provisionamento nunca teria
+        // nada pra observar.
+        logger.error(`provisionOrganization: passo "${name}" falhou para orgId=${orgId}: ${entry.error}`);
       }
       await runRef.update({ steps: stepResults.map(({ result: _r, ...rest }) => rest) });
       return entry;
