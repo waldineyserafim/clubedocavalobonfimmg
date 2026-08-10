@@ -1,7 +1,7 @@
 // Testa lib/billing/asaas.js com fetch mockado — NUNCA toca a API real do Asaas
 // (nem sandbox: não há chave de sandbox configurada neste projeto).
 const assert = require('assert');
-const { createAsaasBillingProvider } = require('../lib/billing/asaas');
+const { createAsaasBillingProvider, SANDBOX_BASE_URL, DEFAULT_BASE_URL } = require('../lib/billing/asaas');
 
 function makeMockFetch(responses) {
   const calls = [];
@@ -19,6 +19,27 @@ function makeMockFetch(responses) {
 }
 
 module.exports = async function run({ t }) {
+  // Fase 3.4 — organizations/{orgId}.billingEnvironment conectado de verdade
+  // (não só salvo e ignorado): "sandbox" precisa realmente rotear pra
+  // sandbox.asaas.com, não só parecer que roteia.
+  await t('environment "sandbox" usa SANDBOX_BASE_URL de verdade', async () => {
+    const { fetchImpl, calls } = makeMockFetch([
+      { when: () => true, status: 200, body: { id: 'cus_123' } },
+    ]);
+    const provider = createAsaasBillingProvider({ apiKey: 'fake', environment: 'sandbox', fetchImpl });
+    await provider.createCustomer({ name: 'Fulano', cpfCnpj: '12345678900', externalReference: 'uid1' });
+    assert.ok(calls[0].url.startsWith(SANDBOX_BASE_URL), `esperava URL começando com ${SANDBOX_BASE_URL}, recebeu ${calls[0].url}`);
+  });
+
+  await t('environment ausente (organização sem o campo) continua batendo em produção — retrocompatível', async () => {
+    const { fetchImpl, calls } = makeMockFetch([
+      { when: () => true, status: 200, body: { id: 'cus_123' } },
+    ]);
+    const provider = createAsaasBillingProvider({ apiKey: 'fake', fetchImpl });
+    await provider.createCustomer({ name: 'Fulano', cpfCnpj: '12345678900', externalReference: 'uid1' });
+    assert.ok(calls[0].url.startsWith(DEFAULT_BASE_URL), `esperava URL começando com ${DEFAULT_BASE_URL}, recebeu ${calls[0].url}`);
+  });
+
   await t('createCustomer monta o payload certo e retorna providerId', async () => {
     const { fetchImpl, calls } = makeMockFetch([
       { when: (url, o) => url.endsWith('/customers') && o.method === 'POST', status: 200, body: { id: 'cus_123' } },

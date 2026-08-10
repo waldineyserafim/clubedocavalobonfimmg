@@ -7,6 +7,8 @@ const { createOrganizationResolver } = require('./lib/organization');
 const { createAuthorizationHelpers } = require('./lib/authorization');
 const { createRoleResolver } = require('./lib/roles');
 const { getBillingProvider } = require('./lib/billing');
+const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpers } = require('./lib/platform');
+const { createProvisioningService } = require('./lib/provisioning');
 
 const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
@@ -53,6 +55,20 @@ const mapRole = createRoleResolver(
 );
 
 const auth = createAuthorizationHelpers({ organizationResolver, mapRole });
+
+// Plano de identidade de PLATAFORMA (Fase 3.2) — deliberadamente sem organizationResolver
+// nenhum: platformAdmins/{uid} nunca tem orgId, então não há nada pra resolver aqui.
+const platformResolver = createPlatformResolver({ db });
+const platformAuth = createPlatformAuthorizationHelpers({ platformResolver });
+
+// Fase 3.3 — mecanismo oficial de provisionamento de organizações. Puro
+// Firestore+Auth (sem Secret Manager/e-mail — isso fica com quem chama, ver
+// callable provisionOrganization abaixo), testável com fakes.
+const provisioningService = createProvisioningService({
+  db,
+  authAdmin: admin.auth(),
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+});
 
 /** Provider da organização do documento/usuário em questão (resolve org → provider). */
 async function getProviderForOrg(orgId) {
@@ -2128,20 +2144,26 @@ exports.verificarInadimplentesDiarios = functions.pubsub.schedule('0 9 * * *')
     return null;
   });
 
-// ---- backfillLeilaoOrgId (onCall, master only — uso pontual da Fase 2C) ----
+// ---- backfillLeilaoOrgId (onCall, plataforma — uso pontual da Fase 2C) ----
 // Preenche `orgId` em documentos de auctionLots/auctionSales/auctionPayments/
 // auctionNotifications criados ANTES desta fase (nunca sobrescreve quem já
 // tem orgId). auctionLots normalmente já vem preenchido pelo frontend desde
 // jun/2026 — o alvo real são auctionSales/auctionPayments/auctionNotifications,
 // que só a partir desta fase passaram a ser criados com orgId pelas Cloud
 // Functions. Idempotente: rodar de novo não faz nada nos docs já corrigidos.
+//
+// Fase 3.2: reclassificada de "Organization Master" pra "Platform Administrator"
+// — aceita um orgId arbitrário no payload (nunca o do próprio chamador, porque
+// quem chama isto não pertence a organização nenhuma), o que sempre foi,
+// mecanicamente, uma operação de plataforma, não de autoatendimento de uma
+// organização (ver Contexto do plano da Fase 3.2).
 exports.backfillLeilaoOrgId = functions
   .runWith({ timeoutSeconds: 300, memory: '256MB' })
   .https.onCall(async (data, context) => {
-    const caller = await auth.requireOrganizationMaster(context);
-    const targetOrgId = data?.orgId || caller.orgId;
+    await platformAuth.requirePlatformAdministrator(context);
+    const targetOrgId = data?.orgId;
     if (!targetOrgId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Informe orgId (ou tenha uma organização associada ao seu usuário).');
+      throw new functions.https.HttpsError('invalid-argument', 'Informe orgId.');
     }
 
     const collections = ['auctionLots', 'auctionSales', 'auctionPayments', 'auctionNotifications'];
@@ -2167,6 +2189,328 @@ exports.backfillLeilaoOrgId = functions
 
     console.log('backfillLeilaoOrgId result:', targetOrgId, results);
     return { orgId: targetOrgId, results };
+  });
+
+/* =========================================================================
+   ADMINISTRAÇÃO DA PLATAFORMA (Fase 3.2)
+   — CRUD de platformAdmins/{uid} (equipe da Serafim Technologies) + migração
+   de uso único das contas "master" antigas. Nenhuma destas functions aceita
+   orgId de organização nenhuma — é, por definição, o plano que não tem uma.
+   ========================================================================= */
+
+// Toda mutação de platformAdmins é atestada pelo servidor (Admin SDK), nunca
+// pelo cliente — platformAdmins/{uid} não permite nenhuma escrita direta via
+// Firestore Rules (ver firestore.rules), então este log é a ÚNICA fonte de
+// auditoria dessas mutações, ao contrário do logAction() client-side usado
+// pelo resto do Painel Master desde a Fase 3.1.
+async function writePlatformAuditLog(action, details, context) {
+  try {
+    await db.collection('systemLogs').add({
+      userId: context.auth?.uid || null,
+      userEmail: context.auth?.token?.email || null,
+      orgId: 'platform',
+      action,
+      details: details || {},
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn('writePlatformAuditLog: falha ao gravar auditoria (ignorado):', e.message);
+  }
+}
+
+// Envia o link de definição de senha por e-mail (nunca transmite senha nenhuma
+// em texto puro) — mesmo par de secrets/transporter que notifyAdminsByEmail já
+// usa. Nunca lança: falha de e-mail não deve impedir a criação da conta, só é
+// reportada de volta pro chamador pra ele repassar o link manualmente.
+// Compartilhado entre createPlatformAdmin (Fase 3.2) e provisionOrganization
+// (Fase 3.3) — mesmo mecanismo, textos diferentes por contexto.
+async function sendAccountInviteEmail(email, nome, resetLink, { subject, introText }) {
+  try {
+    const emailUser = await getSecret('projects/clubecavalobonfim/secrets/email-user/versions/latest');
+    const emailPassword = await getSecret('projects/clubecavalobonfim/secrets/email-password/versions/latest');
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: emailUser, pass: emailPassword } });
+    await transporter.sendMail({
+      from: '"Portal Associativo — Serafim Technologies" <contato@clubedocavalobonfim.com.br>',
+      to: email,
+      subject,
+      html: `<p>Olá, ${escHtml(nome || '')}.</p>
+             <p>${introText}</p>
+             <p><a href="${resetLink}">${resetLink}</a></p>`,
+    });
+    return true;
+  } catch (e) {
+    console.warn('sendAccountInviteEmail: falha ao enviar e-mail (retornando link pro chamador):', e.message);
+    return false;
+  }
+}
+
+// Callable: cria uma conta de equipe da plataforma (Firebase Auth + platformAdmins/{uid}).
+// administrator só cria role:"operator"; owner cria qualquer papel.
+exports.createPlatformAdmin = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+
+  const email = String(data?.email || '').trim().toLowerCase();
+  const nome = String(data?.nome || '').trim();
+  const role = data?.role;
+  if (!email || !nome || !PLATFORM_ROLES.includes(role)) {
+    throw new functions.https.HttpsError('invalid-argument', 'E-mail, nome e papel (operator/administrator/owner) são obrigatórios.');
+  }
+  if (caller.role === 'administrator' && role !== 'operator') {
+    throw new functions.https.HttpsError('permission-denied', 'Administrator só pode criar contas com papel operator.');
+  }
+
+  const { randomBytes } = require('crypto');
+  let uid;
+  try {
+    const userRecord = await admin.auth().createUser({ email, password: randomBytes(24).toString('hex'), displayName: nome });
+    uid = userRecord.uid;
+  } catch (e) {
+    if (e.code === 'auth/email-already-exists') {
+      throw new functions.https.HttpsError('already-exists', 'Já existe uma conta com este e-mail.');
+    }
+    throw new functions.https.HttpsError('internal', `Falha ao criar conta: ${e.message}`);
+  }
+
+  await db.collection('platformAdmins').doc(uid).set({
+    role, nome, email, ativo: true,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdBy: caller.uid,
+  });
+
+  // Conta e doc já foram criados nesse ponto — falha daqui em diante nunca deve
+  // parecer um erro fatal da operação, só resultar em emailSent:false (o
+  // administrator/owner que criou a conta consegue gerar um novo link depois,
+  // pelo próprio Firebase Console, sem precisar refazer o cadastro).
+  //
+  // FIRESTORE_EMULATOR_HOST (setado por functions/test/run-all.js) sinaliza
+  // execução local sob emulador — sem Secret Manager real disponível, uma
+  // falha em accessSecretVersion() dispara uma rejeição de promise em segundo
+  // plano (fora de qualquer try/catch daqui) que derruba o processo Node
+  // inteiro, não só esta function. Pula o convite por e-mail nesse modo — o
+  // mesmo padrão que billing-registry.test.js/callable-cross-tenant.test.js
+  // já usam pra nunca tocar Secret Manager real durante os testes.
+  let resetLink = null;
+  let emailSent = false;
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    try {
+      resetLink = await admin.auth().generatePasswordResetLink(email);
+      emailSent = await sendAccountInviteEmail(email, nome, resetLink, {
+        subject: 'Acesso ao Painel Master — defina sua senha',
+        introText: 'Uma conta de administrador da plataforma foi criada para você. Defina sua senha para acessar o Painel Master:',
+      });
+    } catch (e) {
+      console.warn(`createPlatformAdmin: falha ao gerar/enviar link de convite pra uid=${uid} (conta já criada, prosseguindo):`, e.message);
+    }
+  }
+
+  await writePlatformAuditLog('platform_admin_criado', { uid, email, role }, context);
+  console.log(`createPlatformAdmin: uid=${uid} role=${role} criado por caller=${caller.uid}`);
+  return { success: true, uid, emailSent, resetLink: emailSent ? undefined : resetLink };
+});
+
+// Callable: ativa/desativa uma conta de equipe da plataforma (soft delete —
+// mesmo padrão já usado em organizations/associados, nunca exclusão definitiva).
+exports.setPlatformAdminStatus = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+
+  const targetUid = data?.uid;
+  const ativo = data?.ativo;
+  if (!targetUid || typeof ativo !== 'boolean') {
+    throw new functions.https.HttpsError('invalid-argument', 'uid e ativo (boolean) são obrigatórios.');
+  }
+  if (targetUid === caller.uid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Não é possível alterar o próprio status — peça a outro administrador ou owner.');
+  }
+
+  const targetRef = db.collection('platformAdmins').doc(targetUid);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Administrador de plataforma não encontrado.');
+  }
+  const targetRole = targetSnap.data().role;
+
+  if (caller.role === 'administrator' && targetRole !== 'operator') {
+    throw new functions.https.HttpsError('permission-denied', 'Administrator só pode ativar/desativar contas com papel operator.');
+  }
+
+  if (targetRole === 'owner' && ativo === false) {
+    const othersSnap = await db.collection('platformAdmins')
+      .where('role', '==', 'owner').where('ativo', '==', true).get();
+    const remaining = othersSnap.docs.filter((d) => d.id !== targetUid);
+    if (remaining.length === 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Não é possível desativar o último owner ativo da plataforma.');
+    }
+  }
+
+  await targetRef.update({ ativo, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  await writePlatformAuditLog(ativo ? 'platform_admin_reativado' : 'platform_admin_desativado', { uid: targetUid }, context);
+  console.log(`setPlatformAdminStatus: uid=${targetUid} ativo=${ativo} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+// Callable: altera o papel de uma conta de equipe da plataforma — owner apenas
+// (ver Contexto/Riscos do plano da Fase 3.2: nenhuma das 3 mutações desta
+// seção pode deixar uma escalada de privilégio possível).
+exports.setPlatformAdminRole = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformOwner(context);
+
+  const targetUid = data?.uid;
+  const newRole = data?.newRole;
+  if (!targetUid || !PLATFORM_ROLES.includes(newRole)) {
+    throw new functions.https.HttpsError('invalid-argument', 'uid e newRole (operator/administrator/owner) são obrigatórios.');
+  }
+  if (targetUid === caller.uid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Não é possível alterar o próprio papel — peça a outro owner.');
+  }
+
+  const targetRef = db.collection('platformAdmins').doc(targetUid);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Administrador de plataforma não encontrado.');
+  }
+  const targetRole = targetSnap.data().role;
+
+  if (targetRole === 'owner' && newRole !== 'owner') {
+    const othersSnap = await db.collection('platformAdmins')
+      .where('role', '==', 'owner').where('ativo', '==', true).get();
+    const remaining = othersSnap.docs.filter((d) => d.id !== targetUid);
+    if (remaining.length === 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Não é possível rebaixar o último owner ativo da plataforma.');
+    }
+  }
+
+  await targetRef.update({ role: newRole, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  await writePlatformAuditLog('platform_admin_papel_alterado', { uid: targetUid, de: targetRole, para: newRole }, context);
+  console.log(`setPlatformAdminRole: uid=${targetUid} ${targetRole}->${newRole} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+// ---- migratePlatformAdmins (onCall, uso único — bootstrap da Fase 3.2) ----
+// Migra toda conta users/{uid} com role "master" pra um doc novo em
+// platformAdmins/{uid} (role:"owner" — preserva capacidade plena, sem tentar
+// adivinhar um papel menor). Idempotente: pula quem já tem doc em
+// platformAdmins. NÃO apaga o users/{uid} antigo (não-destrutivo, reversível)
+// — só neutraliza o campo role, pra ele parar de satisfazer qualquer checagem
+// antiga por acidente durante a janela de transição.
+//
+// Problema de bootstrap deliberado: este é o ÚLTIMO uso legítimo do mecanismo
+// velho (role=="master" plano, sem organizationResolver) — só pra dar partida
+// no mecanismo novo. Por isso NÃO usa auth.requireOrganizationMaster (que
+// exige orgId e lançaria failed-precondition se a conta master real não tiver
+// orgId — exatamente a contradição não resolvida documentada no plano desta
+// fase); lê o papel diretamente, sem depender de organização nenhuma.
+exports.migratePlatformAdmins = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (_data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
+    }
+    const callerSnap = await db.collection('users').doc(context.auth.uid).get();
+    if (!callerSnap.exists || mapRole(callerSnap.data().role) !== 'master') {
+      throw new functions.https.HttpsError('permission-denied', 'Requer uma conta com papel master (mecanismo antigo — só pra dar bootstrap neste mecanismo novo).');
+    }
+
+    const usersSnap = await db.collection('users').get();
+    const masterDocs = usersSnap.docs.filter((d) => mapRole(d.data().role) === 'master');
+
+    const results = [];
+    for (const doc of masterDocs) {
+      const uid = doc.id;
+      const userData = doc.data();
+
+      const existing = await db.collection('platformAdmins').doc(uid).get();
+      if (existing.exists) {
+        results.push({ uid, action: 'ja_migrado' });
+        continue;
+      }
+
+      let email = userData.email || null;
+      try {
+        const authRecord = await admin.auth().getUser(uid);
+        email = authRecord.email || email;
+      } catch (e) {
+        console.warn(`migratePlatformAdmins: falha ao ler conta Auth de uid=${uid}:`, e.message);
+      }
+
+      await db.collection('platformAdmins').doc(uid).set({
+        role: 'owner',
+        nome: userData.nome || null,
+        email,
+        ativo: true,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdBy: 'migration_fase3_2',
+      });
+      await doc.ref.update({
+        role: 'migrado_para_platform_admins',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      results.push({ uid, email, action: 'migrado' });
+    }
+
+    await writePlatformAuditLog('migracao_platform_admins_executada', { results }, context);
+    console.log('migratePlatformAdmins result:', results);
+    return { total: masterDocs.length, results };
+  });
+
+/* =========================================================================
+   PROVISIONAMENTO AUTOMÁTICO DE ORGANIZAÇÕES (Fase 3.3)
+   — mecanismo oficial e único de criação de tenants. A orquestração em si
+   (functions/lib/provisioning.js) não sabe nada de e-mail/Secret Manager;
+   esta callable é a única responsável por decidir SE/QUANDO convidar o
+   Organization Master, depois que todo o resto já terminou com sucesso.
+   ========================================================================= */
+
+// Callable: provisiona uma organização completa (doc + primeiro Organization
+// Master + módulos do plano + estrutura de billing + branding básica + CMS
+// mínimo) num fluxo único, idempotente. administrator ou owner de plataforma.
+exports.provisionOrganization = functions
+  .runWith({ timeoutSeconds: 300, memory: '256MB' })
+  .https.onCall(async (data, context) => {
+    const caller = await platformAuth.requirePlatformAdministrator(context);
+
+    const orgId = String(data?.orgId || '').trim().toLowerCase().replace(/\s+/g, '_');
+    const nome = String(data?.nome || '').trim();
+    const planId = String(data?.planId || '').trim();
+    const masterEmail = String(data?.master?.email || '').trim().toLowerCase();
+    const masterNome = String(data?.master?.nome || '').trim();
+    if (!orgId || !nome || !planId || !masterEmail || !masterNome) {
+      throw new functions.https.HttpsError('invalid-argument', 'orgId, nome, planId e master{email,nome} são obrigatórios.');
+    }
+
+    const result = await provisioningService.provisionOrganization({
+      orgId, nome, planId,
+      master: { email: masterEmail, nome: masterNome },
+      forceReprocess: !!data?.forceReprocess,
+      requestedBy: caller.uid,
+      requestedByEmail: context.auth?.token?.email || null,
+      runId: data?.runId || undefined,
+    });
+
+    // Convite só depois de tudo dar certo, e só se a conta do Master foi
+    // criada de verdade nesta execução (não reenvia convite num reprocessamento
+    // que só pulou o passo por já ter sido feito antes) — ver Contexto do
+    // plano da Fase 3.3. Mesma guarda de emulador que createPlatformAdmin já usa.
+    let emailSent = false;
+    let resetLink = null;
+    if (result.readyForInvite && !process.env.FIRESTORE_EMULATOR_HOST) {
+      try {
+        resetLink = await admin.auth().generatePasswordResetLink(result.master.email);
+        emailSent = await sendAccountInviteEmail(result.master.email, result.master.nome, resetLink, {
+          subject: 'Sua organização está pronta — defina sua senha',
+          introText: 'Sua organização foi criada na plataforma. Defina sua senha para acessar o painel administrativo:',
+        });
+      } catch (e) {
+        console.warn(`provisionOrganization: falha ao gerar/enviar convite pro Master de orgId=${orgId} (organização já provisionada, prosseguindo):`, e.message);
+      }
+    }
+
+    await writePlatformAuditLog('organizacao_provisionada', { orgId, planId, status: result.status, runId: result.runId }, context);
+    console.log(`provisionOrganization: orgId=${orgId} status=${result.status} runId=${result.runId} por caller=${caller.uid}`);
+
+    return { ...result, emailSent, resetLink: emailSent ? undefined : resetLink };
   });
 
 // ─── VALIDAÇÃO DE CPF ─────────────────────────────────────────────────────────

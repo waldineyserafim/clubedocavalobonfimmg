@@ -64,7 +64,11 @@ async function getBillingProvider({ org, getSecret, defaultSecretName }) {
   const secretName = org?.billingConfig?.secretName || defaultSecretName;
   const apiKey = await getSecret(secretName);
 
-  return factory({ apiKey });
+  // Fase 3.4: `environment` é repassado cru pro provider — o que "sandbox"
+  // significa em termos de URL/endpoint é decisão de CADA provider (ver
+  // createAsaasBillingProvider), nunca deste resolvedor genérico. Ausente
+  // (organização sem o campo) preserva o comportamento de sempre: produção.
+  return factory({ apiKey, environment: org?.billingEnvironment });
 }
 
 module.exports = { getBillingProvider, registerBillingProvider, _unregisterBillingProviderForTests };

@@ -10,6 +10,18 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
     }
 
+    // Fase 3.4 — leitura cross-service de Firestore, pra saber a que
+    // organização quem está enviando pertence (espelha userOrgId() de
+    // firestore.rules). Antes desta fase, tenants/{orgId}/cms só checava
+    // isSignedIn()+isImage() — qualquer usuário autenticado podia escrever
+    // no caminho de QUALQUER organização, não só a própria.
+    function callerOrgId() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.orgId;
+    }
+    function isOwnOrg(orgId) {
+      return isSignedIn() && callerOrgId() == orgId;
+    }
+
     // ===== NOVO: caminho usado pelo seu frontend (uploads/*) =====
     // Ex.: uploads/products/..., uploads/services/..., uploads/classifieds/...
     match /uploads/{category}/{fileName} {
@@ -44,10 +56,18 @@ service firebase.storage {
       allow write: if isSignedIn() && request.auth.uid == uid && isImage();
     }
 
-    // ===== CMS (banners, destaques, etc.) — escrita restrita a usuários autenticados =====
+    // ===== CMS (banners, destaques, etc.) — escrita restrita à PRÓPRIA organização =====
     match /tenants/{orgId}/cms/{category}/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && isImage();
+      allow write: if isOwnOrg(orgId) && isImage();
+    }
+
+    // ===== Identidade visual da organização (Fase 3.4) — logo/favicon =====
+    // Leitura pública pelo mesmo motivo do CMS: logo/favicon precisam
+    // aparecer no site público da organização.
+    match /tenants/{orgId}/branding/{fileName} {
+      allow read: if true;
+      allow write: if isOwnOrg(orgId) && isImage();
     }
 
     // ===== Bloqueia todo o resto =====

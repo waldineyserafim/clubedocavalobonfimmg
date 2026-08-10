@@ -30,38 +30,83 @@ service cloud.firestore {
       return (userRoleRaw() is string) ? userRoleRaw().lower().trim() : "";
     }
     function isRole(roleName) { return roleLower() == roleName; }
-    function isMaster()    { return isLoggedIn() && roleLower() == "master"; }
-    function isAdminRole() { return isLoggedIn() && roleLower() == "admin"; }
+
+    // >>> Fase 3.2: dois planos de identidade separados — Plataforma (nunca
+    // tem organização) e Organização (nunca sai da própria). isMaster()/
+    // isAdminRole() (cross-tenant cego, sem checagem de organização nenhuma)
+    // NÃO EXISTEM MAIS — ver docs/CLAUDE.md "Fase 3.2" e o relatório da fase.
+
+    // -------- Plataforma: platformAdmins/{uid}, nunca tem orgId --------
+    function platformAdminActive() {
+      return isLoggedIn()
+        && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data.ativo != false;
+    }
+    function platformRoleLower() {
+      return platformAdminActive()
+        ? get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data.role
+        : "";
+    }
+    // Qualquer papel de plataforma ativo (operator, administrator ou owner).
+    function isPlatformStaff() { return platformAdminActive(); }
+    // administrator ou owner — nunca operator (Platform Operator é só leitura).
+    function isPlatformAdministrator() {
+      return platformAdminActive() && platformRoleLower() in ["administrator", "owner"];
+    }
+    function isPlatformOwner() {
+      return platformAdminActive() && platformRoleLower() == "owner";
+    }
+
+    // -------- Organização: users/{uid}.role, sempre com orgId --------
+    // "master" sobrevive só como rótulo do papel Organization Master (não é
+    // mais um bypass cross-tenant — sempre comparado à organização, como
+    // admin/adminView já eram). Ver Contexto do relatório da Fase 3.2.
+    function isOrgMaster(orgId) { return isLoggedIn() && roleLower() == "master" && userOrgId() == orgId; }
+    function isOrgAdmin(orgId)  { return isLoggedIn() && roleLower() == "admin"  && userOrgId() == orgId; }
+    function isOrgViewer(orgId) { return isLoggedIn() && roleLower() == "admin view" && userOrgId() == orgId; }
 
     // >>> G3 (docs/SAAS_MULTITENANT.md): isolamento por organização.
     // Nunca checar só PAPEL (admin/master) sem organização — um admin de
     // qualquer org podia ler/escrever dados de qualquer outra org com só
-    // isso. As variantes abaixo acrescentam a checagem de orgId; master
-    // continua cross-tenant por
-    // definição (nunca comparado a nenhuma organização específica).
+    // isso. As variantes abaixo acrescentam a checagem de orgId.
+    //
+    // ESCRITA (create/update/delete): só quem pertence à organização — nunca
+    // plataforma (Fase 3.2: bypass de escrita de isMaster() removido de
+    // propósito; nenhuma tela viva hoje dependia disso além de
+    // admin_associados.html, e mesmo essa só pra contas que já eram,
+    // mecanicamente, restritas à própria organização — ver relatório).
     function canOperateOrg(orgId) {
-      return isMaster() || (isAdminRole() && userOrgId() == orgId);
+      return isOrgMaster(orgId) || isOrgAdmin(orgId);
+    }
+    // LEITURA (get/list): mantém visibilidade de plataforma (suporte/
+    // supervisão) e acrescenta Organization Viewer — lacuna real que existia
+    // antes desta fase (isAdminRole() nunca incluía adminView em leitura
+    // nenhuma; ver Contexto do relatório).
+    function canReadOrg(orgId) {
+      return isPlatformStaff() || isOrgMaster(orgId) || isOrgAdmin(orgId) || isOrgViewer(orgId);
     }
 
     // Para subcoleções de users/{userId} que não carregam orgId próprio
     // (finance/financeInvoices) — le o orgId do documento pai (o usuário
     // dono da subcoleção, não o admin logado).
     function canOperateOrgOfUser(userId) {
-      return isMaster() || (
-        isAdminRole() &&
+      return isLoggedIn() &&
         exists(/databases/$(database)/documents/users/$(userId)) &&
-        get(/databases/$(database)/documents/users/$(userId)).data.orgId == userOrgId()
-      );
+        canOperateOrg(get(/databases/$(database)/documents/users/$(userId)).data.orgId);
+    }
+    function canReadOrgOfUser(userId) {
+      return isLoggedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        canReadOrg(get(/databases/$(database)/documents/users/$(userId)).data.orgId);
     }
 
     // Para cms_gallery/{albumId}/fotos/{fotoId} — os documentos de foto não
-    // gravam orgId próprio, só o álbum pai grava.
+    // gravam orgId próprio, só o álbum pai grava. (Leitura de fotos já é
+    // pública — allow read:true — só a escrita passa por aqui.)
     function canOperateOrgOfAlbum(albumId) {
-      return isMaster() || (
-        isAdminRole() &&
+      return isLoggedIn() &&
         exists(/databases/$(database)/documents/cms_gallery/$(albumId)) &&
-        get(/databases/$(database)/documents/cms_gallery/$(albumId)).data.orgId == userOrgId()
-      );
+        canOperateOrg(get(/databases/$(database)/documents/cms_gallery/$(albumId)).data.orgId);
     }
     // <<< FIM G3
 
@@ -154,13 +199,13 @@ service cloud.firestore {
     // sessão (ver docs/SAAS_MULTITENANT.md e a nota de reconciliação em
     // docs/architecture/README.md do Portal Associativo).
     match /memberServices/{docId} {
-      allow read:   if isMaster() || (isLoggedIn() && resource.data.orgId == userOrgId());
+      allow read:   if isPlatformStaff() || (isLoggedIn() && resource.data.orgId == userOrgId());
       allow create: if canOperateOrg(request.resource.data.orgId);
       allow update, delete: if canOperateOrg(resource.data.orgId);
     }
 
     match /memberProducts/{docId} {
-      allow read:   if isMaster() || (isLoggedIn() && resource.data.orgId == userOrgId());
+      allow read:   if isPlatformStaff() || (isLoggedIn() && resource.data.orgId == userOrgId());
       allow create: if canOperateOrg(request.resource.data.orgId);
       allow update, delete: if canOperateOrg(resource.data.orgId);
     }
@@ -275,47 +320,53 @@ service cloud.firestore {
     // ===========================
     match /users/{userId} {
 
-      // Leitura de 1 doc:
-      // - dono lê o próprio
-      // - master lê qualquer um; admin só da própria org (G3)
-      allow get: if isSelf(userId) || isMaster() || (isAdminRole() && resource.data.orgId == userOrgId());
+      // Leitura de 1 doc: dono, qualquer papel de plataforma, ou
+      // master/admin/viewer da MESMA org (Fase 3.2: viewer ganha leitura de
+      // verdade aqui — não tinha nenhuma antes).
+      allow get: if isSelf(userId) || canReadOrg(resource.data.orgId);
 
-      // Listagem (para grids/admin) — master lista todas; admin só filtra
+      // Listagem (para grids/admin) — mesma regra de leitura acima
       // (Firestore avalia "list" por documento candidato quando a regra usa
       // resource.data — docs de outra org simplesmente não retornam, sem
       // depender de nenhum where() do lado do cliente).
-      allow list: if isMaster() || (isAdminRole() && resource.data.orgId == userOrgId());
+      allow list: if canReadOrg(resource.data.orgId);
 
       // Criação:
       // - dono cria o próprio (signup)
-      // - master cria qualquer perfil; admin só na própria org (G3)
-      allow create: if isSelf(userId) || isMaster() || (isAdminRole() && request.resource.data.orgId == userOrgId());
+      // - master/admin da própria org criam (Fase 3.2: plataforma NÃO cria
+      //   usuário de organização nenhuma diretamente — isso é escrita
+      //   operacional, fora do escopo de plataforma)
+      allow create: if isSelf(userId) || canOperateOrg(request.resource.data.orgId);
 
       // Atualização:
       // - dono: tudo exceto campos sensíveis (já bloqueia troca de orgId)
-      // - master: qualquer campo, qualquer org
-      // - admin: só da própria org, e nunca pode mudar o orgId do documento
-      //   (gap encontrado durante G3: canOperate() sozinho permitia trocar
-      //   orgId no mesmo update que qualquer outro campo)
+      // - master/admin da própria org: qualquer campo, exceto orgId (gap
+      //   encontrado durante G3: canOperate() sozinho permitia trocar orgId
+      //   no mesmo update que qualquer outro campo)
+      // - campo "role": só master pode alterá-lo (Fase 3.2 — Organization
+      //   Administrator não pode alterar papel de ninguém da equipe, evita
+      //   escalonamento lateral; mais restritivo que antes, de propósito)
       allow update: if
         (isSelf(userId) && noSensitiveFieldChange())
-        || isMaster()
         || (
-          isAdminRole()
-          && resource.data.orgId == userOrgId()
+          canOperateOrg(resource.data.orgId)
           && !("orgId" in request.resource.data.diff(resource.data).changedKeys())
+          && (
+            !("role" in request.resource.data.diff(resource.data).changedKeys())
+            || isOrgMaster(resource.data.orgId)
+          )
         );
 
       // -------- FINANCE (doc 'summary' e outros docs soltos) --------
       match /finance/{docId} {
-        // dono, master e admin-da-mesma-org podem LER (summary, etc.) — G3
-        allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
-        // master e admin-da-mesma-org podem ESCREVER (summary, etc.) — G3
+        // dono, plataforma, master/admin/viewer da própria org podem LER — G3 + Fase 3.2
+        allow read:  if isSelf(userId) || canReadOrgOfUser(userId);
+        // só master/admin da própria org podem ESCREVER (summary, etc.) — G3
         allow write: if canOperateOrgOfUser(userId);
 
         // (Mantido por compatibilidade com estrutura antiga)
         match /invoices/{invId} {
-          allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
+          allow read:  if isSelf(userId) || canReadOrgOfUser(userId);
           allow write: if canOperateOrgOfUser(userId);
         }
       }
@@ -323,13 +374,13 @@ service cloud.firestore {
       // -------- NOVA COLEÇÃO DE FATURAS --------
       // Subcoleção direta para faturas: users/{uid}/financeInvoices/{invoiceId}
       match /financeInvoices/{invId} {
-        // dono, master e admin-da-mesma-org podem LER — G3
-        allow read:  if isSelf(userId) || canOperateOrgOfUser(userId);
+        // dono, plataforma, master/admin/viewer da própria org podem LER — G3 + Fase 3.2
+        allow read:  if isSelf(userId) || canReadOrgOfUser(userId);
 
         // >>> ADIÇÃO: permitir o PRÓPRIO USUÁRIO criar a PRÓPRIA fatura
         allow create: if isSelf(userId) && _isInvoiceCreateValid();
 
-        // master e admin-da-mesma-org continuam podendo escrever
+        // só master/admin da própria org continuam podendo escrever
         // (editar/cancelar/pagar) — G3
         allow write: if canOperateOrgOfUser(userId);
       }
@@ -345,6 +396,7 @@ service cloud.firestore {
       // cms_* com allow read:true; leitura autenticada por dono/admin abaixo já é
       // escopada por organização).
       allow get:  if resource.data.status in ["publicado","encerrado","pago","concluido","cancelado"]
+                  || isPlatformStaff()
                   || (isLoggedIn() && (
                        request.auth.uid == resource.data.sellerUid
                        || canOperateOrg(resource.data.orgId)
@@ -353,7 +405,8 @@ service cloud.firestore {
       // sozinho deixava qualquer associado logado listar lotes de qualquer org —
       // inofensivo hoje com 1 org só, mas o mesmo gap de G3, só que neste módulo).
       allow list: if
-        canOperateOrg(resource.data.orgId)
+        isPlatformStaff()
+        || canOperateOrg(resource.data.orgId)
         || (isAssociadoOrAdmin() && resource.data.orgId == userOrgId());
 
       // Criação: apenas associados (não participanteLeilao), sempre na própria organização
@@ -406,19 +459,19 @@ service cloud.firestore {
     }
 
     match /auctionSales/{saleId} {
-      allow read: if isLoggedIn() && (
+      allow read: if isPlatformStaff() || (isLoggedIn() && (
         request.auth.uid == resource.data.sellerUid
         || request.auth.uid == resource.data.buyerUid
         || canOperateOrg(resource.data.orgId)
-      );
+      ));
       allow write: if false; // Apenas Cloud Functions
     }
 
     match /auctionPayments/{paymentId} {
-      allow read: if isLoggedIn() && (
+      allow read: if isPlatformStaff() || (isLoggedIn() && (
         request.auth.uid == resource.data.buyerUid
         || canOperateOrg(resource.data.orgId)
-      );
+      ));
       allow write: if false; // Apenas Cloud Functions
     }
 
@@ -435,32 +488,61 @@ service cloud.firestore {
     //   Multi-Tenant: Organizations & System
     // ===========================
 
+    // Fase 3.2: equipe da plataforma (Serafim Technologies) — nunca tem
+    // orgId, escrita só via Cloud Functions (Admin SDK), nunca direto do
+    // cliente, pra garantir que toda mutação de equipe de plataforma seja
+    // auditada no servidor por construção (ver functions/lib/platform.js).
+    match /platformAdmins/{uid} {
+      allow get: if isSelf(uid) || isPlatformStaff();
+      allow list: if isPlatformStaff();
+      allow write: if false;
+    }
+
+    // Fase 3.3: rastreamento/auditoria de execuções de provisionOrganization.
+    // Mesma garantia estrutural de platformAdmins — só a Cloud Function
+    // (Admin SDK) escreve, então todo o histórico é atestado pelo servidor.
+    match /provisioningRuns/{runId} {
+      allow read: if isPlatformStaff();
+      allow write: if false;
+    }
+
     match /organizations/{orgId} {
-      // list (getDocs sem filtro) — só master pode listar todas as orgs
-      allow list: if isMaster();
-      // get (documento específico) — master ou mesmo org
-      allow get: if isMaster() || (isLoggedIn() && userOrgId() == orgId);
-      allow write: if isMaster();
+      // list (getDocs sem filtro) — só plataforma pode listar todas as orgs
+      allow list: if isPlatformStaff();
+      // get (documento específico) — plataforma ou mesma org
+      allow get: if isPlatformStaff() || (isLoggedIn() && userOrgId() == orgId);
+      // Fase 3.3: create fica só para o mecanismo oficial de provisionamento
+      // (Cloud Function via Admin SDK, que ignora Rules) — nenhuma organização
+      // deve nascer de um write direto do cliente daqui pra frente. update
+      // continua permitido (é o que as abas Módulos/Assinatura/Configurações
+      // do Painel Master usam pra editar uma organização que já existe).
+      allow create: if false;
+      allow update: if isPlatformAdministrator();
+      // delete: nenhuma regra = negado por padrão — organização nunca é
+      // apagada de verdade, só suspensa (ativo:false), mesmo padrão do
+      // resto da plataforma. Confirmado: nenhuma tela chama deleteDoc aqui.
     }
 
     match /systemPlans/{planId} {
       allow read: if isLoggedIn();
-      allow write: if isMaster();
+      allow write: if isPlatformAdministrator();
     }
 
     match /systemLogs/{logId} {
-      allow read: if isMaster();
+      allow read: if isPlatformStaff();
       allow create: if isLoggedIn()
         && request.resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
 
     match /organizationSubscriptions/{subId} {
-      allow read, write: if isMaster();
+      allow read: if isPlatformStaff();
+      allow write: if isPlatformAdministrator();
     }
 
     match /systemConfig/{docId} {
-      allow read, write: if isMaster();
+      allow read: if isPlatformStaff();
+      allow write: if isPlatformAdministrator();
     }
 
     // ===========================

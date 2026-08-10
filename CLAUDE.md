@@ -95,6 +95,34 @@ classificados/{id}
   ownerUid, ownerEmail, createdAt
 
 events / partners  (coleções simples)
+
+platformAdmins/{uid}  — Fase 3.2, equipe da Serafim Technologies, NUNCA tem orgId
+  role (owner|administrator|operator), nome, email, ativo,
+  createdAt, updatedAt, createdBy (uid de quem criou, ou "migration_fase3_2")
+  — escrita só via Cloud Functions (Admin SDK); Firestore Rules bloqueiam
+  qualquer escrita direta do cliente (ver seção "Fase 3.2" abaixo)
+
+organizations/{orgId}  — campos adicionados na Fase 3.3, além dos já documentados
+  provisioningStatus (running|completed|failed), provisionedAt, provisionedBy (uid),
+  billingProvider (string, campo do TOPO — o que getBillingProvider() de verdade lê,
+    não confundir com config.billingProvider, que é histórico/cosmético),
+  config.{idioma,timezone,moeda} (Fase 3.1, populado automaticamente no provisionamento)
+
+organizations/{orgId}  — campos adicionados na Fase 3.4 (Central de Configuração)
+  nomeCurto, descricao, pais (Geral),
+  config.{dateFormat,timeFormat,logoUrl,faviconUrl,corPrimaria,corSecundaria,
+    notificationsEnabled,fromEmail,fromName} (Localização/Identidade/Comunicação),
+  billingEnvironment (sandbox|producao — conectado de verdade em getBillingProvider()),
+  billingStatus (ativo|pausado — só informativo, sem enforcement ainda),
+  billingConfig.publicParams (mapa livre, nunca credencial),
+  portal.redesSociais {facebook,instagram,youtube},
+  integrations (mapa vazio por padrão — reservado, sem integração real ainda)
+
+provisioningRuns/{runId}  — Fase 3.3, rastreamento/auditoria de provisionOrganization
+  orgId, requestedBy (uid), requestedByEmail, planId,
+  status (running|completed|failed), startedAt, finishedAt,
+  steps: [{name, status: ok|error|skipped, startedAt, finishedAt, error}]
+  — escrita só via Cloud Functions, mesma garantia de platformAdmins
 ```
 
 ---
@@ -102,9 +130,10 @@ events / partners  (coleções simples)
 ## Autenticação e Roles
 
 - CPF é convertido para email: `12345678900` → `12345678900@cpf.local`
-- Roles: `master` > `admin` > `associado`
+- Roles de **organização** (`users/{uid}.role`, sempre com `orgId`): `master` (Organization Master) > `admin` (Organization Administrator) > `operador` (Organization Operator) > `Admin View` (Organization Viewer) > `associado`/`participanteLeilao` — ver seção "Fase 3.2" para o que cada um pode
+- Roles de **plataforma** (`platformAdmins/{uid}`, nunca tem `orgId`): `owner` > `administrator` > `operator` — plano de identidade inteiramente separado, ver "Fase 3.2"
 - Role cacheada em `sessionStorage` para evitar reads redundantes ao Firestore
-- Proteção de rotas via `requireAuth({ requiredRole })` em `firebase.js`
+- Proteção de rotas via `requireAuth({ requiredRole })` em `firebase.js` (organização) / `requirePlatformAccess({ requiredRole })` em `admin/assets/admin-auth.js` do Portal Associativo (plataforma)
 - Botão "Administração" aparece dinamicamente para admin/master via `setupAdminButton()`
 - `mapRoleServer(r)` normaliza roles com espaços/acentos via `.normalize('NFD').trim().toLowerCase().includes()`
 
@@ -113,6 +142,129 @@ events / partners  (coleções simples)
 - Em `pg_associado.html`: se `primeiroAcesso === true`, abre modal de troca de senha obrigatória (backdrop static, sem botão fechar)
 - Após trocar a senha: `primeiroAcesso: false` gravado no Firestore
 - Associados que se auto-cadastraram via `signup.html` não têm esse campo
+
+---
+
+## Fase 3.2 — Administração da Plataforma ✅
+
+Substituiu definitivamente o `master` plano e cross-tenant (`isMaster()` em `firestore.rules`, sem checagem de organização nenhuma) por dois planos de identidade genuinamente separados. O que foi eliminado não foi a palavra "master" — foi o mecanismo de bypass cego a organização; "master" sobrevive só como rótulo de um papel **de organização** (Organization Master), sempre comparado a um `orgId`.
+
+### Modelo de papéis
+
+**Plataforma** (`platformAdmins/{uid}`, equipe da Serafim Technologies, nunca tem `orgId`):
+| Papel | Pode |
+|---|---|
+| `owner` | Tudo que `administrator` pode + gerenciar outros `administrator`/`owner` + ações irreversíveis |
+| `administrator` | Criar/editar organizações, gerenciar planos, gerenciar `operator` (não `administrator`/`owner`), auditoria global |
+| `operator` | Somente leitura nas telas de plataforma — zero escrita |
+
+**Organização** (`users/{uid}.role`, sempre com `orgId`, nunca cruza tenant):
+| Papel | Pode |
+|---|---|
+| `master` (Organization Master) | Tudo que `admin` pode + alterar o papel de qualquer membro da equipe administrativa da própria org (único papel que pode) |
+| `admin` (Organization Administrator) | Operação plena do dia a dia (associados, conteúdo, financeiro, moderação) — **não** pode alterar papel de ninguém |
+| `operador` (Organization Operator) | Tarefas pontuais (ex.: check-in de evento) |
+| `Admin View` (Organization Viewer) | Somente leitura nas telas administrativas |
+
+`associado`/`participanteLeilao` não mudaram — fora desta reforma, é a base de membros comum, não equipe administrativa.
+
+### Cloud Functions (`functions/lib/platform.js`)
+
+`resolvePlatformAdmin(uid)`/`requirePlatformStaff`/`requirePlatformAdministrator`/`requirePlatformOwner` — mesmo padrão de `organization.js`/`authorization.js`, mas para um resolvedor que nunca lida com organização nenhuma.
+
+| Callable | Quem chama | Regra |
+|---|---|---|
+| `createPlatformAdmin({email,nome,role})` | administrator/owner | administrator só cria `role:"operator"`; owner cria qualquer papel; envia link de definição de senha por e-mail (nunca senha em texto puro) |
+| `setPlatformAdminStatus({uid,ativo})` | administrator/owner | administrator só ativa/desativa `operator`; proíbe auto-alteração; proíbe deixar zero owners ativos |
+| `setPlatformAdminRole({uid,newRole})` | **owner apenas** | proíbe auto-alteração; proíbe deixar zero owners ativos |
+| `migratePlatformAdmins` | uso único — gate é o mecanismo antigo (`role==="master"` em `users/{uid}`, sem passar por organização) | migra toda conta `master` legada pra `platformAdmins` com `role:"owner"`; não apaga o doc antigo, só neutraliza `role` pra `"migrado_para_platform_admins"` (não-destrutivo, idempotente) |
+
+`backfillLeilaoOrgId` (utilitário de migração da Fase 2C) foi reclassificado de `requireOrganizationMaster` para guarda de plataforma — sempre foi, mecanicamente, uma operação cross-org, nunca de autoatendimento de uma organização.
+
+Todas as 3 callables de gestão de equipe gravam auditoria diretamente em `systemLogs` via Admin SDK (atestado pelo servidor) — `platformAdmins` não permite nenhuma escrita direta do cliente (ver Firestore Rules abaixo), então essa é a única fonte de auditoria dessas mutações.
+
+### Firestore Rules
+
+Helpers novos: `isPlatformStaff()`/`isPlatformAdministrator()`/`isPlatformOwner()` (leem `platformAdmins/{uid}`) e `isOrgMaster(orgId)`/`isOrgAdmin(orgId)`/`isOrgViewer(orgId)` (leem `users/{uid}`, sempre comparando organização — substituem o antigo `isMaster()`/`isAdminRole()`).
+
+Duas coleções de `orgId`-bypass distintas:
+- **Coleções puramente de plataforma** (`organizations`, `systemPlans`, `systemLogs`, `organizationSubscriptions`, `systemConfig`): trocaram `isMaster()` → `isPlatformStaff()`/`isPlatformAdministrator()` (granularidade por papel onde importa).
+- **Coleções com bypass OR'd a admin de organização** (`users`, `memberServices`, `memberProducts`, leilão, `classificados`): leitura mantém visibilidade de plataforma (+ Organization Viewer, que antes não tinha nenhuma); **escrita removeu o bypass de plataforma** — só quem pertence à própria organização escreve. Campo `role` em `users/{userId}` especificamente só pode ser alterado por Organization Master (antes, `admin` comum também podia).
+
+`platformAdmins/{uid}`: leitura = próprio doc ou qualquer membro da equipe de plataforma; **escrita sempre `false`** — só Cloud Functions (Admin SDK) escrevem.
+
+Testado com `@firebase/rules-unit-testing` (nova devDependency) em `functions/test/rules.test.js` (`npm run test:rules`) — primeira cobertura de Rules de verdade do projeto (o resto de `functions/test/` usa Admin SDK, que ignora Rules por completo).
+
+### Painel Master (Portal Associativo)
+
+`admin/assets/admin-auth.js` é o único arquivo que sabe como a autorização é resolvida (`requirePlatformAccess()`) — repontado de `users`/`role==="master"` pra `platformAdmins`/`owner|administrator|operator`; as 8 páginas que já existiam desde a Fase 3.1 não mudaram. Nova página `admin/platform-operators.html` (CRUD de equipe de plataforma) e nova aba "Equipe" (somente leitura) em `admin/organization-detail.html`.
+
+### Consequência operacional
+
+Depois de rodar `migratePlatformAdmins`, nenhum `users/{uid}` tem `role==="master"` até um humano designar um Organization Master de verdade pra cada organização (não há promoção automática — sem sinal seguro pra escolher quem). Até lá, `resetUserPassword`/`deleteAssociado` (que exigem Organization Master) ficam inacessíveis — não é regressão de código, é ausência temporária de alguém com esse papel.
+
+---
+
+## Fase 3.3 — Provisionamento Automático de Organizações ✅
+
+Substituiu o antigo "criar organização = `setDoc` num documento" pelo mecanismo oficial e único de criação de tenants: `provisionOrganization` (Cloud Function, `functions/lib/provisioning.js`). Criar uma organização passou a significar criar um ambiente completo — doc + primeiro Organization Master (conta Auth nova, nunca reaproveitada da plataforma) + módulos do plano + estrutura de Billing Provider (sem credencial) + branding básico + CMS mínimo — idempotente, com auditoria por etapa.
+
+### Como funciona
+
+7 passos sequenciais, cada um com checagem de existência própria (idempotente): `organization` (+ `plan`, escrita atômica via `.create()` — não `.set()`, pra resolver corrida de dois chamadores concorrentes pro mesmo `orgId`), `masterAccount` (cria conta Auth + `users/{uid}` — recupera de uma conta Auth órfã se um reprocessamento encontrar uma criada numa tentativa anterior sem o doc correspondente), `modules` (copia `systemPlans/{planId}.modules` pra `organizations/{orgId}.modules`), `billing` (escreve `organizations/{orgId}.billingProvider = "asaas"` — campo do TOPO, o que `getBillingProvider()` de verdade lê), `branding` (`organizations/{orgId}.config.{idioma,timezone,moeda}`), `storage` (não-op deliberado e registrado — object storage não tem pasta pra pré-criar), `cms` (`cms_about/{orgId}`, o único singleton real).
+
+**Convite ao Master só depois que tudo terminar** (nunca no passo `masterAccount`) — evita um Master recém-criado entrar numa organização sem módulo/branding nenhum no meio do provisionamento.
+
+**Validação prévia** (antes de qualquer escrita): `systemPlans/{planId}` precisa existir; `master.email` não pode já ser uma conta em `platformAdmins` ("nunca reaproveitar conta de plataforma").
+
+### `provisioningRuns/{runId}` — rastreamento/auditoria
+
+`{orgId, requestedBy, planId, status:"running"|"completed"|"failed", startedAt, finishedAt, steps:[{name,status,startedAt,finishedAt,error}]}`. Atualizado incrementalmente (a cada passo, não só no fim) — sobrevive a um timeout no meio da execução com registro exato de até onde chegou. Leitura = qualquer papel de plataforma; escrita = só Cloud Functions (mesma garantia estrutural de `platformAdmins`).
+
+### Rollback: sem exclusão automática
+
+Nenhum passo desfaz o anterior em caso de falha — reprocessamento idempotente é a estratégia (ver `provisionOrganization` no relatório da Fase 3.3, `portal-associativo/docs/roadmap/`, pra justificativa completa por passo). "Reprocessar" (`forceReprocess:true`) é uma feature de primeira classe, não uma exceção — timeout de 300s numa function com Auth SDK no meio é esperado.
+
+### Caminhos manuais fechados de verdade
+
+`firestore.rules`: `organizations` teve `write` separado em `allow create: if false` (só a Cloud Function cria) + `allow update: if isPlatformAdministrator()` (as outras abas do Painel Master continuam editando normalmente). `admin_master_associacoes.html` (painel antigo) perdeu o botão/modal de "Nova Associação" — só edita organizações já existentes.
+
+### Correção de bug encontrado
+
+`organizations/{orgId}.config.billingProvider` (aninhado) era escrito pela aba Configurações desde a Fase 3.1 mas nunca lido por `functions/lib/billing/index.js` (que lê `org.billingProvider`, no topo) — os dois campos coexistiam sem ligação. Corrigido: a aba Configurações agora lê/escreve o campo real.
+
+---
+
+## Fase 3.4 — Configuração por Organização ✅
+
+"Criar organização" (Fase 3.3) e "administrar organização" (Fase 3.2) já existiam; faltava "cada organização administrar as próprias configurações" sem precisar editar Firestore à mão. A antiga aba "Configurações" (que literalmente dizia "reservado para as próximas fases") virou a Central de Configuração — 8 categorias reais, no Painel Master (`admin/organization-detail.html`).
+
+### O que mudou de lugar (não de dado)
+
+A aba "Dados" encolheu pra só o que a PLATAFORMA administra (plano, status/ciclo de vida, observações, slug). Identificação/contato (nome, cnpj, telefone, email, site, endereço) saiu de lá e entrou em Configurações → Geral — mesmo documento `organizations/{orgId}`, mesma escrita (`update`, nunca `create`), só outra aba.
+
+### As 8 categorias
+
+| Categoria | O que administra |
+|---|---|
+| Geral | nome, nome curto, descrição, telefone, e-mail, site, CNPJ, endereço completo, país |
+| Localização | idioma, timezone, moeda, formato de data, formato de hora (`organizations/{orgId}.config`) |
+| Identidade Visual | logo/favicon (upload real via `createImageUploader`, `tenants/{orgId}/branding/`), cores primária/secundária — estrutura administrável, sem nenhum consumidor ainda (White Label é Fase 3.5) |
+| Financeiro | `billingProvider`, `billingEnvironment` (sandbox/produção — **conectado de verdade**, ver abaixo), `billingStatus` (só informativo), `billingConfig.publicParams` (mapa livre, nunca credencial) |
+| Comunicação | WhatsApp, notificações (liga/desliga, sem envio real), SMTP/remetente (reservado, sem envio real) |
+| Portal | redes sociais (`organizations/{orgId}.portal.redesSociais`) — conteúdo institucional (missão, benefícios) continua só no painel antigo do CCBMG, migrar aquele editor é fora de escopo (é conteúdo, não configuração) |
+| Integrações | `organizations/{orgId}.integrations` — mapa vazio, estado vazio honesto na UI, nenhum campo fabricado sem integração real pra moldar o formato |
+| Segurança | somente leitura — trilha de auditoria desta organização (`systemLogs` filtrado por `details.orgId`) |
+
+Cada categoria tem seu próprio botão salvar e sua própria ação de auditoria (`org_config_geral_atualizada`, `org_config_localizacao_atualizada` etc.) — granularidade deliberada, a própria aba Segurança exibe esses nomes.
+
+### `billingEnvironment` conectado de verdade
+
+`functions/lib/billing/asaas.js` ganhou `SANDBOX_BASE_URL`; `createAsaasBillingProvider` resolve a URL real a partir de `environment` (`sandbox` → `sandbox.asaas.com`, ausente → produção, retrocompatível). A decisão de "o que sandbox significa" fica no arquivo específico do Asaas, não no resolvedor genérico (`getBillingProvider()` só repassa `environment` cru) — nenhuma regra de negócio comum deve assumir "é Asaas".
+
+### Storage Rules — lacuna da Fase 3.3 corrigida
+
+`storage.rules`: `tenants/{orgId}/cms/{categoria}/{arquivo}` e o novo `tenants/{orgId}/branding/{arquivo}` agora comparam o `{orgId}` do caminho com a organização de quem está enviando (`firestore.get()` cross-service, mesma lógica de `userOrgId()` de `firestore.rules`) — antes, qualquer usuário autenticado podia escrever no caminho de qualquer organização. Achado empírico registrado em `functions/test/storage-rules.test.js`: a leitura cross-service só resolveu corretamente contra o projectId real (`clubecavalobonfim`) no emulador local, não contra um projectId de teste isolado (ao contrário de `rules.test.js`, que é Firestore puro e não tem esse problema).
 
 ---
 

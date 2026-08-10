@@ -11,6 +11,11 @@
 // que está usando uma capacidade específica do Asaas ao chamar.
 
 const DEFAULT_BASE_URL = 'https://api.asaas.com/v3';
+// Fase 3.4 — usado quando organizations/{orgId}.billingEnvironment === "sandbox"
+// (ver getBillingProvider() em lib/billing/index.js). Ambiente de testes do
+// próprio Asaas, já mencionado informalmente nos comentários deste arquivo
+// (WHATSAPP_UNSUPPORTED_EVENTS_DEFAULT foi confirmado "via teste em Sandbox").
+const SANDBOX_BASE_URL = 'https://sandbox.asaas.com/api/v3';
 
 // Eventos padrão criados automaticamente pelo Asaas para cada cliente. SEND_LINHA_DIGITAVEL
 // não aceita ativação de WhatsApp (confirmado via teste em Sandbox); Set para permitir
@@ -58,16 +63,22 @@ function normalizePayment(payment) {
 /**
  * @param {object} opts
  * @param {string} opts.apiKey — já resolvido (do Secret Manager) por quem chama; o provider não sabe de onde veio.
- * @param {string} [opts.baseUrl]
+ * @param {string} [opts.baseUrl] — override explícito; se ausente, resolvido a partir de `environment`.
+ * @param {string} [opts.environment] — "sandbox" | "producao" (Fase 3.4,
+ *   `organizations/{orgId}.billingEnvironment`) — decide entre DEFAULT_BASE_URL e
+ *   SANDBOX_BASE_URL quando `baseUrl` não é passado explicitamente. Fica aqui
+ *   (não em lib/billing/index.js) porque "o que cada ambiente significa" é
+ *   específico do Asaas — o resolvedor genérico não deve saber disso.
  * @param {typeof fetch} [opts.fetchImpl] — injetável para testes.
  */
-function createAsaasBillingProvider({ apiKey, baseUrl = DEFAULT_BASE_URL, fetchImpl = fetch } = {}) {
+function createAsaasBillingProvider({ apiKey, baseUrl, environment, fetchImpl = fetch } = {}) {
   if (!apiKey) throw new Error('createAsaasBillingProvider: apiKey é obrigatória.');
+  const resolvedBaseUrl = baseUrl || (environment === 'sandbox' ? SANDBOX_BASE_URL : DEFAULT_BASE_URL);
 
   const headers = { access_token: apiKey, 'Content-Type': 'application/json' };
 
   async function request(path, { method = 'GET', body } = {}) {
-    const resp = await fetchImpl(`${baseUrl}${path}`, {
+    const resp = await fetchImpl(`${resolvedBaseUrl}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -381,4 +392,4 @@ function createAsaasBillingProvider({ apiKey, baseUrl = DEFAULT_BASE_URL, fetchI
   };
 }
 
-module.exports = { createAsaasBillingProvider, mapPaymentStatus, normalizePayment };
+module.exports = { createAsaasBillingProvider, mapPaymentStatus, normalizePayment, SANDBOX_BASE_URL, DEFAULT_BASE_URL };

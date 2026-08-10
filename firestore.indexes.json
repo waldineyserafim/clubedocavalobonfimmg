@@ -290,6 +290,22 @@
         { "fieldPath": "orgId",        "order": "ASCENDING"  },
         { "fieldPath": "registeredAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "provisioningRuns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orgId",     "order": "ASCENDING"  },
+        { "fieldPath": "startedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "systemLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "details.orgId", "order": "ASCENDING"  },
+        { "fieldPath": "timestamp",     "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

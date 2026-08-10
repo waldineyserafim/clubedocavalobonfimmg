@@ -42,7 +42,15 @@
 <main class="main">
   <div class="d-flex align-items-center justify-content-between mb-4">
     <h1 class="h4 mb-0">Associações</h1>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalOrg" id="btnNova">+ Nova Associação</button>
+  </div>
+  <!-- Fase 3.3: criação de organização foi retirada deste painel — agora só
+       pelo mecanismo oficial de provisionamento (Cloud Function
+       provisionOrganization, via o assistente no novo Painel Master). O
+       Firestore Rules já bloqueia create em organizations pra qualquer
+       escrita direta do cliente (allow create: if false); esta tela mantém
+       só edição de organizações já existentes. -->
+  <div class="alert alert-info small mb-4">
+    Para criar uma nova organização, use o assistente de provisionamento no novo Painel Master.
   </div>
 
   <div class="card border-0 shadow-sm">
@@ -280,11 +288,6 @@ function fillForm(org) {
   document.getElementById("modalOrgLabel").textContent = org ? "Editar Associação" : "Nova Associação";
   document.getElementById("btnSuspender").classList.toggle("d-none", !org);
 }
-
-document.getElementById("btnNova").addEventListener("click", () => {
-  fillForm(null);
-  applyPlanDefaults();
-});
 
 document.getElementById("btnSalvar").addEventListener("click", async () => {
   const editId   = document.getElementById("orgEditId").value.trim();

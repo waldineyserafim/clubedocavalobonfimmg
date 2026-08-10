@@ -23,6 +23,8 @@ const TEST_FILES = [
   'roles.test.js',
   'organization.test.js',
   'authorization.test.js',
+  'platform.test.js',
+  'provisioning.test.js',
   'billing-asaas.test.js',
   'billing-registry.test.js',
   'callable-cross-tenant.test.js',

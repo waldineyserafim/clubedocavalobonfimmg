@@ -31,4 +31,19 @@ async function seedUser(db, authInstance, { uid, cpf, orgId, role, nome, ativo =
   return uid;
 }
 
-module.exports = { getApp, seedOrganization, seedUser };
+// Fase 3.2 — equipe de PLATAFORMA (platformAdmins/{uid}), nunca tem orgId.
+// Recebe email de verdade (não CPF-sintético — contas de plataforma não são
+// associados) para poder exercitar admin.auth().createUser() de verdade.
+async function seedPlatformAdmin(db, authInstance, { uid, email, role, nome, ativo = true }) {
+  await authInstance.createUser({ uid, email, password: 'senha123456' }).catch(async (e) => {
+    if (e.code === 'auth/uid-already-exists') return;
+    throw e;
+  });
+  await db.collection('platformAdmins').doc(uid).set({
+    role, nome: nome || `Teste ${role}`, email, ativo,
+    createdAt: new Date(), updatedAt: new Date(), createdBy: 'test-seed',
+  });
+  return uid;
+}
+
+module.exports = { getApp, seedOrganization, seedUser, seedPlatformAdmin };

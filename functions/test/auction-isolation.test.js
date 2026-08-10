@@ -6,7 +6,7 @@
 // bloqueio. gerarCobrancaLeilao/liberarRepasse: só o caminho bloqueado
 // (mesma razão de callable-cross-tenant.test.js — evitar produção).
 const assert = require('assert');
-const { seedOrganization, seedUser } = require('./helpers/seed');
+const { seedOrganization, seedUser, seedPlatformAdmin } = require('./helpers/seed');
 const { assertRejectsWithCode } = require('./helpers/assert-code');
 
 module.exports = async function run({ db, authInstance, fns, t }) {
@@ -19,6 +19,8 @@ module.exports = async function run({ db, authInstance, fns, t }) {
   await seedUser(db, authInstance, { uid: 'auc_admin_a', cpf: '51111111104', orgId: 'auc_org_a', role: 'Admin' });
   await seedUser(db, authInstance, { uid: 'auc_admin_b', cpf: '51111111105', orgId: 'auc_org_b', role: 'Admin' });
   await seedUser(db, authInstance, { uid: 'auc_master_a', cpf: '51111111106', orgId: 'auc_org_a', role: 'Master' });
+  // Fase 3.2: backfillLeilaoOrgId foi reclassificada — é operação de plataforma agora, não de Organization Master.
+  await seedPlatformAdmin(db, authInstance, { uid: 'auc_platform_admin', email: 'auc_platform_admin@teste.local', role: 'administrator' });
 
   const admin = require('firebase-admin');
   const lotRef = await db.collection('auctionLots').add({
@@ -85,11 +87,18 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     assert.strictEqual(snap.data().orgId, 'auc_org_a');
   });
 
-  // ---- backfillLeilaoOrgId ----
-  await t('backfillLeilaoOrgId: apenas master pode chamar', async () => {
+  // ---- backfillLeilaoOrgId (Fase 3.2: reclassificada — plataforma, não Organization Master) ----
+  await t('backfillLeilaoOrgId: admin comum de organização NÃO pode chamar', async () => {
     await assertRejectsWithCode(
       () => fns.backfillLeilaoOrgId.run({}, ctx('auc_admin_a')),
-      'permission-denied'
+      'not-found' // sem doc em platformAdmins — nem chega a checar permissão de papel
+    );
+  });
+
+  await t('backfillLeilaoOrgId: Organization Master (org própria) também NÃO pode chamar — não é mais operação de organização', async () => {
+    await assertRejectsWithCode(
+      () => fns.backfillLeilaoOrgId.run({ orgId: 'auc_org_a' }, ctx('auc_master_a')),
+      'not-found'
     );
   });
 
@@ -101,7 +110,7 @@ module.exports = async function run({ db, authInstance, fns, t }) {
       orgId: 'auc_org_b', recipientUid: 'auc_bidder_b', type: 'teste_ja_migrado', message: 'já tinha orgId',
     });
 
-    const result = await fns.backfillLeilaoOrgId.run({ orgId: 'auc_org_a' }, ctx('auc_master_a'));
+    const result = await fns.backfillLeilaoOrgId.run({ orgId: 'auc_org_a' }, ctx('auc_platform_admin'));
     assert.ok(result.results.auctionNotifications.atualizados >= 1);
 
     const semOrgSnap = await semOrgRef.get();
