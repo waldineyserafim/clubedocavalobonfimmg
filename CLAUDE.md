@@ -364,6 +364,27 @@ Duas vulnerabilidades confirmadas idênticas em produção e no repositório, co
 
 ---
 
+## Deploy Controlado da Fase 3.6 ✅ — Fases 3.2–3.6 em produção
+
+Tudo que a Fase 3.6 documentou como "aguardando deploy" está publicado: Storage Rules, Firestore Rules + índices, as 44 Cloud Functions, `migratePlatformAdmins` executada uma única vez (Platform Owner migrado), domínio do CCBMG registrado, branding dinâmico configurado, backup semanal do Firebase Auth (`backupAuthUsers`, domingo 3h BRT, `backups/auth/{data}.json`, retenção 90 dias) e 2 alertas mínimos no Cloud Monitoring (erro geral de Cloud Functions + `asaasWebhook` dedicado). Um segundo tenant de teste (`org_teste_etapa10`) foi provisionado e validado com isolamento cross-tenant confirmado, e mantido em produção. Relatório completo: `portal-associativo/docs/roadmap/ETAPA1_DEPLOY_CONTROLADO_FASE3_6_REPORT.md`.
+
+**Correções publicadas nesta rodada** (repositório e produção, núcleo compartilhado em `?v=2026.08.7`):
+- `shared/core/tenant/branding.js` — `[data-tenant-name]` da navbar pública usava `nomeCurto` em vez de `nome` completo; invertido (`nome || nomeCurto`), `nomeCurto` preservado onde já era o campo certo.
+- `shared/components/sidebar.css`/`data-table.css` — `.ds-admin-main` sem `width`/`min-width` (herdava `min-width:auto` de flex item) somado a `overflow:visible` causava overflow horizontal sistêmico no Painel Master (36/45 combinações página×viewport testadas, incluindo desktop 1920px); corrigido com `width` explícito + `overflow-x:auto`.
+- Logs críticos (`asaasWebhook`, triggers de billing automático, falha de passo em `provisionOrganization`) migrados de `console.error`/`warn` para `functions.logger` — o runtime atual não popula `severity` no Cloud Logging a partir de `console.*`, o que deixava os alertas do Cloud Monitoring sem funcionar de verdade.
+
+## Auditoria Final RC1 ✅ — GO WITH CONDITIONS
+
+Auditoria de prontidão comercial da plataforma inteira (não só CCBMG), com evidência real contra produção — drift, isolamento cross-tenant, escalada de privilégio, billing, Storage, backup, alertas, E2E. **Resultado: GO WITH CONDITIONS — P0: 0, P1 em aberto: 0, P2: 2, P3: 7.** Relatório completo com a tabela de achados: `portal-associativo/docs/roadmap/AUDITORIA_FINAL_RC1_REPORT.md`.
+
+**Achado P1 (encontrado e corrigido durante a própria auditoria)**: `startPasswordReset` (reset de senha self-service via SMS) retornava o telefone completo do associado pra qualquer chamada anônima com um CPF válido, sem nenhuma prova de identidade, com busca global entre organizações quando `orgId` não era informado. `signInWithPhoneNumber()` do Firebase Phone Auth é client-driven por construção — o número precisa chegar ao JS do navegador pra disparar o SMS, não existe alternativa server-side, então zero exposição não era alcançável sem trocar o mecanismo de SMS. Mitigado sem mudar esse mecanismo: `orgId` passou a ser obrigatório (fecha a busca global) e um token de **reCAPTCHA Enterprise** (chave própria, `6Ld-m38tAAAAAI6Useox6aHfJ6WpxySYIfzl_Qx7`, escopada a `clubedocavalobonfim.com.br`, verificada no servidor via IAM/`google-auth-library` — sem secret pra gerenciar, independente do `RecaptchaVerifier` opaco do Phone Auth) passou a ser exigido antes de qualquer consulta ao Firestore. `completePasswordReset` (validação do claim `phone_number` assinado pelo Firebase) e o disparo do SMS em si não foram alterados. Limitação residual documentada: um ataque manual e direcionado (CPF já conhecido do atacante) ainda obtém o telefone — o reCAPTCHA eleva o custo de automação/enumeração em massa, não elimina um ataque pontual.
+
+**P2/P3 abertos, aceitos como dívida técnica futura** (não bloqueiam operação comercial — ver relatório da auditoria pra detalhe de cada um): forja de `systemLogs` por qualquer usuário autenticado (RC1-02); cobertura parcial de `functions.logger` nos alertas (RC1-03); fallback `org_bonfim` inalcançável em 2 functions (RC1-04); `encerrarLotesExpirados` a cada 1 min, ponto de atenção se leilão escalar entre tenants (RC1-05); 5 índices Firestore órfãos (RC1-06); `role:"Master"` capitalizado no provisionamento, inconsistente com `"master"` minúsculo (RC1-08); as 86 falhas conhecidas da suíte E2E (RC1-09) — mais os já documentados antes desta auditoria: bloqueio de DELETE via cliente em `branding`/`cms`, conta Asaas compartilhada entre tenants (G7), ausência de resolução hostname→orgId em tempo real (G4).
+
+**Limitação conhecida, não é bug**: CCBMG não tem Organization Master ativo desde a migração do Platform Owner (Fase 3.2) — decisão operacional, não corrigida automaticamente por design (sem sinal seguro pra escolher quem). Consequência: os painéis administrativos do próprio CCBMG não puderam ser validados interativamente; `resetUserPassword`/`deleteAssociado` seguem inacessíveis até alguém ser designado pelo mecanismo do próprio app.
+
+---
+
 ## Integração Asaas ✅ (Fase 2 — LIVE)
 
 **API:** `https://api.asaas.com/v3`
