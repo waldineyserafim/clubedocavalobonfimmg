@@ -9,6 +9,8 @@ const { createRoleResolver } = require('./lib/roles');
 const { getBillingProvider } = require('./lib/billing');
 const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpers } = require('./lib/platform');
 const { createProvisioningService } = require('./lib/provisioning');
+const { createDomainsService } = require('./lib/domains');
+const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
 
 const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
@@ -67,6 +69,12 @@ const platformAuth = createPlatformAuthorizationHelpers({ platformResolver });
 const provisioningService = createProvisioningService({
   db,
   authAdmin: admin.auth(),
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+});
+
+// Fase 3.5 — registro hostname → orgId, único escritor de domains/{hostname}.
+const domainsService = createDomainsService({
+  db,
   serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
 });
 
@@ -2511,6 +2519,61 @@ exports.provisionOrganization = functions
     console.log(`provisionOrganization: orgId=${orgId} status=${result.status} runId=${result.runId} por caller=${caller.uid}`);
 
     return { ...result, emailSent, resetLink: emailSent ? undefined : resetLink };
+  });
+
+/* =========================================================================
+   FASE 3.5 — IDENTIDADE DO TENANT E DOMÍNIOS
+   ========================================================================= */
+
+// Callable: substitui o conjunto de domínios (principal + adicionais) de uma
+// organização, com unicidade garantida contra todas as outras organizações.
+// administrator ou owner de plataforma — mesmo gate de provisionOrganization.
+exports.setOrganizationDomains = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+
+  const orgId = String(data?.orgId || '').trim();
+  const dominioPrincipal = data?.dominioPrincipal;
+  const dominiosAlternativos = Array.isArray(data?.dominiosAlternativos) ? data.dominiosAlternativos : [];
+  if (!orgId) {
+    throw new functions.https.HttpsError('invalid-argument', 'orgId é obrigatório.');
+  }
+
+  const result = await domainsService.setOrganizationDomains({
+    orgId, dominioPrincipal, dominiosAlternativos, requestedBy: caller.uid,
+  });
+
+  await writePlatformAuditLog('org_dominio_atualizado', {
+    orgId, dominioPrincipal: result.dominioPrincipal, dominiosAlternativos: result.dominiosAlternativos,
+  }, context);
+  console.log(`setOrganizationDomains: orgId=${orgId} dominioPrincipal=${result.dominioPrincipal} por caller=${caller.uid}`);
+
+  return result;
+});
+
+// Trigger: mantém organizations/{orgId}/public/branding sincronizado com o
+// subconjunto seguro de organizations/{orgId} sempre que o documento pai
+// muda — cobre tanto a Central de Configuração (Fase 3.4) quanto qualquer
+// edição legada em admin_master_associacoes.html, sem depender de cada tela
+// lembrar de sincronizar (ver functions/lib/organizationPublicSync.js).
+exports.onOrganizationWritten = functions.firestore
+  .document('organizations/{orgId}')
+  .onWrite(async (change, context) => {
+    const orgId = context.params.orgId;
+    const publicRef = db.collection('organizations').doc(orgId).collection('public').doc('branding');
+
+    if (!change.after.exists) {
+      // Organização nunca é apagada de verdade pelo sistema (ver
+      // firestore.rules) — cobre só o caso defensivo de um delete manual.
+      await publicRef.delete().catch(() => {});
+      return null;
+    }
+
+    const projection = computePublicBrandingProjection(
+      change.after.data(),
+      () => admin.firestore.FieldValue.serverTimestamp()
+    );
+    await publicRef.set(projection);
+    return null;
   });
 
 // ─── VALIDAÇÃO DE CPF ─────────────────────────────────────────────────────────

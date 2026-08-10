@@ -25,6 +25,8 @@ const TEST_FILES = [
   'authorization.test.js',
   'platform.test.js',
   'provisioning.test.js',
+  'domains.test.js',
+  'organization-public-sync.test.js',
   'billing-asaas.test.js',
   'billing-registry.test.js',
   'callable-cross-tenant.test.js',

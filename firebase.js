@@ -10,13 +10,14 @@
 // real do Firebase e o orgId. Ver tenant.config.js e o contrato completo em
 // shared/README.md (repositório portal-associativo).
 
-import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.2";
-import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.2";
-import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.2";
-import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.2";
-import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.2";
-import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.2";
-import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.2";
+import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.4";
+import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.4";
+import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.4";
+import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.4";
+import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.4";
+import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.4";
+import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.4";
+import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.4";
 
 import {
   createUserWithEmailAndPassword,
@@ -335,6 +336,13 @@ const _moduleGate = createModuleGate({ db, getOrgId, orgCollection: "organizatio
 export const checkModuleEnabled = _moduleGate.checkModuleEnabled;
 export const applyModuleVisibility = _moduleGate.applyModuleVisibility;
 
+/* ============================
+   Fase 3.5: Identidade do Tenant — branding automático
+   ============================ */
+
+const _branding = createBrandingResolver({ db, getOrgId, orgCollection: "organizations", cacheTtlMs: 600000 });
+export const getOrgBranding = _branding.getOrgBranding;
+
 const _audit = createAuditLogger({ db, auth, getOrgId, collectionName: "systemLogs" });
 export const logAction = _audit.logAction;
 
@@ -434,5 +442,20 @@ if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', _initNavbarUser);
   } else {
     _initNavbarUser();
+  }
+}
+
+// ── Branding automático (auto) ───────────────────────────────────────────────
+// Aplica favicon/cores/nome/logo da organização assim que resolvidos, em
+// TODAS as páginas que importam firebase.js — mesmo efeito colateral
+// automático já documentado acima pro navbar (deliberadamente específico do
+// CCBMG, não migrado pro núcleo — ver shared/README.md, "O que NUNCA vai
+// para o núcleo"). Falha silenciosamente (fail-safe de applyBranding):
+// nunca impede o carregamento normal da página.
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => _branding.applyBranding());
+  } else {
+    _branding.applyBranding();
   }
 }

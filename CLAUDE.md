@@ -123,6 +123,20 @@ provisioningRuns/{runId}  — Fase 3.3, rastreamento/auditoria de provisionOrgan
   status (running|completed|failed), startedAt, finishedAt,
   steps: [{name, status: ok|error|skipped, startedAt, finishedAt, error}]
   — escrita só via Cloud Functions, mesma garantia de platformAdmins
+
+domains/{hostnameNormalizado}  — Fase 3.5, registro hostname → orgId
+  orgId, tipo (primario|alternativo), status (verificado — único valor usado nesta fase),
+  criadoEm, criadoPor, atualizadoEm
+  — escrita só via Cloud Function setOrganizationDomains (unicidade garantida
+  entre organizações), leitura pública (precisa resolver antes de login)
+
+organizations/{orgId}/public/branding  — Fase 3.5, projeção pública e curada
+  nome, nomeCurto, logoUrl, faviconUrl, corPrimaria, corSecundaria,
+  modules, billingProvider, updatedAt
+  — mantida por trigger onOrganizationWritten (nunca escrita direta do
+  cliente); NUNCA inclui observações/billingConfig/integrations do documento
+  pai — é o único jeito de expor branding pra visitante anônimo sem abrir
+  organizations/{orgId} inteiro (que exige login+mesma org desde a Fase 3.2)
 ```
 
 ---
@@ -265,6 +279,53 @@ Cada categoria tem seu próprio botão salvar e sua própria ação de auditoria
 ### Storage Rules — lacuna da Fase 3.3 corrigida
 
 `storage.rules`: `tenants/{orgId}/cms/{categoria}/{arquivo}` e o novo `tenants/{orgId}/branding/{arquivo}` agora comparam o `{orgId}` do caminho com a organização de quem está enviando (`firestore.get()` cross-service, mesma lógica de `userOrgId()` de `firestore.rules`) — antes, qualquer usuário autenticado podia escrever no caminho de qualquer organização. Achado empírico registrado em `functions/test/storage-rules.test.js`: a leitura cross-service só resolveu corretamente contra o projectId real (`clubecavalobonfim`) no emulador local, não contra um projectId de teste isolado (ao contrário de `rules.test.js`, que é Firestore puro e não tem esse problema).
+
+---
+
+## Fase 3.5 — Identidade do Tenant e Domínios ✅
+
+Consome, pela primeira vez, os campos de branding que a Fase 3.4 tornou administráveis mas que nada lia ainda. Não é White Label (isso é fase futura) — é só "a organização passa a operar com sua própria identidade visual e domínio registrado", usando exclusivamente infraestrutura já existente.
+
+### `domains/{hostnameNormalizado}` — novo, registro hostname → orgId
+
+```
+domains/{hostnameNormalizado}   — doc ID = hostname em minúsculas, sem protocolo/porta/path
+  orgId       — referência a organizations/{orgId}
+  tipo        — "primario" | "alternativo"
+  status      — "verificado" (único valor usado nesta fase — sem verificação de DNS automática)
+  criadoEm, criadoPor, atualizadoEm
+```
+
+Único escritor: `setOrganizationDomains({orgId, dominioPrincipal, dominiosAlternativos})` (Cloud Function, `functions/lib/domains.js`), gate `requirePlatformAdministrator`. Garante unicidade de verdade (um hostname nunca pertence a duas organizações — rejeita com `already-exists` se já registrado para outro `orgId`), espelha `dominioPrincipal` em `organizations/{orgId}.dominio` (campo já existente desde antes desta fase, continua sendo o que `organizations.html`/`admin_master_associacoes.html` exibem), remove do Firestore os domínios alternativos que saíram da lista num salvamento seguinte, audita em `systemLogs` (`org_dominio_atualizado`). Leitura pública (`allow get: if true` em `firestore.rules`) — é um índice hostname→orgId sem dado sensível, precisa resolver antes de qualquer login; `list` restrito a `isPlatformStaff()`; escrita direta do cliente sempre negada.
+
+Gerido pela Central de Configuração → Geral (Portal Associativo, `admin/organization-detail.html`): campo "Domínio principal" + lista de "Domínios adicionais" (adicionar/remover), chamando a callable ao clicar Salvar — mesma auditoria por categoria da Fase 3.4.
+
+### `organizations/{orgId}/public/branding` — novo, projeção pública e curada
+
+A Fase 3.4 adicionou a `organizations/{orgId}` campos que não podem ser públicos (`observações` internas, `billingConfig`, `integrations`) — e a regra de leitura do documento (`allow get` exige login + mesma organização) corretamente reflete isso. Só que branding precisa aparecer pra visitante anônimo, antes de qualquer login. Em vez de abrir o documento inteiro (vazaria os campos da 3.4), uma subcoleção curada — mesmo padrão já usado em `users/{uid}/finance/summary`:
+
+```
+organizations/{orgId}/public/branding
+  nome, nomeCurto, logoUrl, faviconUrl, corPrimaria, corSecundaria,
+  modules, billingProvider, updatedAt
+```
+
+Mantida por trigger `onOrganizationWritten` (`functions/lib/organizationPublicSync.js` + export em `functions/index.js`, `onWrite` em `organizations/{orgId}`) — cobre tanto a Central de Configuração quanto qualquer edição legada em `admin_master_associacoes.html`, sem depender de cada tela lembrar de sincronizar. Leitura pública (`allow get: if true`), `list` sempre bloqueado (evita enumeração), escrita direta do cliente sempre negada — só o trigger escreve.
+
+### Consumo — `shared/core/tenant/branding.js` (Portal Associativo) + `firebase.js`
+
+`branding.js` espelha `modules.js` (mesmo padrão de cache em `sessionStorage`, 10 min): `getOrgBranding()` lê `organizations/{orgId}/public/branding`; `applyBranding()` aplica favicon (injeta/atualiza `<link rel="icon">`), `--brand`/`--brand-dark` (CSS custom properties, `corPrimaria`/`corSecundaria`) e `[data-tenant-name]`/`[data-tenant-logo]` (marcadores adicionados na navbar de `index.html`/`events.html`/`classificados.html`/`gallery.html`/`partners.html`/`board.html`/`sobre.html`) — só sobrescreve o que o branding realmente tem; campo ausente = o HTML/CSS estático de cada página continua valendo (fallback automático por construção, nunca quebra a página). `firebase.js` chama `applyBranding()` automaticamente ao ser importado, mesmo padrão de efeito colateral automático já usado por `_initNavbarUser` (deliberadamente fora do núcleo compartilhado — ver `shared/README.md`, "O que NUNCA vai para o núcleo").
+
+### `getTenant()` — `domain` novo, resolução por hostname ainda não
+
+`shared/core/tenant/tenant-context.js`'s `getTenant()` agora inclui `domain: location.hostname` no objeto resolvido (síncrono, sem leitura de rede). O corpo continua confiando em `window.__TENANT_CONFIG__.orgId` (`tenant.config.js`) — decisão deliberada: hoje cada deployment (GitHub Pages, CNAME único por repositório) já serve uma única organização, então uma consulta a `domains/{hostname}` no boot de toda página pública adicionaria latência e um novo modo de falha sem ganho observável. `domains/{hostname}` já existe como registro de governança; passa a ser o que `getTenant()` de fato consulta quando a hospedagem passar a suportar múltiplos domínios por deployment (ver `docs/SAAS_MULTITENANT.md`, gap G4 — decisão de infra ainda não tomada, fora de escopo desta fase).
+
+### Fora de escopo desta fase (documentado, não implementado)
+
+- Resolução hostname→orgId via Firestore no boot de cada página — depende de G4.
+- HTTPS para múltiplos domínios — o único domínio real já tem TLS via GitHub Pages/Let's Encrypt; TLS de um segundo domínio depende da mesma decisão de hospedagem de G4.
+- Verificação de propriedade de DNS automática — `status` de `domains` fica fixo em `"verificado"` nesta fase.
+- White Label completo, editor de tema, múltiplos layouts.
 
 ---
 

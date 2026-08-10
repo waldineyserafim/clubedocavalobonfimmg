@@ -60,6 +60,9 @@ async function t(description, fn) {
     await setDoc(doc(db, 'platformAdmins/rt_platform_operator'), { role: 'operator', ativo: true, nome: 'Operator' });
 
     await setDoc(doc(db, 'provisioningRuns/rt_run_1'), { orgId: 'rt_org_a', status: 'completed', requestedBy: 'rt_platform_owner' });
+
+    await setDoc(doc(db, 'domains/rt-clube-a.com.br'), { orgId: 'rt_org_a', tipo: 'primario', status: 'verificado' });
+    await setDoc(doc(db, 'organizations/rt_org_a/public/branding'), { nome: 'Org A', corPrimaria: '#111279' });
   });
 
   const ctxFor = (uid) => testEnv.authenticatedContext(uid).firestore();
@@ -180,6 +183,43 @@ async function t(description, fn) {
     const db = ctxFor('rt_platform_operator');
     await assertSucceeds(getDoc(doc(db, 'systemConfig/global')));
     await assertFails(setDoc(doc(db, 'systemConfig/global'), { nomePlataforma: 'X' }, { merge: true }));
+  });
+
+  console.log('\nrules.test.js — domains/{hostname} + organizations/{orgId}/public/branding (Fase 3.5)');
+
+  await t('organizations/{orgId} completo: leitura anônima continua BLOQUEADA — a lacuna que a projeção pública resolve não pode ser reaberta por engano', async () => {
+    const db = anon();
+    await assertFails(getDoc(doc(db, 'organizations/rt_org_a')));
+  });
+
+  await t('domains: leitura (get) é pública, mesmo sem autenticação — precisa resolver antes de qualquer login', async () => {
+    const db = anon();
+    await assertSucceeds(getDoc(doc(db, 'domains/rt-clube-a.com.br')));
+  });
+
+  await t('domains: list é restrito a Platform Staff', async () => {
+    await assertFails(getDocs(collection(anon(), 'domains')));
+    await assertFails(getDocs(collection(ctxFor('rt_master_a'), 'domains')));
+    await assertSucceeds(getDocs(collection(ctxFor('rt_platform_operator'), 'domains')));
+  });
+
+  await t('domains: escrita direta do cliente é SEMPRE bloqueada, mesmo pra Platform Owner — só setOrganizationDomains (Cloud Function)', async () => {
+    const db = ctxFor('rt_platform_owner');
+    await assertFails(setDoc(doc(db, 'domains/rt-outro.com.br'), { orgId: 'rt_org_a', tipo: 'primario', status: 'verificado' }));
+  });
+
+  await t('organizations/{orgId}/public/branding: leitura (get) é pública, mesmo sem autenticação', async () => {
+    const db = anon();
+    await assertSucceeds(getDoc(doc(db, 'organizations/rt_org_a/public/branding')));
+  });
+
+  await t('organizations/{orgId}/public/branding: list é sempre bloqueado, até pra Platform Staff — evita enumeração', async () => {
+    await assertFails(getDocs(collection(ctxFor('rt_platform_owner'), 'organizations/rt_org_a/public')));
+  });
+
+  await t('organizations/{orgId}/public/branding: escrita direta do cliente é SEMPRE bloqueada, mesmo pra Platform Owner — só o trigger onOrganizationWritten', async () => {
+    const db = ctxFor('rt_platform_owner');
+    await assertFails(setDoc(doc(db, 'organizations/rt_org_a/public/branding'), { nome: 'Tentativa direta' }, { merge: true }));
   });
 
   console.log(`\n${'-'.repeat(60)}`);

@@ -523,6 +523,33 @@ service cloud.firestore {
       // resto da plataforma. Confirmado: nenhuma tela chama deleteDoc aqui.
     }
 
+    // Fase 3.5: projeção pública e curada de organizations/{orgId} — só os
+    // campos seguros de branding (nome, logo, favicon, cores, módulos,
+    // billingProvider), nunca observações internas/billingConfig/integrations
+    // que o documento pai carrega desde a Fase 3.4. Precisa ser lida por
+    // visitante anônimo (branding aparece antes de qualquer login) — o
+    // documento pai continua exigindo login+mesma org (ver acima), então
+    // esta é a única forma seed seguro de expor branding publicamente sem
+    // reabrir o documento inteiro. Só a Cloud Function de sincronização
+    // (trigger onWrite em organizations/{orgId}) escreve aqui.
+    match /organizations/{orgId}/public/{docId} {
+      allow get: if true;
+      allow list: if false; // evita enumeração — leitura é sempre por ID conhecido
+      allow write: if false;
+    }
+
+    // Fase 3.5: índice hostname → orgId, com unicidade garantida na Cloud
+    // Function (setOrganizationDomains). Leitura pública — é só um roteador,
+    // sem dado sensível (mesmo espírito de organizations/{orgId}/public/*
+    // acima). Escrita só via Cloud Function (Admin SDK), pra garantir que a
+    // checagem de unicidade entre organizações nunca seja contornável por um
+    // write direto do cliente.
+    match /domains/{hostname} {
+      allow get: if true;
+      allow list: if isPlatformStaff();
+      allow write: if false;
+    }
+
     match /systemPlans/{planId} {
       allow read: if isLoggedIn();
       allow write: if isPlatformAdministrator();
