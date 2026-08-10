@@ -10,14 +10,14 @@
 // real do Firebase e o orgId. Ver tenant.config.js e o contrato completo em
 // shared/README.md (repositório portal-associativo).
 
-import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.5";
-import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.5";
-import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.5";
-import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.5";
-import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.5";
-import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.5";
-import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.5";
-import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.5";
+import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.6";
+import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.6";
+import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.6";
+import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.6";
+import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.6";
+import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.6";
+import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.6";
+import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.6";
 
 import {
   createUserWithEmailAndPassword,
