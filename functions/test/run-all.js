@@ -31,6 +31,7 @@ const TEST_FILES = [
   'jobs-isolation.test.js',
   'auction-isolation.test.js',
   'fase36-multitenant-validation.test.js',
+  'auth-backup.test.js',
 ];
 
 let passed = 0;

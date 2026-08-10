@@ -11,6 +11,7 @@ const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpe
 const { createProvisioningService } = require('./lib/provisioning');
 const { createDomainsService } = require('./lib/domains');
 const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
+const { runAuthBackup } = require('./lib/authBackup');
 
 const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
@@ -133,6 +134,17 @@ async function writeOrgAuditLog(action, details, context, orgId) {
 async function getDefaultProvider() {
   return getBillingProvider({ org: null, getSecret, defaultSecretName: ASAAS_SECRET });
 }
+
+// Fase 3.6, Etapa 11 do Deploy Controlado — backup semanal do Firebase Auth
+// (ver lib/authBackup.js). Domingo de madrugada: fora do horário de maior
+// uso, mesmo raciocínio das outras rotinas agendadas deste arquivo.
+exports.backupAuthUsers = functions.pubsub.schedule('0 3 * * 0')
+  .timeZone('America/Sao_Paulo')
+  .onRun(async () => {
+    const bucket = admin.storage().bucket();
+    const { count, path } = await runAuthBackup({ auth: admin.auth(), bucket });
+    console.log(`backupAuthUsers: ${count} usuário(s) exportado(s) para ${path}`);
+  });
 
 // Função agendada para rodar a cada 10 minutos (para teste)
 exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
