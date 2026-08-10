@@ -378,11 +378,11 @@ test.describe('DOM Integrity — admin_master_configuracoes.html', () => {
     expect(hasId(html, 'cfgEmail2')).toBe(true);
   });
 
-  test('Tem ações globais (Seed, Migração, Cache)', () => {
+  test('Tem ação global de Cache; botões de Seed/Migração removidos (Fase 3.6 — chamavam Cloud Functions inexistentes)', () => {
     const html = readPage('admin_master_configuracoes.html');
-    expect(hasId(html, 'btnSeedData')).toBe(true);
-    expect(hasId(html, 'btnMigrar')).toBe(true);
     expect(hasId(html, 'btnLimparCache')).toBe(true);
+    expect(hasId(html, 'btnSeedData')).toBe(false);
+    expect(hasId(html, 'btnMigrar')).toBe(false);
   });
 });
 

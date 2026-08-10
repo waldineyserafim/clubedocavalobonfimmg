@@ -63,6 +63,9 @@ async function t(description, fn) {
 
     await setDoc(doc(db, 'domains/rt-clube-a.com.br'), { orgId: 'rt_org_a', tipo: 'primario', status: 'verificado' });
     await setDoc(doc(db, 'organizations/rt_org_a/public/branding'), { nome: 'Org A', corPrimaria: '#111279' });
+
+    await setDoc(doc(db, 'eventRegistrations/rt_reg_a'), { orgId: 'rt_org_a', eventoId: 'rt_evento_a', nome: 'Fulano', cpf: '11111111111', token: 'segredo-a' });
+    await setDoc(doc(db, 'eventRegistrations/rt_reg_b'), { orgId: 'rt_org_b', eventoId: 'rt_evento_b', nome: 'Beltrano', cpf: '22222222222', token: 'segredo-b' });
   });
 
   const ctxFor = (uid) => testEnv.authenticatedContext(uid).firestore();
@@ -220,6 +223,59 @@ async function t(description, fn) {
   await t('organizations/{orgId}/public/branding: escrita direta do cliente é SEMPRE bloqueada, mesmo pra Platform Owner — só o trigger onOrganizationWritten', async () => {
     const db = ctxFor('rt_platform_owner');
     await assertFails(setDoc(doc(db, 'organizations/rt_org_a/public/branding'), { nome: 'Tentativa direta' }, { merge: true }));
+  });
+
+  console.log('\nrules.test.js — users/{userId} create (PATCH CRÍTICO Fase 3.6)');
+
+  await t('auto-cadastro: cria o próprio doc com role "associado" (fluxo real de signup.html) — PERMANECE FUNCIONANDO', async () => {
+    const db = ctxFor('rt_novo_associado');
+    await assertSucceeds(setDoc(doc(db, 'users/rt_novo_associado'), { role: 'associado', orgId: 'rt_org_a', nome: 'Novo Associado' }));
+  });
+
+  await t('auto-cadastro: cria o próprio doc com role "participanteLeilao" (fluxo real de leilão) — PERMANECE FUNCIONANDO', async () => {
+    const db = ctxFor('rt_novo_participante');
+    await assertSucceeds(setDoc(doc(db, 'users/rt_novo_participante'), { role: 'participanteLeilao', orgId: 'rt_org_a', nome: 'Novo Participante' }));
+  });
+
+  await t('CRÍTICO: auto-cadastro NÃO PODE se autopromover a "master" na criação — vulnerabilidade fechada', async () => {
+    const db = ctxFor('rt_atacante_master');
+    await assertFails(setDoc(doc(db, 'users/rt_atacante_master'), { role: 'master', orgId: 'rt_org_a', nome: 'Atacante' }));
+  });
+
+  await t('CRÍTICO: auto-cadastro NÃO PODE se autopromover a "admin" na criação', async () => {
+    const db = ctxFor('rt_atacante_admin');
+    await assertFails(setDoc(doc(db, 'users/rt_atacante_admin'), { role: 'admin', orgId: 'rt_org_a', nome: 'Atacante' }));
+  });
+
+  await t('auto-cadastro NÃO PODE inventar um orgId de organização inexistente', async () => {
+    const db = ctxFor('rt_atacante_org_falsa');
+    await assertFails(setDoc(doc(db, 'users/rt_atacante_org_falsa'), { role: 'associado', orgId: 'rt_org_nao_existe', nome: 'Atacante' }));
+  });
+
+  console.log('\nrules.test.js — eventRegistrations/{regId} (PATCH CRÍTICO Fase 3.6)');
+
+  await t('get (1 doc por ID) continua público, mesmo sem login — fluxo real de event_comprovante.html PERMANECE FUNCIONANDO', async () => {
+    await assertSucceeds(getDoc(doc(anon(), 'eventRegistrations/rt_reg_a')));
+  });
+
+  await t('CRÍTICO: list (dump da coleção) sem login é BLOQUEADO — vulnerabilidade de vazamento de PII fechada', async () => {
+    await assertFails(getDocs(collection(anon(), 'eventRegistrations')));
+  });
+
+  await t('CRÍTICO: list sem login continua bloqueado mesmo filtrando por orgId no client (o filtro é só cosmético sem a regra)', async () => {
+    await assertFails(getDocs(query(collection(anon(), 'eventRegistrations'), where('orgId', '==', 'rt_org_a'))));
+  });
+
+  await t('admin da própria org PODE listar as inscrições da própria org — fluxo real de admin_inscricoes.html PERMANECE FUNCIONANDO', async () => {
+    const db = ctxFor('rt_admin_a');
+    const snap = await assertSucceeds(getDocs(query(collection(db, 'eventRegistrations'), where('orgId', '==', 'rt_org_a'))));
+    assert.strictEqual(snap.size, 1);
+    assert.strictEqual(snap.docs[0].id, 'rt_reg_a');
+  });
+
+  await t('admin de outra organização NÃO PODE listar inscrições de rt_org_a', async () => {
+    const db = ctxFor('rt_admin_b');
+    await assertFails(getDocs(query(collection(db, 'eventRegistrations'), where('orgId', '==', 'rt_org_a'))));
   });
 
   console.log(`\n${'-'.repeat(60)}`);

@@ -81,6 +81,26 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     await regRef.delete();
   });
 
+  await t('confirmEventCheckin: associado comum (Fase 3.6 — não é mais staff-only por acidente) é bloqueado mesmo na própria org', async () => {
+    const regRef = await db.collection('eventRegistrations').add({
+      orgId: 'ct_org_a', token: 'tok_org_a_associado_test', status: 'ativo', nome: 'Fulano A', eventoTitulo: 'Evento A',
+    });
+    await assertRejectsWithCode(
+      () => fns.confirmEventCheckin.run({ token: 'tok_org_a_associado_test' }, ctx('ct_associado_a')),
+      'permission-denied'
+    );
+    await regRef.delete();
+  });
+
+  await t('confirmEventCheckin: admin da própria org CONTINUA conseguindo confirmar — fluxo real permanece funcionando', async () => {
+    const regRef = await db.collection('eventRegistrations').add({
+      orgId: 'ct_org_a', token: 'tok_org_a_admin_test', status: 'ativo', nome: 'Fulano A', eventoTitulo: 'Evento A',
+    });
+    const result = await fns.confirmEventCheckin.run({ token: 'tok_org_a_admin_test' }, ctx('ct_admin_a'));
+    assert.strictEqual(result.result, 'confirmed');
+    await regRef.delete();
+  });
+
   // Confirma que o uid "vítima" da org B não foi tocado por nenhuma das tentativas acima.
   await t('sanidade: usuário da org B permanece intocado após todas as tentativas cross-tenant', async () => {
     const snap = await db.collection('users').doc('ct_user_b').get();

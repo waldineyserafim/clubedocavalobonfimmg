@@ -306,6 +306,14 @@
         { "fieldPath": "details.orgId", "order": "ASCENDING"  },
         { "fieldPath": "timestamp",     "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "financeInvoices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dueDate", "order": "ASCENDING" },
+        { "fieldPath": "status",  "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -335,7 +335,7 @@
       const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${compressed.name}`;
       const r = sref(storage, path);
       await new Promise((resolve, reject) => {
-        const task = uploadBytesResumable(r, compressed, { contentType: compressed.type || "image/jpeg" });
+        const task = uploadBytesResumable(r, compressed, { contentType: compressed.type || "image/jpeg", customMetadata: { uid: auth.currentUser?.uid || "" } });
         task.on("state_changed", null, reject, resolve);
       });
       urls.push(await getDownloadURL(r));

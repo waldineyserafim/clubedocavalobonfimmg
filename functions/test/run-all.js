@@ -3,8 +3,6 @@
 // ambiente (ver npm script "test" no package.json) e os emuladores já rodando
 // (`firebase emulators:start --only firestore,auth`). Nunca toca produção.
 
-process.env.FUNCTIONS_TEST_EXPORTS = '1';
-
 const path = require('path');
 const admin = require('firebase-admin');
 
@@ -32,6 +30,7 @@ const TEST_FILES = [
   'callable-cross-tenant.test.js',
   'jobs-isolation.test.js',
   'auction-isolation.test.js',
+  'fase36-multitenant-validation.test.js',
 ];
 
 let passed = 0;

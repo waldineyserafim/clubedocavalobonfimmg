@@ -13,6 +13,61 @@ module.exports = async function run({ db, authInstance, fns, t }) {
   const platformAuth = createPlatformAuthorizationHelpers({ platformResolver });
   const ctx = (uid) => ({ auth: uid ? { uid } : null });
 
+  /* =======================================================================
+     migratePlatformAdmins — bootstrap de uso único. PRECISA rodar ANTES de
+     qualquer seed de platformAdmins/{uid} nesta suíte: a partir da Fase 3.6
+     (patch de segurança), a function só aceita chamada enquanto a coleção
+     platformAdmins estiver genuinamente vazia — fecha de vez a superfície
+     que, encadeada com o auto-cadastro corrigido em firestore.rules,
+     permitia escalar de anônimo até Platform Owner.
+     ======================================================================= */
+
+  await seedOrganization(db, { id: 'plat_migra_org', nome: 'Org da Migração' });
+  await seedUser(db, authInstance, { uid: 'plat_legado_master', cpf: '61111111199', orgId: 'plat_migra_org', role: 'Master' });
+
+  await t('migratePlatformAdmins: caller sem doc em users/ (nem role master nenhum) é rejeitado', async () => {
+    await assertRejectsWithCode(
+      () => fns.migratePlatformAdmins.run({}, ctx('plat_uid_sem_doc_nenhum')),
+      'permission-denied'
+    );
+  });
+
+  await t('migratePlatformAdmins: migra conta master legada pra platformAdmins com role owner', async () => {
+    const result = await fns.migratePlatformAdmins.run({}, ctx('plat_legado_master'));
+    const migrated = result.results.find((r) => r.uid === 'plat_legado_master');
+    assert.strictEqual(migrated.action, 'migrado');
+
+    const platDoc = await db.collection('platformAdmins').doc('plat_legado_master').get();
+    assert.strictEqual(platDoc.data().role, 'owner');
+
+    const oldDoc = await db.collection('users').doc('plat_legado_master').get();
+    assert.strictEqual(oldDoc.data().role, 'migrado_para_platform_admins', 'campo role antigo deveria ser neutralizado, não apagado');
+    assert.ok(oldDoc.exists, 'doc antigo não deveria ser apagado (não-destrutivo)');
+  });
+
+  await t('CRÍTICO: depois do primeiro bootstrap, NENHUMA chamada é mais aceita — nem de outra conta master legítima e ainda não migrada', async () => {
+    // plat_legado_master_2 só é criada AGORA, depois do 1º bootstrap —
+    // simula uma conta master legada que "apareceu depois" (ex.: uma
+    // migração de dados incompleta). Antes do patch de segurança isso teria
+    // sido migrado com sucesso (era o cenário de "rodar de novo pra varrer
+    // quem ficou de fora"). Agora platformAdmins já não está mais vazia (o
+    // teste anterior colocou plat_legado_master lá), então a function se
+    // recusa a rodar de novo, ponto final.
+    await seedUser(db, authInstance, { uid: 'plat_legado_master_2', cpf: '61111111198', orgId: 'plat_migra_org', role: 'Master' });
+    await assertRejectsWithCode(
+      () => fns.migratePlatformAdmins.run({}, ctx('plat_legado_master_2')),
+      'failed-precondition'
+    );
+    const platDoc = await db.collection('platformAdmins').doc('plat_legado_master_2').get();
+    assert.strictEqual(platDoc.exists, false, 'conta não migrada deveria permanecer não migrada — bootstrap fechado de vez');
+  });
+
+  /* =======================================================================
+     A partir daqui, platformAdmins já não está mais vazia (de propósito) —
+     o resto da suíte usa contas seedadas diretamente, nunca mais passando
+     pelo mecanismo de bootstrap.
+     ======================================================================= */
+
   await seedPlatformAdmin(db, authInstance, { uid: 'plat_owner_1', email: 'plat_owner_1@teste.local', role: 'owner' });
   await seedPlatformAdmin(db, authInstance, { uid: 'plat_owner_2', email: 'plat_owner_2@teste.local', role: 'owner' });
   await seedPlatformAdmin(db, authInstance, { uid: 'plat_admin_1', email: 'plat_admin_1@teste.local', role: 'administrator' });
@@ -213,64 +268,5 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     await fns.setPlatformAdminRole.run({ uid: 'plat_owner_2', newRole: 'administrator' }, ctx('plat_owner_1'));
     const doc = await db.collection('platformAdmins').doc('plat_owner_2').get();
     assert.strictEqual(doc.data().role, 'administrator');
-  });
-
-  /* =======================================================================
-     migratePlatformAdmins — bootstrap de uso único
-     ======================================================================= */
-
-  await seedOrganization(db, { id: 'plat_migra_org', nome: 'Org da Migração' });
-  await seedUser(db, authInstance, { uid: 'plat_legado_master', cpf: '61111111199', orgId: 'plat_migra_org', role: 'Master' });
-
-  await t('migratePlatformAdmins: só quem tem role master (mecanismo antigo) pode chamar', async () => {
-    await assertRejectsWithCode(
-      () => fns.migratePlatformAdmins.run({}, ctx('plat_admin_1')), // admin de plataforma, não "master" de organização
-      'permission-denied'
-    );
-  });
-
-  await t('migratePlatformAdmins: migra conta master legada pra platformAdmins com role owner', async () => {
-    const result = await fns.migratePlatformAdmins.run({}, ctx('plat_legado_master'));
-    const migrated = result.results.find((r) => r.uid === 'plat_legado_master');
-    assert.strictEqual(migrated.action, 'migrado');
-
-    const platDoc = await db.collection('platformAdmins').doc('plat_legado_master').get();
-    assert.strictEqual(platDoc.data().role, 'owner');
-
-    const oldDoc = await db.collection('users').doc('plat_legado_master').get();
-    assert.strictEqual(oldDoc.data().role, 'migrado_para_platform_admins', 'campo role antigo deveria ser neutralizado, não apagado');
-    assert.ok(oldDoc.exists, 'doc antigo não deveria ser apagado (não-destrutivo)');
-  });
-
-  await t('migratePlatformAdmins: idempotente — rodar de novo não retoca quem já foi migrado, sem duplicar', async () => {
-    // Depois da 1ª migração, o role de plat_legado_master foi neutralizado
-    // pra "migrado_para_platform_admins" — mapRole() não resolve mais isso
-    // como "master", então o doc nem entra no filtro de varredura da 2ª
-    // chamada (idempotência por exclusão, mais barata que checar existência
-    // em platformAdmins pra cada doc). O branch "ja_migrado" no código é
-    // defesa em profundidade pra um cenário que não deveria acontecer no
-    // fluxo normal (doc com platformAdmins existente mas role ainda "master"
-    // em users/) — não é o caminho exercitado aqui.
-    const platDocAntes = await db.collection('platformAdmins').doc('plat_legado_master').get();
-
-    await seedUser(db, authInstance, { uid: 'plat_legado_master_2', cpf: '61111111198', orgId: 'plat_migra_org', role: 'Master' });
-    const result = await fns.migratePlatformAdmins.run({}, ctx('plat_legado_master_2'));
-
-    const retocado = result.results.find((r) => r.uid === 'plat_legado_master');
-    assert.strictEqual(retocado, undefined, 'conta já migrada não deveria nem aparecer numa nova varredura');
-
-    const novoMigrado = result.results.find((r) => r.uid === 'plat_legado_master_2');
-    assert.strictEqual(novoMigrado.action, 'migrado');
-
-    const platDocDepois = await db.collection('platformAdmins').doc('plat_legado_master').get();
-    assert.deepStrictEqual(platDocDepois.data().createdAt, platDocAntes.data().createdAt, 'doc já migrado não deveria ter sido sobrescrito');
-  });
-
-  await t('migratePlatformAdmins: depois de migrada, a própria conta não passa mais pela guarda de bootstrap (role neutralizado)', async () => {
-    await assertRejectsWithCode(
-      () => fns.migratePlatformAdmins.run({}, ctx('plat_legado_master')),
-      'permission-denied',
-      'a guarda de bootstrap não deveria mais aceitar essa conta depois que o role dela foi neutralizado — senão o bootstrap vira uma porta permanentemente aberta'
-    );
   });
 };

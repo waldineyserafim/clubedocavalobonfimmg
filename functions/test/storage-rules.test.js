@@ -109,6 +109,43 @@ const IMAGE_META = { contentType: 'image/png' };
     await assertSucceeds(getBytes(ref(anonStorage(), 'tenants/sr_org_a/branding/logo.png')));
   });
 
+  await t('CORREÇÃO FUNCIONAL (Fase 3.6): Platform Administrator PODE enviar branding — antes era estruturalmente impossível (só isOwnOrg, e plataforma nunca tem orgId)', async () => {
+    await assertSucceeds(uploadBytes(
+      ref(storageFor('sr_platform_admin'), 'tenants/sr_org_a/branding/logo.png'),
+      FAKE_IMAGE,
+      { ...IMAGE_META, customMetadata: { uid: 'sr_platform_admin' } }
+    ));
+  });
+
+  console.log('\nstorage-rules.test.js — uploads/{category}/{arquivo} (Fase 3.6, patch de segurança)');
+
+  const withUid = (uid) => ({ ...IMAGE_META, customMetadata: { uid } });
+
+  await t('usuário logado PODE criar um arquivo novo em uploads/products, se o metadata bater com o próprio uid', async () => {
+    await assertSucceeds(uploadBytes(ref(storageFor('sr_user_a'), 'uploads/products/novo.png'), FAKE_IMAGE, withUid('sr_user_a')));
+  });
+
+  await t('upload é rejeitado se o metadata.uid não bater com quem está enviando (auto-declaração inconsistente)', async () => {
+    await assertFails(uploadBytes(ref(storageFor('sr_user_a'), 'uploads/products/outro.png'), FAKE_IMAGE, withUid('sr_user_b')));
+  });
+
+  await t('CRÍTICO: usuário B NÃO PODE sobrescrever um arquivo já existente enviado pelo usuário A — a lacuna encontrada nesta fase', async () => {
+    await assertSucceeds(uploadBytes(ref(storageFor('sr_user_a'), 'uploads/products/de_a.png'), FAKE_IMAGE, withUid('sr_user_a')));
+    await assertFails(uploadBytes(ref(storageFor('sr_user_b'), 'uploads/products/de_a.png'), FAKE_IMAGE, withUid('sr_user_b')));
+  });
+
+  await t('o próprio dono PODE sobrescrever/atualizar o arquivo que ele mesmo enviou — fluxo real permanece funcionando', async () => {
+    await assertSucceeds(uploadBytes(ref(storageFor('sr_user_a'), 'uploads/products/de_a.png'), FAKE_IMAGE, withUid('sr_user_a')));
+  });
+
+  await t('categoria fora da lista permitida (products/services/classifieds) continua bloqueada', async () => {
+    await assertFails(uploadBytes(ref(storageFor('sr_user_a'), 'uploads/outracoisa/teste.png'), FAKE_IMAGE, withUid('sr_user_a')));
+  });
+
+  await t('leitura de uploads/* continua pública', async () => {
+    await assertSucceeds(getBytes(ref(anonStorage(), 'uploads/products/de_a.png')));
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed (${passed + failed} total)`);
 

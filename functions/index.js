@@ -84,6 +84,43 @@ async function getProviderForOrg(orgId) {
   return getBillingProvider({ org, getSecret, defaultSecretName: ASAAS_SECRET });
 }
 
+// Fase 3.6 (patch de segurança): confirma que um asaasPaymentId recebido do
+// cliente pertence de verdade ao uid já validado (assertCallerCanManageTarget),
+// antes de deixar qualquer callable agir sobre ele. Sem isso, um admin da
+// organização A podia consultar/cancelar a cobrança de um uid de outra
+// organização só adivinhando/reaproveitando um asaasPaymentId — hoje todas as
+// organizações dividem a mesma conta Asaas (ver CLAUDE.md), então o ID por si
+// só não prova posse.
+async function assertPaymentBelongsToUid(uid, asaasPaymentId) {
+  const invSnap = await db.collection('users').doc(uid).collection('financeInvoices')
+    .where('asaasPaymentId', '==', asaasPaymentId).limit(1).get();
+  if (invSnap.empty) {
+    throw new functions.https.HttpsError('permission-denied', 'Esta cobrança não pertence a este associado.');
+  }
+  return invSnap.docs[0];
+}
+
+// Fase 3.6 (hardening): auditoria server-side de mutações de organização de
+// alto impacto (exclusão, redefinição de senha, cobranças) — mesmo
+// schema/coleção que o logAction() client-side já usa (shared/core/tenant/
+// audit.js), só que gravado do próprio servidor pra garantir que ações
+// irreversíveis/financeiras fiquem registradas mesmo que o cliente nunca
+// chame logAction() por conta própria.
+async function writeOrgAuditLog(action, details, context, orgId) {
+  try {
+    await db.collection('systemLogs').add({
+      userId: context.auth?.uid || null,
+      userEmail: context.auth?.token?.email || null,
+      orgId,
+      action,
+      details: details || {},
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn('writeOrgAuditLog: falha ao gravar auditoria (ignorado):', e.message);
+  }
+}
+
 /**
  * Provider "default" da plataforma — usado quando ainda não se sabe a
  * organização (webhooks do Asaas chegam pra 1 conta/token só, antes de saber
@@ -193,30 +230,33 @@ exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
         reportsByOrg.push({ org, expiring5Days, dueToday, overdue5to10Days, overdueMore10Days });
       }
 
-      const emailHtml = generateEmailHtml(reportsByOrg);
-
       const transporter = nodemailer.createTransport({
         service: 'gmail',
         auth: { user: emailUser, pass: emailPassword }
       });
 
-      // Destinatários: cada organização pode declarar `notificationEmails` no próprio
-      // documento (organizations/{orgId}); sem isso, cai no fallback global de sempre —
-      // 100% retrocompatível com o CCBMG, que ainda não tem esse campo.
-      const recipientSets = new Set();
-      for (const { org } of reportsByOrg) {
+      // Patch de segurança (Fase 3.6): um e-mail POR ORGANIZAÇÃO, só pros
+      // destinatários daquela organização — antes desta correção, o relatório
+      // unia os e-mails de TODAS as organizações e mandava um e-mail só com
+      // os blocos de TODAS elas pra TODOS os destinatários (vazamento
+      // cross-tenant de nome/CPF/telefone/vencimento de inadimplência,
+      // dormant só porque havia 1 organização real até agora). Cada
+      // organização pode declarar `notificationEmails` no próprio documento
+      // (organizations/{orgId}); sem isso, cai no fallback global de sempre
+      // — 100% retrocompatível com o CCBMG, que ainda não tem esse campo.
+      for (const report of reportsByOrg) {
+        const { org } = report;
         const emails = Array.isArray(org.notificationEmails) && org.notificationEmails.length
           ? org.notificationEmails
           : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
-        emails.forEach(e => recipientSets.add(e));
-      }
 
-      await transporter.sendMail({
-        from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
-        to: Array.from(recipientSets).join(', '),
-        subject: `CCBMG - Relatório de Associados - ${formatDateBR(now())}`,
-        html: emailHtml
-      });
+        await transporter.sendMail({
+          from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
+          to: emails.join(', '),
+          subject: `${org.nome || org.id} - Relatório de Associados - ${formatDateBR(now())}`,
+          html: generateEmailHtml([report]),
+        });
+      }
 
       console.log('Relatório diário enviado com sucesso');
       return null;
@@ -642,11 +682,25 @@ exports.onNewAssociadoCriado = functions.firestore
         asaasSyncedAt:              admin.firestore.FieldValue.serverTimestamp(),
         asaasSubscriptionId:        subscriptionId || null,
         asaasSubscriptionSyncedAt:  admin.firestore.FieldValue.serverTimestamp(),
+        'asaasSync.lastSyncedAt':   admin.firestore.FieldValue.serverTimestamp(),
+        'asaasSync.lastSyncResult': 'ok',
+        'asaasSync.lastSyncError':  null,
       });
 
       console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} action=${action} subscriptionId=${subscriptionId}`);
     } catch (err) {
       console.error('onNewAssociadoCriado error:', uid, err.message);
+      // Patch (Fase 3.6): antes, uma falha aqui (Asaas fora do ar, chave
+      // expirada) deixava o associado criado sem asaasId/assinatura e SEM
+      // NENHUM sinal — só essa linha de console.error, que ninguém observa.
+      // Mesmo campo que onAssociadoAtualizado/syncOneAssociado já usam, pra
+      // não inventar mecanismo novo — auditCpfs/auditAsaasSync e a tela
+      // administrativa já sabem ler asaasSync.lastSyncResult.
+      await snap.ref.update({
+        'asaasSync.lastSyncedAt':   admin.firestore.FieldValue.serverTimestamp(),
+        'asaasSync.lastSyncResult': 'error',
+        'asaasSync.lastSyncError':  err.message,
+      }).catch((e) => console.error('onNewAssociadoCriado: falha ao gravar asaasSync.lastSyncError (ignorado):', uid, e.message));
     }
 
     return null;
@@ -1370,6 +1424,7 @@ exports.asaasCreatePayment = functions.https.onCall(async (data, context) => {
     externalReference: data.uid,
   });
 
+  await writeOrgAuditLog('cobranca_avulsa_criada', { uid: data.uid, asaasPaymentId: providerId, value }, context, caller.orgId);
   console.log(`asaasCreatePayment: uid=${data.uid} payment=${providerId} value=${value}`);
   return { asaasPaymentId: providerId, invoiceUrl: raw.invoiceUrl, dueDate: raw.dueDate };
 });
@@ -1384,21 +1439,23 @@ exports.asaasCancelPayment = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'asaasPaymentId é obrigatório.');
   }
 
+  // Patch de segurança (Fase 3.6): confirma posse ANTES de cancelar no
+  // provider — antes, qualquer asaasPaymentId de QUALQUER organização era
+  // aceito, porque todas dividem a mesma conta Asaas.
+  const invDoc = await assertPaymentBelongsToUid(data.uid, asaasPaymentId);
+
   const provider = await getProviderForOrg(caller.orgId);
   const { deleted } = await provider.cancelCharge(asaasPaymentId);
   if (!deleted) {
     throw new functions.https.HttpsError('internal', 'Falha ao cancelar cobrança no provider.');
   }
 
-  const invSnap = await db.collection('users').doc(data.uid).collection('financeInvoices')
-    .where('asaasPaymentId', '==', asaasPaymentId).limit(1).get();
-  if (!invSnap.empty) {
-    await invSnap.docs[0].ref.update({
-      status: 'cancelado',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-  }
+  await invDoc.ref.update({
+    status: 'cancelado',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 
+  await writeOrgAuditLog('cobranca_cancelada', { uid: data.uid, asaasPaymentId }, context, caller.orgId);
   console.log(`asaasCancelPayment: uid=${data.uid} payment=${asaasPaymentId} cancelado`);
   return { ok: true };
 });
@@ -1406,9 +1463,15 @@ exports.asaasCancelPayment = functions.https.onCall(async (data, context) => {
 // Callable: "Consultar cobrança" no painel — status ao vivo, somente leitura.
 exports.asaasGetPaymentStatus = functions.https.onCall(async (data, context) => {
   const caller = await auth.requireOrganizationAdmin(context);
+  await auth.assertCallerCanManageTarget(caller, data?.uid);
 
   const asaasPaymentId = data?.asaasPaymentId;
   if (!asaasPaymentId) throw new functions.https.HttpsError('invalid-argument', 'asaasPaymentId é obrigatório.');
+
+  // Patch de segurança (Fase 3.6): mesma checagem de posse de asaasCancelPayment
+  // — sem isso, um admin de qualquer organização podia consultar o status de
+  // uma cobrança de outra organização só sabendo o ID.
+  await assertPaymentBelongsToUid(data.uid, asaasPaymentId);
 
   const provider = await getProviderForOrg(caller.orgId);
   const payment = await provider.getCharge(asaasPaymentId);
@@ -1552,6 +1615,7 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
+  await writeOrgAuditLog('senha_redefinida_por_master', { uid: targetUid }, context, caller.orgId);
   console.log(`resetUserPassword: senha redefinida para uid=${targetUid} por master uid=${caller.uid}`);
   return { success: true };
 });
@@ -1711,6 +1775,7 @@ exports.deleteAssociado = functions.https.onCall(async (data, context) => {
     }
   }
 
+  await writeOrgAuditLog('associado_excluido', { uid: targetUid, nome: userData.nome || null, cpf: userData.cpf || null }, context, caller.orgId);
   console.log(`deleteAssociado: uid=${targetUid} excluído por master uid=${caller.uid}`);
   return { success: true };
 });
@@ -2414,6 +2479,21 @@ exports.migratePlatformAdmins = functions
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'Autenticação necessária.');
     }
+
+    // Patch de segurança (Fase 3.6): o gate abaixo (role=="master" plano, sem
+    // organizationResolver) é deliberadamente o mecanismo antigo — é o próprio
+    // motivo desta function existir. Mas usar SÓ esse gate deixaria a
+    // vulnerabilidade de auto-cadastro com role:"master" (já corrigida em
+    // firestore.rules) virar, encadeada com esta function, uma escalada até
+    // Platform Owner. Fecha a superfície de vez: só roda enquanto
+    // platformAdmins ainda não tiver NENHUM documento — depois do primeiro
+    // bootstrap real, este caminho nunca mais aceita chamada nenhuma, nem de
+    // uma conta master legítima.
+    const anyPlatformAdmin = await db.collection('platformAdmins').limit(1).get();
+    if (!anyPlatformAdmin.empty) {
+      throw new functions.https.HttpsError('failed-precondition', 'Bootstrap já foi executado — platformAdmins não está mais vazia. Use createPlatformAdmin (requer conta de plataforma existente) a partir de agora.');
+    }
+
     const callerSnap = await db.collection('users').doc(context.auth.uid).get();
     if (!callerSnap.exists || mapRole(callerSnap.data().role) !== 'master') {
       throw new functions.https.HttpsError('permission-denied', 'Requer uma conta com papel master (mecanismo antigo — só pra dar bootstrap neste mecanismo novo).');
@@ -2811,6 +2891,13 @@ exports.createEventRegistration = functions.https.onCall(async (data, _context) 
    ======================================================================= */
 exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
   const caller = await auth.requireOrganizationMember(context);
+  // Patch de segurança (Fase 3.6): o comentário acima sempre documentou a
+  // intenção (staff, não qualquer associado) mas o guard não aplicava
+  // isso — requireOrganizationMember sozinho aceita qualquer papel. Alinha
+  // o código ao que já estava escrito como intenção.
+  if (!['admin', 'master', 'operador', 'adminView'].includes(caller.role)) {
+    throw new functions.https.HttpsError('permission-denied', 'Requer perfil admin, master, operador ou adminView.');
+  }
 
   const { token } = data || {};
   if (!token)
@@ -2845,12 +2932,3 @@ exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
 
   return { result: 'confirmed', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
 });
-
-// ─── EXPORTS INTERNOS (para testes) ────────────────────────────────────────
-if (process.env.FUNCTIONS_TEST_EXPORTS) {
-  module.exports._internal = {
-    organizationResolver, auth, mapRole, getProviderForOrg, getDefaultProvider,
-    computeMembership, validateCPF, upsertInvoiceFromAsaasPayment, syncOneAssociado,
-    findOrCreateCustomerForUser, cancelOpenPayments, createImmediateChargeOnReactivation,
-  };
-}

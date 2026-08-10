@@ -1172,7 +1172,7 @@
       if (!asaasPaymentId) { alert("Este associado ainda não tem cobrança para consultar."); return; }
       btn.disabled = true;
       try{
-        const { data } = await callAsaasGetPaymentStatus({ asaasPaymentId });
+        const { data } = await callAsaasGetPaymentStatus({ uid, asaasPaymentId });
         alert(`Status no Asaas: ${data.status}\nValor: ${fmtBRL(data.value)}\nVencimento: ${fmtDateCell(data.dueDate)}`);
       }catch(e){ alert("Erro ao consultar cobrança: " + e.message); }
       finally{ btn.disabled = false; }

@@ -22,13 +22,36 @@ service firebase.storage {
       return isSignedIn() && callerOrgId() == orgId;
     }
 
+    // Fase 3.6 (patch de segurança) — mesmo padrão de platformAdminActive()/
+    // isPlatformAdministrator() de firestore.rules, do lado do Storage: lê
+    // platformAdmins/{uid} cross-service pra saber se quem está enviando é
+    // administrator/owner da plataforma (operator é só-leitura, não sobe
+    // branding).
+    function platformRole() {
+      return firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data.role;
+    }
+    function isPlatformAdministrator() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/platformAdmins/$(request.auth.uid)).data.ativo != false
+        && platformRole() in ['administrator', 'owner'];
+    }
+
     // ===== NOVO: caminho usado pelo seu frontend (uploads/*) =====
     // Ex.: uploads/products/..., uploads/services/..., uploads/classifieds/...
+    // Fase 3.6 (patch de segurança): antes, qualquer usuário autenticado
+    // podia sobrescrever/substituir a imagem de QUALQUER OUTRO usuário nesse
+    // caminho (zero checagem de dono). Como o path não carrega uid nenhum
+    // (ex.: uploads/products/{timestamp}_{nome}.jpg), a correção usa
+    // metadata customizado gravado no próprio upload: `resource` (estado já
+    // salvo) precisa bater com quem está gravando quando já existe algo
+    // nesse caminho — `resource == null` é o caso de upload novo, sempre
+    // permitido pra qualquer usuário logado, igual a hoje.
     match /uploads/{category}/{fileName} {
       allow read: if true; // leitura pública das imagens (ajuste se quiser)
       allow write: if isSignedIn() && isImage()
-        && (category == 'products' || category == 'services' || category == 'classifieds');
-      // write cobre create/update/delete
+        && (category == 'products' || category == 'services' || category == 'classifieds')
+        && (resource == null || resource.metadata.uid == request.auth.uid)
+        && request.resource.metadata.uid == request.auth.uid;
     }
 
     // ===== Caminhos por-usuário que você já tinha =====
@@ -65,9 +88,14 @@ service firebase.storage {
     // ===== Identidade visual da organização (Fase 3.4) — logo/favicon =====
     // Leitura pública pelo mesmo motivo do CMS: logo/favicon precisam
     // aparecer no site público da organização.
+    // Fase 3.6 (correção funcional): o único escritor real deste caminho é
+    // a equipe de plataforma via Central de Configuração
+    // (organization-detail.html) — que nunca tem users/{uid}.orgId, então
+    // isOwnOrg() sozinho tornava este upload estruturalmente impossível de
+    // funcionar. isPlatformAdministrator() cobre o caso real.
     match /tenants/{orgId}/branding/{fileName} {
       allow read: if true;
-      allow write: if isOwnOrg(orgId) && isImage();
+      allow write: if (isOwnOrg(orgId) || isPlatformAdministrator()) && isImage();
     }
 
     // ===== Bloqueia todo o resto =====

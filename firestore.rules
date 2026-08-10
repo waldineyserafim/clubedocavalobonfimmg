@@ -332,11 +332,21 @@ service cloud.firestore {
       allow list: if canReadOrg(resource.data.orgId);
 
       // Criação:
-      // - dono cria o próprio (signup)
+      // - dono cria o próprio (signup) — PATCH CRÍTICO (Fase 3.6): antes,
+      //   isSelf(userId) sozinho não validava nenhum campo do payload,
+      //   permitindo um auto-cadastro gravar role:"master"/orgId arbitrário
+      //   e assumir controle total de qualquer organização. Restrito ao
+      //   mínimo necessário para não quebrar os dois fluxos de auto-cadastro
+      //   reais (doSignupWithProfile/doSignupParticipanteLeilao, firebase.js)
+      //   — que sempre gravam role fixo e orgId de uma organização real.
       // - master/admin da própria org criam (Fase 3.2: plataforma NÃO cria
       //   usuário de organização nenhuma diretamente — isso é escrita
       //   operacional, fora do escopo de plataforma)
-      allow create: if isSelf(userId) || canOperateOrg(request.resource.data.orgId);
+      allow create: if (
+        isSelf(userId)
+        && request.resource.data.role in ["associado", "participanteLeilao"]
+        && exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId))
+      ) || canOperateOrg(request.resource.data.orgId);
 
       // Atualização:
       // - dono: tudo exceto campos sensíveis (já bloqueia troca de orgId)
@@ -629,8 +639,17 @@ service cloud.firestore {
     //   Inscrições em Eventos
     // ===========================
     match /eventRegistrations/{regId} {
-      // Leitura pública — viewToken valida acesso ao comprovante no client
-      allow read: if true;
+      // PATCH CRÍTICO (Fase 3.6): "read: if true" indistintamente permitia
+      // list() público — getDocs(collection(db,'eventRegistrations')) sem
+      // filtro nenhum despejava nome/CPF/telefone/token de TODAS as
+      // inscrições de TODOS os eventos de TODAS as organizações. Split
+      // get/list: get (1 doc por ID, usado por event_comprovante.html com o
+      // regId da URL) continua público — é o mesmo modelo de "link com ID
+      // não-adivinhável" que já era o desenho original; list (dump da
+      // coleção) passa a exigir admin/master da própria org, igual ao que
+      // admin_inscricoes.html já faz (query com where("orgId","==",...)).
+      allow get: if true;
+      allow list: if canOperateOrg(resource.data.orgId);
       // Criação pública (sem login) — validação de negócio feita via Cloud Function
       allow create: if request.resource.data.orgId is string
                     && request.resource.data.orgId.size() > 0;

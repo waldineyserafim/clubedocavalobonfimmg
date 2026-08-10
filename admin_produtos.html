@@ -258,7 +258,7 @@
       const compressed=await compressImageToUnder(original, maxKB, 1600, 1600);
       const path = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}_${compressed.name}`;
       const r = sref(storage, path);
-      await new Promise((resolve,reject)=> uploadBytesResumable(r, compressed, {contentType:compressed.type}).on("state_changed", null, reject, resolve));
+      await new Promise((resolve,reject)=> uploadBytesResumable(r, compressed, {contentType:compressed.type, customMetadata:{uid: auth.currentUser?.uid || ""}}).on("state_changed", null, reject, resolve));
       urls.push(await getDownloadURL(r));
     }
     return urls;

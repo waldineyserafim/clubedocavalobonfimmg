@@ -102,8 +102,6 @@
       <div class="card-header bg-white"><strong>Ações Globais</strong></div>
       <div class="card-body">
         <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-outline-primary btn-sm" id="btnSeedData">Executar Seed de Dados</button>
-          <button class="btn btn-outline-warning btn-sm" id="btnMigrar">Executar Migração orgId</button>
           <button class="btn btn-outline-secondary btn-sm" id="btnLimparCache">Limpar Cache de Módulos</button>
         </div>
         <div id="actionMsg" class="mt-3 d-none alert alert-info small"></div>
@@ -124,12 +122,8 @@ import { auth, db } from "./firebase.js";
 import { requireAuth, logAction } from "./firebase.js";
 import { signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-import { getApp }       from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
 
 requireAuth({ requiredRole: "master", loginUrl: "./login_master.html" });
-
-const functions = getFunctions(getApp(), "us-central1");
 
 document.getElementById("btnSair").addEventListener("click", async e => {
   e.preventDefault();
@@ -144,40 +138,6 @@ function showActionMsg(msg, type = "info") {
   el.classList.remove("d-none");
   setTimeout(() => el.classList.add("d-none"), 5000);
 }
-
-// Seed de Dados
-document.getElementById("btnSeedData").addEventListener("click", async () => {
-  if (!confirm("Executar seed de dados multi-tenant? Esta operação é idempotente.")) return;
-  try {
-    document.getElementById("btnSeedData").disabled = true;
-    const fn = httpsCallable(functions, "seedMultiTenantData");
-    const result = await fn();
-    showActionMsg(result.data.message || "Seed concluído.", "success");
-    await logAction("seed_multitenant_executado", {});
-  } catch (e) {
-    showActionMsg("Erro: " + e.message, "danger");
-  } finally {
-    document.getElementById("btnSeedData").disabled = false;
-  }
-});
-
-// Migração orgId
-document.getElementById("btnMigrar").addEventListener("click", async () => {
-  if (!confirm("Executar migração de orgId? Todos os documentos existentes receberão orgId: 'org_bonfim'. Documentos que já têm orgId serão ignorados.")) return;
-  try {
-    document.getElementById("btnMigrar").disabled = true;
-    showActionMsg("Migrando... aguarde (pode levar alguns minutos).", "info");
-    const fn = httpsCallable(functions, "migrateToMultiTenant");
-    const result = await fn();
-    const d = result.data;
-    showActionMsg(`Migração concluída: ${d.updated} atualizados, ${d.skipped} ignorados.`, "success");
-    await logAction("migracao_multitenant_executada", d);
-  } catch (e) {
-    showActionMsg("Erro: " + e.message, "danger");
-  } finally {
-    document.getElementById("btnMigrar").disabled = false;
-  }
-});
 
 // Limpar cache de módulos
 document.getElementById("btnLimparCache").addEventListener("click", () => {

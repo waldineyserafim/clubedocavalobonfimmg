@@ -329,12 +329,48 @@ Mantida por trigger `onOrganizationWritten` (`functions/lib/organizationPublicSy
 
 ---
 
+## Fase 3.6 — Hardening, Operação e Go Live Comercial ✅
+
+Última fase do MVP: auditoria completa (segurança/isolamento, qualidade/performance de Cloud Functions, operação/documentação) antes de aceitar clientes pagantes. Achado central, confirmado direto contra o projeto Firebase (não só o repositório): **nada da Fase 3.2 em diante jamais foi deployado em produção** — `platformAdmins` vazia, 36 de 43 Cloud Functions ao vivo, `firestore.rules` sem mudar desde antes da Fase 3.2, `storage.rules` sem mudar desde antes da Fase 3.4. O relatório completo, incluindo o Go-Live Checklist com a sequência exata de deploy pendente, está em `portal-associativo/docs/roadmap/FASE3_6_HARDENING_GO_LIVE_REPORT.md`.
+
+### Patch crítico (produção, independente desta fase)
+
+Duas vulnerabilidades confirmadas idênticas em produção e no repositório, corrigidas e deployadas via `firestore.rules` isoladamente (não o acumulado da Fase 3.2-3.6):
+- `users/{userId}` create: `isSelf(userId)` sem validação de campo permitia auto-cadastro gravar `role:"master"` e tomar qualquer organização. Restrito a `role in ["associado","participanteLeilao"]` + `orgId` de organização existente.
+- `eventRegistrations`: `allow read: if true` permitia `list()` público (nome/CPF/telefone/token de todos os eventos, todas as organizações). Split `get` (público, comprovante por ID) / `list` (exige admin/master da própria org).
+
+### Correções de segurança/qualidade (repositório, aguardando deploy)
+
+- `asaasCancelPayment`/`asaasGetPaymentStatus` — `asaasPaymentId` do payload agora precisa pertencer ao uid já validado (`assertPaymentBelongsToUid`) antes de agir — antes, qualquer admin podia consultar/cancelar cobrança de outra organização (conta Asaas compartilhada).
+- `storage.rules` `uploads/{category}` — dono gravado via `customMetadata.uid` no upload, exigido na regra (`resource == null || resource.metadata.uid == request.auth.uid`); antes, zero checagem, qualquer usuário sobrescrevia imagem de qualquer outro.
+- `migratePlatformAdmins` — só aceita chamada enquanto `platformAdmins` está genuinamente vazia; fecha pra sempre a superfície que, encadeada com a vulnerabilidade de auto-cadastro acima, levava de anônimo a Platform Owner.
+- `sendDailyPaymentReport` — um e-mail por organização (antes unia destinatários e dados de todas as organizações num e-mail só).
+- `storage.rules` `tenants/{orgId}/branding` — aceita também `isPlatformAdministrator()` (antes só `isOwnOrg`, que a equipe de plataforma nunca satisfaz — upload de logo/favicon da Fase 3.4 era estruturalmente impossível).
+- Auditoria em `systemLogs` adicionada a `deleteAssociado`, `resetUserPassword`, `asaasCreatePayment`, `asaasCancelPayment` (antes só `console.log`).
+- `onNewAssociadoCriado` grava `asaasSync.lastSyncError` em falha (antes só logava — zero sinal de que um novo associado ficou sem assinatura Asaas).
+- `confirmEventCheckin` restrito a admin/master/operador/adminView (código aceitava qualquer associado; comentário já documentava a intenção correta).
+- Índice composto `financeInvoices` (`dueDate`+`status`) adicionado — faltava pra query de fallback do webhook.
+- Dead code removido: bloco `_internal` de exports de teste; botões "Seed"/"Migração" em `admin_master_configuracoes.html` (chamavam Cloud Functions inexistentes).
+
+### Operação
+
+- **Firestore Point-in-Time Recovery habilitado em produção** (7 dias) — antes, nenhum backup configurado ou documentado.
+- Painel Master (`portal-associativo/admin/*.html`) passou a versionar os imports do núcleo compartilhado (`?v=2026.08.4`), igual ao CCBMG — antes, ficava exposto ao cache de 4h do Cloudflare sem nenhum cache-busting, justamente no consumidor com maior raio de impacto (autenticação/sessão de toda a plataforma).
+- `docs/` (pasta de documentação técnica gerada em 2026-07-21, nunca reconciliada) marcada explicitamente como desatualizada, apontando pra este arquivo como fonte de verdade — a seção que antes instruía o contrário foi corrigida.
+
+### Testes
+
+192 testes de backend (0 falhas) — 139 `functions/test` + 38 Rules + 15 Storage Rules, incluindo uma organização de teste provisionada do zero via `provisionOrganization` com isolamento completo confirmado contra dados moldados como o CCBMG real. Suíte e2e Playwright (produção): 1258 passed / 86 failed, idêntico à baseline da Fase 3.5.
+
+---
+
 ## Integração Asaas ✅ (Fase 2 — LIVE)
 
 **API:** `https://api.asaas.com/v3`
 **Segredos no Secret Manager:**
 - `projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest` — chave da API
-- `projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest` — token de autenticação do webhook
+- `projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest` — token de autenticação do webhook (associados)
+- `projects/clubecavalobonfim/secrets/asaas-auction-webhook-token/versions/latest` — token de autenticação do webhook do módulo de leilões (`auctionAsaasWebhook`, secret distinto do webhook de associados)
 
 ### Planos e valores
 | planType | Ciclo Asaas | Valor |
