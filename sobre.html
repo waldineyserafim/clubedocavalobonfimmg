@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Sobre o Clube — Clube do Cavalo - Bonfim MG</title>
+  <title>Sobre o Clube</title>
   <meta name="description" content="Conheça a missão, atividades, benefícios e informações legais do Clube do Cavalo de Bonfim MG.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
 
@@ -61,7 +61,7 @@
     .content-section li strong { color: #111; }
   </style>
 </head>
-<body>
+<body data-page-title="Sobre o Clube">
 
 <!-- NAVBAR (padrão do site) -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
@@ -165,7 +165,7 @@
   <h2 class="section-title">Planos de Associação</h2>
 
   <p id="planosIntroEl">
-    Faça parte do <strong>Clube do Cavalo – Bonfim MG</strong> e ajude a fortalecer
+    Faça parte da <strong data-tenant-name>nossa organização</strong> e ajude a fortalecer
     a cultura equestre da nossa região, participando de eventos, parcerias e
     benefícios exclusivos.
   </p>
@@ -209,7 +209,7 @@
   </div>  
   </div>
     <div class="alert alert-primary mt-4 text-center">
-    <h5 class="mb-2">Quer fazer parte do Clube do Cavalo?</h5>
+    <h5 class="mb-2">Quer fazer parte?</h5>
 
     <p class="mb-3">
       Junte-se a quem valoriza a tradição, os animais e a união do meio equestre.
@@ -224,7 +224,7 @@
 
 
     <!-- Downloads (Estatuto / Regulamento) -->
-    <section class="content-section">
+    <section class="content-section" data-hide-if-sandbox>
       <h2 class="section-title">Documentos</h2>
       <p class="text-muted">Baixe nossos documentos institucionais (PDF):</p>
       <div class="d-flex flex-wrap gap-2" id="secDocumentosLinks">
@@ -246,9 +246,9 @@
             <li class="mb-1"><strong>CNPJ:</strong> <span class="text-muted" id="legalCnpj">62.944.023/0001-01</span></li>
             <li class="mb-1"><strong>Registro em Cartório:</strong> <span class="text-muted" id="legalRegistro">Livro A13 N1632-AV.01 / folha 244</span></li>
             <li class="mb-1">
-              <strong>Sede Administrativa:</strong> <span id="legalSede">Antiga Escola Melo Viana — Rua Doutor Melo Viana, nº 183, Sala 08 — Centro, Bonfim-MG — CEP 35480-000.</span>
+              <strong>Sede Administrativa:</strong> <span id="legalSede" data-tenant-address>Antiga Escola Melo Viana — Rua Doutor Melo Viana, nº 183, Sala 08 — Centro, Bonfim-MG — CEP 35480-000.</span>
             </li>
-            <li class="mb-1"><strong>E-mail oficial:</strong> <a href="mailto:contato@clubedocavalobonfim.com.br" id="legalEmail">contato@clubedocavalobonfim.com.br</a></li>
+            <li class="mb-1"><strong>E-mail oficial:</strong> <a href="mailto:contato@clubedocavalobonfim.com.br" id="legalEmail" data-tenant-email>contato@clubedocavalobonfim.com.br</a></li>
           </ul>
         </div>
       </div>
@@ -265,11 +265,11 @@
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div class="d-flex align-items-center gap-2">
       <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
-           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy">
-      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy" data-tenant-logo>
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);" data-tenant-name>Clube do Cavalo — Bonfim MG</span>
     </div>
     <div class="text-white text-center" style="font-size:var(--text-xs); opacity:.65;">
-      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      © 2026 <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>. Todos os direitos reservados.<br>
       Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>

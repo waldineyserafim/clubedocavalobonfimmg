@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
-  <title>Admin • Inscrições em Eventos — Clube do Cavalo</title>
+  <title>Admin • Inscrições em Eventos</title>
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
   <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
   <link href="assets/css/bootstrap.min.css" rel="stylesheet">
@@ -30,12 +30,12 @@
     .status-cancelado{color:#6c757d;}
   </style>
 </head>
-<body>
+<body data-page-title="Admin • Inscrições em Eventos">
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container d-flex align-items-center flex-nowrap gap-2">
     <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
-      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
-      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo" data-tenant-logo>
+      <span class="brand-title" data-tenant-name>Clube do Cavalo - Bonfim MG</span>
     </a>
     <div class="ms-auto d-flex align-items-center gap-2">
       <a class="nav-link text-white small" href="admin.html"><i class="bi bi-grid me-1"></i>Admin</a>
@@ -136,11 +136,11 @@
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div class="d-flex align-items-center gap-2">
-      <img src="assets/img/logo_CCBMG.png" alt="Logo CCBMG" style="height:28px;width:auto;filter:brightness(0) invert(1);" loading="lazy">
-      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+      <img src="assets/img/logo_CCBMG.png" alt="Logo CCBMG" style="height:28px;width:auto;filter:brightness(0) invert(1);" loading="lazy" data-tenant-logo>
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);" data-tenant-name>Clube do Cavalo — Bonfim MG</span>
     </div>
     <div class="text-white text-center" style="font-size:var(--text-xs);opacity:.65;">
-      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      © 2026 <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>. Todos os direitos reservados.<br>
       Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
@@ -149,13 +149,17 @@
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-  import { requireAuth, currentOrgId, logAction } from "./firebase.js";
+  import { requireAuth, currentOrgId, logAction, getOrgBranding } from "./firebase.js";
   import { auth, db } from "./firebase.js";
   import { collection, getDocs, query, where, orderBy, doc, getDoc, updateDoc, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
   import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
   requireAuth({ requiredRole: ["Admin","Master","admin","master","Admin View","adminView"] });
+
+  // Nome da organização pra interpolar no PDF exportado — nunca mais hardcoded (Fase 3.11/White Label).
+  const _orgBrandingForText = await getOrgBranding();
+  const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
   auth.onAuthStateChanged(async (user) => {
     if (!user) return;
@@ -316,7 +320,7 @@
     const { jsPDF: jsPDFCtor } = window.jspdf;
     const docPdf = new jsPDFCtor({ orientation:"landscape", unit:"mm", format:"a4" });
     docPdf.setFontSize(14);
-    docPdf.text(`CCBMG — Inscrições: ${eventoLabel}`, 14, 15);
+    docPdf.text(`${ORG_NOME} — Inscrições: ${eventoLabel}`, 14, 15);
     docPdf.setFontSize(9);
     const now = new Date().toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"});
     docPdf.text(`Gerado em ${now}`, 14, 21);
@@ -343,7 +347,7 @@
     });
 
     const date = new Date().toLocaleDateString("pt-BR").replace(/\//g,"-");
-    docPdf.save(`CCBMG - Inscrições - ${date}.pdf`);
+    docPdf.save(`${ORG_NOME} - Inscrições - ${date}.pdf`);
   });
 </script>
 </body>

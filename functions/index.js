@@ -191,9 +191,9 @@ exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
       // Isolamento por organização: cada org processa só os próprios `users`
       // (antes desta fase, a rotina lia `users` inteiro sem filtro nenhum).
       const orgsSnap = await db.collection('organizations').get();
-      const orgs = orgsSnap.empty
-        ? [{ id: 'org_bonfim', nome: 'Clube do Cavalo Bonfim MG' }] // fallback: nenhuma org cadastrada ainda (estado pré-Fase 0)
-        : orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+      // Sem organização nenhuma cadastrada: nada pra reportar — nunca inventa
+      // uma organização fictícia pra preencher a lista (Fase 3.11/White Label).
+      const orgs = orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
 
       const reportsByOrg = [];
 
@@ -286,16 +286,21 @@ exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
       // cross-tenant de nome/CPF/telefone/vencimento de inadimplência,
       // dormant só porque havia 1 organização real até agora). Cada
       // organização pode declarar `notificationEmails` no próprio documento
-      // (organizations/{orgId}); sem isso, cai no fallback global de sempre
-      // — 100% retrocompatível com o CCBMG, que ainda não tem esse campo.
+      // (organizations/{orgId}) — array presente (mesmo vazio) = configurado
+      // explicitamente, respeita inclusive "nenhum destinatário" (Fase 3.11);
+      // só cai no fallback de sempre quando o campo nem existe no doc.
       for (const report of reportsByOrg) {
         const { org } = report;
-        const emails = Array.isArray(org.notificationEmails) && org.notificationEmails.length
+        const emails = Array.isArray(org.notificationEmails)
           ? org.notificationEmails
           : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
+        if (emails.length === 0) {
+          console.log(`sendDailyPaymentReport: orgId=${org.id} sem notificationEmails configurado (lista vazia explícita) — pulando envio.`);
+          continue;
+        }
 
         await transporter.sendMail({
-          from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
+          from: `"${org.nome || org.id}" <${emailUser}>`,
           to: emails.join(', '),
           subject: `${org.nome || org.id} - Relatório de Associados - ${formatDateBR(now())}`,
           html: generateEmailHtml([report]),
@@ -706,10 +711,11 @@ exports.onNewAssociadoCriado = functions.firestore
         console.log(`onNewAssociadoCriado: uid=${uid} asaasId=${asaasId} notificações ajustadas=${notifResult.changed}/${notifResult.total}`);
       }
 
+      const org         = await organizationResolver.getOrganization(userData.orgId);
       const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
       const nextDueDate = getNextDueDate();
       const value       = resolvePlanValue(planType, userData.categoriaAssociado);
-      const descricao   = `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'}${isMirim ? ' (Mirim)' : ''}`;
+      const descricao   = `Mensalidade ${org?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType] || 'Mensal'}${isMirim ? ' (Mirim)' : ''}`;
 
       const { providerId: subscriptionId } = await provider.createSubscription({
         customerId: asaasId,
@@ -820,6 +826,7 @@ exports.createAsaasSubscriptions = functions
   .https.onCall(async (_data, context) => {
     const caller = await auth.requireOrganizationAdmin(context);
     const provider = await getProviderForOrg(caller.orgId);
+    const callerOrg = await organizationResolver.getOrganization(caller.orgId);
 
     const usersSnap = await db.collection('users').where('orgId', '==', caller.orgId).get();
     const results = { created: 0, skipped: 0, errors: [] };
@@ -853,7 +860,7 @@ exports.createAsaasSubscriptions = functions
           value: resolvePlanValue(planType, userData.categoriaAssociado),
           nextDueDate,
           cycle: PLAN_CYCLE[planType],
-          description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
+          description: `Mensalidade ${callerOrg?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
           externalReference: userDoc.id,
           interest: { value: 0.01 },
         });
@@ -1119,12 +1126,13 @@ async function createImmediateChargeOnReactivation(provider, uid, after) {
   const planType = String(after.planType || 'mensal').toLowerCase().trim();
   const value = resolvePlanValue(planType, after.categoriaAssociado);
   const today = new Date().toISOString().slice(0, 10);
+  const org = await organizationResolver.getOrganization(after.orgId);
 
   const { providerId, raw } = await provider.createCharge({
     customerId: after.asaasId,
     value,
     dueDate: today,
-    description: `Mensalidade CCBMG - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
+    description: `Mensalidade ${org?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
   });
 
   const normalized = provider.normalizePayment(raw);
@@ -1215,13 +1223,21 @@ async function notifyAdminsByEmail(orgId, subject, bodyHtml) {
       });
 
       const org = orgId ? await organizationResolver.getOrganization(orgId) : null;
-      const to = Array.isArray(org?.notificationEmails) && org.notificationEmails.length
-        ? org.notificationEmails.join(', ')
-        : 'waldiney.serafim@gmail.com, mpmarquesnutri@gmail.com';
+      // Array presente (mesmo vazio) = organização configurou explicitamente
+      // — respeita, inclusive "nenhum destinatário" (não é mais "ausente").
+      // Só cai no fallback de sempre quando o campo nem existe no doc
+      // (retrocompatível: é exatamente o estado do CCBMG hoje).
+      const recipients = Array.isArray(org?.notificationEmails)
+        ? org.notificationEmails
+        : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
+      if (recipients.length === 0) {
+        console.log(`notifyAdminsByEmail: orgId=${orgId} sem notificationEmails configurado (lista vazia explícita) — pulando envio.`);
+        return;
+      }
 
       await transporter.sendMail({
-        from: '"Clube do Cavalo Bonfim MG" <contato@clubedocavalobonfim.com.br>',
-        to,
+        from: `"${org?.nome || 'Portal Associativo'}" <${emailUser}>`,
+        to: recipients.join(', '),
         subject,
         html: bodyHtml,
       });
@@ -1287,7 +1303,7 @@ exports.cancelMySubscription = functions.https.onCall(async (data, context) => {
 
   await notifyAdminsByEmail(
     member.orgId,
-    `CCBMG - Associado cancelou a própria assinatura: ${userData.nome || member.uid}`,
+    `[Portal Associativo] Associado cancelou a própria assinatura: ${userData.nome || member.uid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}, tel. ${escHtml(userData.telefone || '—')}) cancelou a própria assinatura pelo portal.</p>
      <p>Plano: ${escHtml(userData.planType || '—')}<br>Acesso garantido até: ${escHtml(activeUntilStr)}</p>`
   );
@@ -1334,7 +1350,7 @@ exports.reactivateMySubscription = functions.https.onCall(async (data, context) 
 
   await notifyAdminsByEmail(
     member.orgId,
-    `CCBMG - Associado reativou a própria assinatura: ${userData.nome || member.uid}`,
+    `[Portal Associativo] Associado reativou a própria assinatura: ${userData.nome || member.uid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) reativou a própria assinatura pelo portal.</p>`
   );
 
@@ -1464,7 +1480,7 @@ exports.asaasCreatePayment = functions.https.onCall(async (data, context) => {
     customerId: target.userDoc.asaasId,
     value,
     dueDate: dueDate.toISOString().slice(0, 10),
-    description: description || 'Cobrança avulsa CCBMG',
+    description: description || 'Cobrança avulsa',
     externalReference: data.uid,
   });
 
@@ -1846,7 +1862,7 @@ exports.completePasswordReset = functions.https.onCall(async (data, context) => 
 
   await notifyAdminsByEmail(
     userData.orgId,
-    `CCBMG - Senha redefinida via SMS: ${userData.nome || targetUid}`,
+    `[Portal Associativo] Senha redefinida via SMS: ${userData.nome || targetUid}`,
     `<p>O associado <strong>${escHtml(userData.nome || '—')}</strong> (CPF ${escHtml(userData.cpf || '—')}) redefiniu a própria senha via verificação por SMS.</p>`
   );
 
@@ -2423,7 +2439,7 @@ async function sendAccountInviteEmail(email, nome, resetLink, { subject, introTe
     const emailPassword = await getSecret('projects/clubecavalobonfim/secrets/email-password/versions/latest');
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: emailUser, pass: emailPassword } });
     await transporter.sendMail({
-      from: '"Portal Associativo — Serafim Technologies" <contato@clubedocavalobonfim.com.br>',
+      from: `"Portal Associativo — Serafim Technologies" <${emailUser}>`,
       to: email,
       subject,
       html: `<p>Olá, ${escHtml(nome || '')}.</p>

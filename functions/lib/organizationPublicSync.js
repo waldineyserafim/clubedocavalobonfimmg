@@ -26,6 +26,23 @@ function computePublicBrandingProjection(orgData, serverTimestamp) {
     corSecundaria: config.corSecundaria || '',
     modules: o.modules || {},
     billingProvider: o.billingProvider || '',
+    // Fase 3.11 (White Label) — contato institucional é conteúdo público por
+    // natureza (aparece hoje hardcoded no rodapé/home de cada organização),
+    // não dado sensível como observações/billingConfig/integrations (ver
+    // teste "CRÍTICO" acima, que continua garantindo que ESSES nunca entram
+    // aqui). Sem eles, index.html/board.html/sobre.html (páginas públicas,
+    // sem login) não têm como saber o contato de organização nenhuma além da
+    // que está hardcoded no HTML.
+    telefone: o.telefone || '',
+    email: o.email || '',
+    site: o.site || '',
+    endereco: o.endereco || '',
+    // isSandbox (Fase 3.7) precisa ser público: páginas públicas (index/board/
+    // gallery/sobre) usam pra esconder conteúdo institucional hardcoded que
+    // pertence só ao CCBMG hoje (fotos reais de diretoria, histórico) — nunca
+    // apropriado pra um tenant de demonstração. Não é dado sensível, é
+    // exatamente o mesmo booleano que já rege a Central de Configuração.
+    isSandbox: o.isSandbox === true,
     updatedAt: serverTimestamp(),
   };
 }

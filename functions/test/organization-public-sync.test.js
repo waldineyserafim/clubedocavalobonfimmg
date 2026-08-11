@@ -17,6 +17,8 @@ module.exports = async function run({ db, fns, t }) {
       config: { logoUrl: 'https://x/logo.png', faviconUrl: 'https://x/fav.png', corPrimaria: '#111279', corSecundaria: '#0a0c55' },
       modules: { associados: true, eventos: false },
       billingProvider: 'asaas',
+      telefone: '5538988887777', email: 'contato@orgteste.demo', site: 'https://orgteste.demo', endereco: 'Rua Teste, 123',
+      isSandbox: true,
       observações: 'cliente atrasado, negociar com cuidado',
       billingConfig: { publicParams: { walletId: 'abc' } },
       integrations: { algumaFutura: { chave: 'segredo' } },
@@ -30,6 +32,11 @@ module.exports = async function run({ db, fns, t }) {
     assert.strictEqual(projection.corSecundaria, '#0a0c55');
     assert.deepStrictEqual(projection.modules, { associados: true, eventos: false });
     assert.strictEqual(projection.billingProvider, 'asaas');
+    assert.strictEqual(projection.telefone, '5538988887777');
+    assert.strictEqual(projection.email, 'contato@orgteste.demo');
+    assert.strictEqual(projection.site, 'https://orgteste.demo');
+    assert.strictEqual(projection.endereco, 'Rua Teste, 123');
+    assert.strictEqual(projection.isSandbox, true);
     assert.strictEqual(projection.updatedAt, fakeTimestamp);
 
     const exposedKeys = Object.keys(projection);
@@ -45,6 +52,7 @@ module.exports = async function run({ db, fns, t }) {
     assert.strictEqual(projection.logoUrl, '');
     assert.strictEqual(projection.corPrimaria, '');
     assert.deepStrictEqual(projection.modules, {});
+    assert.strictEqual(projection.isSandbox, false, 'organização sem o campo nunca deve ser tratada como Sandbox por acidente');
   });
 
   await t('computePublicBrandingProjection: organização sem documento nenhum não quebra', async () => {

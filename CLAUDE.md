@@ -656,6 +656,44 @@ Hostname em domains/{hostname}?
 
 ---
 
+## Fase 3.11 — Auditoria White Label ✅
+
+Varredura completa (frontend das 47 páginas do CCBMG, backend de `functions/index.js`, dados do Firestore) atrás de qualquer referência hardcoded a "Clube do Cavalo"/"CCBMG"/"Bonfim" que vazasse pro tenant Sandbox. ~688 ocorrências brutas encontradas; classificadas em 3 categorias e corrigidas seguindo essa classificação — nenhuma solução específica pro Sandbox, tudo via mecanismo genérico reaproveitável por qualquer organização futura.
+
+### Categoria 1 — Resolvido pelo Tenant Context (o grosso do trabalho)
+
+- **`[data-tenant-name]`/`[data-tenant-logo]`**: existiam só no navbar de 7 páginas. Estendido (transformação em lote, ~161 mudanças) pra navbar **e** rodapé (logo, nome, linha de copyright) de todas as 41 páginas relevantes.
+- **`[data-tenant-email]`/`[data-tenant-address]`** (novos): `organizations/{orgId}/public/branding` ganhou `telefone`/`email`/`site`/`endereco` (não existiam na projeção — só `nome`/`logo`/cores) porque páginas públicas (`index.html`, `board.html`, `sobre.html`) precisam ler contato institucional **sem login**. Não é dado sensível (mesmo raciocínio do resto da projeção — ver teste "CRÍTICO" em `organization-public-sync.test.js`).
+- **`<title>` dinâmico**: cada página agora declara só o propósito em `<body data-page-title="Login">` (nunca o nome da organização) — `branding.js` monta `"{propósito} — {nome da org}"` em runtime. 37 páginas migradas.
+- **Favicon**: `applyBranding()` já trocava o favicon, mas só o primeiro `<link rel="icon">` — páginas com `rel="icon"` E `rel="shortcut icon"` (a maioria) deixavam o segundo com o ícone antigo. Corrigido pra atualizar todos.
+- **Nome da organização em textos gerados por JS**: `getOrgBranding()` (já existia, Fase 3.5) passou a ser usado em `admin_associados.html`/`admin_inscricoes.html` pra montar mensagem de WhatsApp de cobrança, assunto de e-mail, cabeçalho/nome de PDF exportado — nada mais hardcoded pra "Clube do Cavalo".
+- **URLs absolutas hardcoded** (bug funcional, não só estético): link de redefinição de senha via SMS (`admin_associados.html`) e link de compartilhamento de lote de leilão (`meus_lotes.html`) apontavam pra `https://clubedocavalobonfim.com.br` fixo — um associado do Sandbox receberia um link pro site errado. Trocado por `location.origin`.
+- **Backend (`functions/index.js`)**: `from` de e-mail (relatório diário, notificações admin, convite de conta) trocado do endereço fixo `contato@clubedocavalobonfim.com.br` pro endereço realmente autenticado no transporter (`emailUser, do secret) — mais correto tecnicamente (Gmail/SPF já ignorava o override mesmo) e resolve a branding de quebra. Descrição de cobrança no Asaas ("Mensalidade CCBMG") agora interpola `organizationResolver.getOrganization(orgId).nome`.
+- **`organizations/{orgId}.notificationEmails`**: condição mudou de "array não-vazio" pra "array presente" — uma organização pode agora configurar explicitamente "nenhum destinatário" (array vazio) sem cair no fallback de e-mails pessoais. **Risco mitigado**: `org_bonfim` (produção real) nunca teve esse campo configurado e dependia do fallback hardcoded pra receber os relatórios de verdade — gravado explicitamente antes da mudança de código pra zero regressão. `org_teste_etapa10` recebeu `notificationEmails: []` (sem ruído de dados fictícios em inbox real).
+- **`cms_about`/`cms_board`/`cms_gallery`** (descoberta durante a auditoria, não nova): `board.html`/`gallery.html`/`sobre.html`/`events.html` **já eram** dirigidos por CMS por-organização — o conteúdo do CCBMG que a auditoria encontrou hardcoded era só o *fallback estático* mostrado antes dos dados carregarem, escondido automaticamente (`el.style.display="none"`) assim que a query do Firestore volta com resultado. Sandbox não tinha nenhum documento nessas coleções — por isso o fallback (conteúdo real do CCBMG) aparecia. Corrigido populando `cms_about`/`cms_board` (4 membros fictícios)/`cms_gallery` (1 álbum, 3 fotos) pro Sandbox — **zero mudança de código**, só dado, reaproveitando exatamente o mesmo mecanismo que já existia (`admin_sobre.html`/`admin_diretoria.html`/`admin_galeria.html`).
+
+### Categoria 2 — Substituído por conteúdo genérico
+
+- Placeholders de formulário do Painel Master (`admin_master_associacoes.html`, `admin_master_configuracoes.html`, `portal-associativo/admin/organization-provision.html`) que usavam "Clube do Cavalo Bonfim MG"/"org_bonfim"/"Bonfim" como exemplo — trocados por texto genérico ("Ex: Nome da Organização", "org_slug", "Sua Cidade").
+- Prefixo "CCBMG" em assunto de e-mail de notificação administrativa (auto-cancelamento/reativação, redefinição de senha via SMS) — trocado por `[Portal Associativo]`.
+- `admin_master.html`/`admin_leiloes.html`: título dizia "SaaS CCBMG"/"Admin CCBMG" (conflava o nome da plataforma com um cliente específico) — corrigido pra "Portal Associativo"/"Admin" genérico.
+- CTA decorativo em `sobre.html` ("Faça parte do Clube do Cavalo") — texto genérico, não precisa de interpolação dinâmica pra fazer sentido em qualquer organização.
+
+### Categoria 3 — Existe só como dado do CCBMG (`org_bonfim`)
+
+Conteúdo que é *de verdade* do CCBMG (fotos reais de diretoria pré-Fase-3.11 — hoje substituídas pelo mecanismo CMS acima —, endereço físico real "Antiga Escola Melo Viana", documento "Estatuto Social" real) não precisa de tradução nenhuma: ou já é dado tenant-scoped (CMS) ou foi coberto por **`[data-hide-if-sandbox]`** (novo, `branding.js`) — esconde bloco estático sem equivalente de CMS ainda (o card "Onde Estamos" com endereço/mapa em `index.html`/`board.html`, a seção "Documentos"/Estatuto em `sobre.html`), mostrando um `[data-hide-if-sandbox-fallback]` genérico no lugar quando existe. Gate por `organizations/{orgId}.isSandbox` (Fase 3.7, agora também na projeção pública) — nunca por orgId — genérico pra qualquer tenant de demonstração futuro.
+
+### Testes e validação
+
+`functions/test/organization-public-sync.test.js` estendido (telefone/email/site/endereco/isSandbox na projeção, incluindo o caso "documento sem o campo nunca é tratado como Sandbox por acidente"). Suíte completa: 225 verificações, 0 falhas. Todos os 41 arquivos HTML com script inline validados sintaticamente (`node --check`) antes do deploy — lição das fases anteriores aplicada de novo.
+
+### Pendências (decisão de negócio, não técnica)
+
+- `assets/img/logo_CCBMG.png` continua sendo o favicon/logo **estático de fallback** em todo HTML (só é sobrescrito em runtime se `logoUrl` da organização existir) — funcionalmente correto, mas o nome do arquivo em si é CCBMG-específico. Renomear é cosmético (não afeta comportamento), fora do escopo desta auditoria.
+- Meta `<meta name="description">`/Open Graph (`og:image`) continuam estáticos — sem efeito visível durante uma demonstração ao vivo (só aparecem em preview de busca/redes sociais), priorizado como Categoria 1 pendente de uma fase futura se a plataforma precisar de SEO por organização.
+
+---
+
 ## Integração Asaas ✅ (Fase 2 — LIVE)
 
 **API:** `https://api.asaas.com/v3`

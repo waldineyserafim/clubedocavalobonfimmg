@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Clube do Cavalo - Bonfim MG</title>
+  <title>Diretoria</title>
   <meta name="description" content="Clube do Cavalo – eventos, associados, diretoria e parcerias.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
   
@@ -29,7 +29,7 @@
     }
   </style>
 </head>
-<body>
+<body data-page-title="Diretoria">
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container d-flex align-items-center justify-content-between flex-nowrap">
     <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
@@ -169,7 +169,7 @@
             </li>
             <li class="mb-3 d-flex align-items-center gap-2">
               <i class="bi bi-envelope" style="color:var(--brand);"></i>
-              <a href="mailto:contato@clubedocavalobonfim.com.br">contato@clubedocavalobonfim.com.br</a>
+              <a href="mailto:contato@clubedocavalobonfim.com.br" data-tenant-email>contato@clubedocavalobonfim.com.br</a>
             </li>
             <li class="d-flex align-items-center gap-2">
               <i class="bi bi-whatsapp text-success"></i>
@@ -179,7 +179,7 @@
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="p-4 border rounded-3 h-100 ds-card">
+        <div class="p-4 border rounded-3 h-100 ds-card" data-hide-if-sandbox>
           <h3 class="h6 fw-bold mb-3 d-flex align-items-center gap-2">
             <i class="bi bi-geo-alt" style="color:var(--brand);"></i> Onde Estamos
           </h3>
@@ -191,6 +191,12 @@
                  class="w-100 h-100" style="object-fit:cover; border-radius:var(--radius-md);" loading="lazy">
           </div>
         </div>
+        <div class="p-4 border rounded-3 h-100 ds-card d-none" data-hide-if-sandbox-fallback>
+          <h3 class="h6 fw-bold mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-geo-alt" style="color:var(--brand);"></i> Onde Estamos
+          </h3>
+          <p class="text-muted mb-0" style="font-size:var(--text-sm);">Ambiente de demonstração — sem endereço físico associado.</p>
+        </div>
       </div>
     </div>
   </div>
@@ -200,11 +206,11 @@
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div class="d-flex align-items-center gap-2">
       <img src="assets/img/logo_CCBMG.png?v=ccbmg-2025-09-10d" alt="Logo CCBMG"
-           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy">
-      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+           style="height:28px; width:auto; filter:brightness(0) invert(1);" loading="lazy" data-tenant-logo>
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);" data-tenant-name>Clube do Cavalo — Bonfim MG</span>
     </div>
     <div class="text-white text-center" style="font-size:var(--text-xs); opacity:.65;">
-      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      © 2026 <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>. Todos os direitos reservados.<br>
       Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>

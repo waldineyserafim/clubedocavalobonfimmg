@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>Admin — Associados | Clube do Cavalo - Bonfim MG</title>
+  <title>Admin — Associados</title>
   <meta name="description" content="Gestão de associados com financeiro e faturas.">
   <meta property="og:image" content="https://clubedocavalobonfim.com.br/assets/img/logo_CCBMG.png">
   <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
@@ -192,12 +192,12 @@
     .input-readonly[disabled]{ background-color:#f2f2f2; }
   </style>
 </head>
-<body>
+<body data-page-title="Admin — Associados">
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
   <div class="container d-flex align-items-center flex-nowrap gap-2">
     <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
-      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo Clube do Cavalo">
-      <span class="brand-title">Clube do Cavalo - Bonfim MG</span>
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo Clube do Cavalo" data-tenant-logo>
+      <span class="brand-title" data-tenant-name>Clube do Cavalo - Bonfim MG</span>
     </a>
     <div class="ms-auto d-flex align-items-center gap-2">
       <a class="nav-link text-white small" href="admin.html"><i class="bi bi-grid me-1"></i>Admin</a>
@@ -376,11 +376,11 @@
 <footer class="mt-5 py-4 border-top" style="background:var(--brand-dark);">
   <div class="container d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
     <div class="d-flex align-items-center gap-2">
-      <img src="assets/img/logo_CCBMG.png" alt="Logo CCBMG" style="height:28px;width:auto;filter:brightness(0) invert(1);" loading="lazy">
-      <span class="text-white fw-semibold" style="font-size:var(--text-sm);">Clube do Cavalo — Bonfim MG</span>
+      <img src="assets/img/logo_CCBMG.png" alt="Logo CCBMG" style="height:28px;width:auto;filter:brightness(0) invert(1);" loading="lazy" data-tenant-logo>
+      <span class="text-white fw-semibold" style="font-size:var(--text-sm);" data-tenant-name>Clube do Cavalo — Bonfim MG</span>
     </div>
     <div class="text-white text-center" style="font-size:var(--text-xs);opacity:.65;">
-      © 2026 Clube do Cavalo de Bonfim MG. Todos os direitos reservados.<br>
+      © 2026 <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>. Todos os direitos reservados.<br>
       Desenvolvido por <u>Serafim Technologies</u>
     </div>
   </div>
@@ -391,7 +391,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-  import { requireAuth, cpfToEmail, currentOrgId, logAction, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+  import { requireAuth, cpfToEmail, currentOrgId, logAction, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from "./firebase.js";
   import { auth, db } from "./firebase.js";
   import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
   import {
@@ -404,6 +404,16 @@
 
   const bootstrap = window.bootstrap;
   [...document.querySelectorAll('[data-bs-toggle="popover"]')].forEach(el => new bootstrap.Popover(el));
+
+  // Nome da organização pra interpolar em mensagens/e-mails/PDFs gerados por
+  // esta tela (WhatsApp de cobrança, redefinição de senha, exportação de
+  // relatórios) — nunca mais hardcoded pra "Clube do Cavalo" (ver CLAUDE.md,
+  // Fase 3.11/White Label). Resolvido uma vez, top-level (mesmo padrão de
+  // firebase.js/currentOrgId) — vira uma constante síncrona usável em
+  // qualquer função deste arquivo, inclusive as que não são async
+  // (ex.: renderCobrancaTab, que monta HTML de forma síncrona).
+  const _orgBrandingForText = await getOrgBranding();
+  const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
   // Causa raiz do bug de scroll da página: cada modal era descartado com `div.remove()` direto,
   // sem passar pelo `.hide()` do Bootstrap. Se o elemento ainda estava visível (ex.: reabrir o
@@ -1145,7 +1155,7 @@
 
     if (action === "open-wpp") {
       const link = row.dataset.lastInvoiceUrl;
-      const msg = `Olá! Aqui é do Clube do Cavalo. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
+      const msg = `Olá! Aqui é do ${ORG_NOME}. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
       window.open(wppUrl(row.dataset.telefone, msg), "_blank", "noopener");
       return;
     }
@@ -1153,7 +1163,7 @@
     if (action === "open-email") {
       const email = row.dataset.email || "";
       const link = row.dataset.lastInvoiceUrl;
-      const subject = encodeURIComponent("Clube do Cavalo — Cobrança");
+      const subject = encodeURIComponent(`${ORG_NOME} — Cobrança`);
       const body = encodeURIComponent(`Olá! ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`);
       window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
       return;
@@ -1195,7 +1205,7 @@
       if (!valueStr) return;
       const value = Number(valueStr.replace(",", "."));
       if (!value || value <= 0) { alert("Valor inválido."); return; }
-      const description = prompt("Descrição da cobrança:", "Cobrança avulsa CCBMG") || "";
+      const description = prompt("Descrição da cobrança:", "Cobrança avulsa") || "";
       btn.disabled = true;
       try{ await callAsaasCreatePayment({ uid, value, description }); await refreshRow(uid); }
       catch(e){ alert("Erro ao gerar cobrança: " + e.message); }
@@ -2098,8 +2108,8 @@
     const phone = u.telefone || "";
     const email = u.email || "";
     const link = latestAny?.invoiceUrl || "";
-    const waMsg = `Olá! Aqui é do Clube do Cavalo. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
-    const mailSubject = encodeURIComponent("Clube do Cavalo — Cobrança");
+    const waMsg = `Olá! Aqui é do ${ORG_NOME}. ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`;
+    const mailSubject = encodeURIComponent(`${ORG_NOME} — Cobrança`);
     const mailBody = encodeURIComponent(`Olá! ${link ? "Segue o link de pagamento: " + link : "Entre em contato para regularizar sua situação."}`);
     const invStatus = latestAny ? String(latestAny.status||"").toLowerCase() : "";
     const invBadge = INVOICE_STATUS_BADGE[invStatus];
@@ -2438,7 +2448,7 @@
     }catch(e){ console.warn("sendLink query", e); }
 
     const dueText = due ? fmtBRDate(new Date(due+"T00:00:00")) : "(data de vencimento)";
-    const msg = `Olá! Aqui é do Clube do Cavalo. Sua associação vencerá dia ${dueText}. Segue o link para o pagamento: ${payPageUrl()}.
+    const msg = `Olá! Aqui é do ${ORG_NOME}. Sua associação vencerá dia ${dueText}. Segue o link para o pagamento: ${payPageUrl()}.
 Qualquer dúvida, estamos à disposição.`;
 
     sendLinkDiv.innerHTML = `
@@ -2642,11 +2652,11 @@ Qualquer dúvida, estamos à disposição.`;
         const cpfFormatado = cpf.length === 11
           ? `${cpf.slice(0,3)}.${cpf.slice(3,6)}.${cpf.slice(6,9)}-${cpf.slice(9)}`
           : cpf || "—";
-        const siteUrl = "https://clubedocavalobonfim.com.br/login.html";
+        const siteUrl = `${location.origin}/login.html`;
         const mensagem =
 `Olá, ${nomeAssociado || "associado(a)"}!
 
-Sua senha de acesso ao portal do *Clube do Cavalo de Bonfim MG* foi redefinida.
+Sua senha de acesso ao portal do *${ORG_NOME}* foi redefinida.
 
 Segue seus dados de acesso:
 *Login (CPF):* ${cpfFormatado}
@@ -2784,7 +2794,7 @@ Qualquer dúvida, entre em contato conosco.`;
     const generatedAtDateTime = fmtDateTimeBR(generatedAt);
     const docPdf = new jsPDFCtor({ orientation:"landscape", unit:"mm", format:"a4" });
     docPdf.setFontSize(14);
-    docPdf.text("CCBMG - Lista de Associados x Situação Financeira", 14, 15);
+    docPdf.text(`${ORG_NOME} - Lista de Associados x Situação Financeira`, 14, 15);
     docPdf.setFontSize(9);
     docPdf.text(`Gerado em ${generatedAtDateTime}`, 14, 21);
     docPdf.autoTable({
@@ -2796,7 +2806,7 @@ Qualquer dúvida, entre em contato conosco.`;
       alternateRowStyles: { fillColor: [245, 247, 250] },
       margin: { left: 10, right: 10 }
     });
-    docPdf.save(`CCBMG - Lista de Associados x Situação Financeira - ${generatedAtDate}.pdf`);
+    docPdf.save(`${ORG_NOME} - Lista de Associados x Situação Financeira - ${generatedAtDate}.pdf`);
   }
 
 </script>
