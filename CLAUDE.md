@@ -540,23 +540,15 @@ Browser → demo.portalassociativo.com.br (Cloudflare Worker)
 
 O Worker é puro proxy — não hospeda nenhum HTML/JS próprio, não sabe nada sobre organizações. `location.hostname`, do ponto de vista do navegador, continua sendo `demo.portalassociativo.com.br` (é ele quem está na barra de endereço — o Worker busca o conteúdo de outro lugar e devolve, o browser nunca é redirecionado). É exatamente esse `location.hostname` que o resolvedor abaixo lê.
 
-**Script do Worker** (genérico — o MESMO worker atende qualquer domínio futuro adicionado como Custom Domain dele; nenhuma mudança de código por organização nova):
-```js
-export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-    const originRequest = new Request(`https://clubedocavalobonfim.com.br${url.pathname}${url.search}`, request);
-    const response = await fetch(originRequest, { cf: { cacheTtl: 300 } });
-    return new Response(response.body, response);
-  }
-}
-```
+**Pacote pronto pra publicar** — `cloudflare-worker-demo-proxy/` (repositório `portal-associativo`): `worker.js` (script do proxy) + `wrangler.toml` (já com `[[routes]] pattern = "demo.portalassociativo.com.br" custom_domain = true` — provisiona DNS + certificado TLS + rota automaticamente no deploy, zero passo manual no dashboard) + `README.md` com o passo a passo. Validado com `wrangler deploy --dry-run` antes de entregar.
 
-**Passos manuais pendentes (fora do que Claude Code consegue provisionar — sem acesso à conta Cloudflare):**
-1. Cloudflare Dashboard → Workers & Pages → Create Worker (nome sugerido: `sandbox-demo-proxy`) → colar o script acima → Deploy.
-2. No Worker criado → Settings → Domains & Routes → Add → Custom Domain → `demo.portalassociativo.com.br` (a zona `portalassociativo.com.br` já está no Cloudflare, então o registro DNS é criado automaticamente pelo próprio botão — não precisa mexer em DNS manualmente).
-3. Aguardar alguns minutos (emissão de certificado SSL do Cloudflare para o novo hostname).
-4. Testar: `curl -I https://demo.portalassociativo.com.br/login.html` deve devolver `200`.
+**Passo pendente (fora do que Claude Code consegue provisionar — sem credencial de conta Cloudflare):**
+```bash
+cd cloudflare-worker-demo-proxy
+npx wrangler login     # abre o navegador, só na primeira vez
+npx wrangler deploy    # publica o Worker E cria o Custom Domain — DNS/TLS/rota inclusos
+```
+Depois de ~1-2 min (emissão do certificado): `curl -I https://demo.portalassociativo.com.br/login.html` deve devolver `200`.
 
 Depois disso, **nenhum outro passo de infraestrutura** é necessário — a resolução de organização já está pronta do lado do código (ver abaixo) e já foi validada contra produção.
 
