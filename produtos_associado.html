@@ -146,9 +146,12 @@
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-  import { auth, db, getUserProfile, getUserStatus, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+  import { auth, db, getUserProfile, getUserStatus, currentOrgId, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { collection, getDocs, query, where, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const _orgBrandingForText = await getOrgBranding();
+  const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
   // ====== UI refs ======
   const memberNameEl = document.getElementById("memberName");
@@ -309,7 +312,7 @@
     const imgs = Array.isArray(p.imageUrls) && p.imageUrls.length ? p.imageUrls : [p.imageUrl || "assets/img/placeholder.png"];
     const price = (p.price!=null) ? Number(p.price).toLocaleString("pt-BR",{style:"currency",currency:"BRL"}) : "";
     const wpp = (p.whatsapp||"").replace(/\D/g,"");
-    const wppUrl = wpp ? `https://wa.me/${wpp}?text=${encodeURIComponent("Vi seu produto no Clube do Cavalo!")}` : "#";
+    const wppUrl = wpp ? `https://wa.me/${wpp}?text=${encodeURIComponent(`Vi seu produto no ${ORG_NOME}!`)}` : "#";
     return `
       <div class="col-12 col-sm-6 col-lg-4">
         <div class="card h-100 shadow-sm">

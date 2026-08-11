@@ -86,7 +86,7 @@
     }
   </style>
 </head>
-<body data-page-title="Classificados">
+<body data-page-title="Classificados" data-desc-template="Classificados do {org} — anúncios públicos de compra, venda e serviços.">
 
 <!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
@@ -320,7 +320,7 @@
 
 <script src="./tenant.config.js"></script>
 <script type="module">
-  import { db, setupAdminButton, currentOrgId, checkModuleEnabled, applyModuleVisibility } from './firebase.js';
+  import { db, setupAdminButton, currentOrgId, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from './firebase.js';
   import {
     collection,
     query,
@@ -329,6 +329,9 @@
     orderBy,
     getDocs
   } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const _orgBrandingForText = await getOrgBranding();
+  const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
   setupAdminButton("#adminBtn", { href: "admin.html", label: "Painel Admin" });
   applyModuleVisibility();
@@ -450,7 +453,7 @@
   }
   function whatsUrl(v){
     const w = (v||"").toString().replace(/\D/g,"");
-    return w ? `https://wa.me/${w}?text=${encodeURIComponent("Olá! Vi seu anúncio no Clube do Cavalo.")}` : "";
+    return w ? `https://wa.me/${w}?text=${encodeURIComponent(`Olá! Vi seu anúncio no ${ORG_NOME}.`)}` : "";
   }
   function toEpoch(x){
     try{

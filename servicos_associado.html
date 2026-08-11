@@ -146,9 +146,12 @@
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-  import { auth, db, getUserProfile, getUserStatus, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+  import { auth, db, getUserProfile, getUserStatus, currentOrgId, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
   import { collection, getDocs, query, where, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  const _orgBrandingForText = await getOrgBranding();
+  const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
   const memberNameEl = document.getElementById("memberName");
   const btnRenewPlan = document.getElementById("btnRenewPlan");
@@ -304,7 +307,7 @@
   function renderCard(svc){
     const imgs = Array.isArray(svc.imageUrls) && svc.imageUrls.length ? svc.imageUrls : [svc.imageUrl || "assets/img/placeholder.png"];
     const wpp = (svc.whatsapp||"").replace(/\D/g,"");
-    const wppUrl = wpp ? `https://wa.me/${wpp}?text=${encodeURIComponent("Vi seu serviço no Clube do Cavalo!")}` : "#";
+    const wppUrl = wpp ? `https://wa.me/${wpp}?text=${encodeURIComponent(`Vi seu serviço no ${ORG_NOME}!`)}` : "#";
     return `
       <div class="col-12 col-sm-6 col-lg-4">
         <div class="card h-100 shadow-sm">

@@ -242,7 +242,10 @@ import { getFirestore, doc, collection, query, orderBy, limit,
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import { getFunctions, httpsCallable }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
-import { setupAdminButton, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+import { setupAdminButton, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from "./firebase.js";
+
+const _orgBrandingForText = await getOrgBranding();
+const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
 const db        = getFirestore(getApp());
 const auth      = getAuth(getApp());
@@ -328,7 +331,7 @@ onSnapshot(
 
 /* ---- Render lote ---- */
 function renderLot(lot) {
-  document.title = (lot.title||"Lote") + " — Leilão CCBMG";
+  document.title = (lot.title||"Lote") + " — Leilão " + ORG_NOME;
   document.getElementById("bcTitle").textContent = lot.title || "Lote";
 
   // Galeria

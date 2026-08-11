@@ -172,7 +172,7 @@ onAuthStateChanged(auth, async user => {
   try {
     const snap = await getDoc(doc(db, "systemConfig", "global"));
     const cfg = snap.data() || {};
-    document.getElementById("cfgNome").value   = cfg.nomePlataforma || "SaaS CCBMG";
+    document.getElementById("cfgNome").value   = cfg.nomePlataforma || "Portal Associativo";
     document.getElementById("cfgUrl").value    = cfg.urlBase || "";
     document.getElementById("cfgEmail1").value = cfg.emailPrincipal || "waldiney.serafim@gmail.com";
     document.getElementById("cfgEmail2").value = cfg.emailSecundario || "mpmarquesnutri@gmail.com";
