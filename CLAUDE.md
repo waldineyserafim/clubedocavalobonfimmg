@@ -780,6 +780,10 @@ Primeira tela onde o **Organization Master** administra a própria organização
 
 Conta Asaas/SMTP compartilhada, `billingProvider` fixo no provisionamento, reCAPTCHA site key de um domínio só, timezone fixo em crons, Cloudflare Worker de origem única — todos já eram dívida técnica documentada em fases anteriores (G7, RC1-03/04/05/08) e ficaram deliberadamente fora do escopo desta fase (que tratou só de configuração de negócio, não de infraestrutura/secrets). Identidade visual e localização continuam só no Painel Master — não foram estendidas ao autoatendimento por não terem sido flagadas como hardcoded pela auditoria (já eram 100% dinâmicas desde a Fase 3.4/3.5).
 
+### Deploy e validação em produção ✅
+
+Firestore Rules + Indexes e todas as Cloud Functions deployados; frontend dos dois repositórios publicado via `git push` (GitHub Pages). Smoke test real (Playwright, navegador de verdade) contra o tenant Sandbox após o deploy: Master altera Classificados → salva → recarrega → valor persistiu de verdade; Admin visualiza mas escrita é bloqueada mesmo contornando a UI (`permission-denied`); `business.auction.commissionSistemaPct` continua protegido mesmo pro Master, inclusive tentando alterá-lo junto com o resto de `business.auction` no mesmo payload. Achado corrigido no próprio deploy: cache-busting de `shared/core/tenant/branding.js` (`?v=`) não tinha sido incrementado apesar do conteúdo ter mudado — bumpado antes de considerar o deploy completo (Cloudflare em `portalassociativo.com.br` cacheia por até 4h). Relatório completo, incluindo os dois achados de bug no próprio script de teste (nenhum no produto), em `portal-associativo/docs/roadmap/EVOLUCAO_MULTITENANT_FASE4_REPORT.md`, seção 11.
+
 ---
 
 ## Integração Asaas ✅ (Fase 2 — LIVE)
