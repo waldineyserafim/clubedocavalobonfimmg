@@ -191,11 +191,12 @@ Substituiu definitivamente o `master` plano e cross-tenant (`isMaster()` em `fir
 | `createPlatformAdmin({email,nome,role})` | administrator/owner | administrator só cria `role:"operator"`; owner cria qualquer papel; envia link de definição de senha por e-mail (nunca senha em texto puro) |
 | `setPlatformAdminStatus({uid,ativo})` | administrator/owner | administrator só ativa/desativa `operator`; proíbe auto-alteração; proíbe deixar zero owners ativos |
 | `setPlatformAdminRole({uid,newRole})` | **owner apenas** | proíbe auto-alteração; proíbe deixar zero owners ativos |
+| `deletePlatformAdmin({uid})` | administrator/owner | exclusão definitiva (Firestore + Auth) — diferente de `setPlatformAdminStatus` (soft delete, reversível); administrator só exclui `operator`, mesma escalada de `createPlatformAdmin`/`setPlatformAdminStatus`; proíbe auto-exclusão; proíbe excluir o último owner ativo |
 | `migratePlatformAdmins` | uso único — gate é o mecanismo antigo (`role==="master"` em `users/{uid}`, sem passar por organização) | migra toda conta `master` legada pra `platformAdmins` com `role:"owner"`; não apaga o doc antigo, só neutraliza `role` pra `"migrado_para_platform_admins"` (não-destrutivo, idempotente) |
 
 `backfillLeilaoOrgId` (utilitário de migração da Fase 2C) foi reclassificado de `requireOrganizationMaster` para guarda de plataforma — sempre foi, mecanicamente, uma operação cross-org, nunca de autoatendimento de uma organização.
 
-Todas as 3 callables de gestão de equipe gravam auditoria diretamente em `systemLogs` via Admin SDK (atestado pelo servidor) — `platformAdmins` não permite nenhuma escrita direta do cliente (ver Firestore Rules abaixo), então essa é a única fonte de auditoria dessas mutações.
+Todas as 4 callables de gestão de equipe gravam auditoria diretamente em `systemLogs` via Admin SDK (atestado pelo servidor) — `platformAdmins` não permite nenhuma escrita direta do cliente (ver Firestore Rules abaixo), então essa é a única fonte de auditoria dessas mutações. Botão "Excluir" em `admin/platform-operators.html` (Painel Master) usa `confirm()` nativo antes de chamar — é a única ação irreversível dessa tela, as demais (ativar/desativar, mudar papel) são reversíveis.
 
 ### Firestore Rules
 

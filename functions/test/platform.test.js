@@ -269,4 +269,53 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     const doc = await db.collection('platformAdmins').doc('plat_owner_2').get();
     assert.strictEqual(doc.data().role, 'administrator');
   });
+
+  /* =======================================================================
+     deletePlatformAdmin — exclusão definitiva (Firestore + Auth), diferente
+     de setPlatformAdminStatus (soft delete). Mesma escalada de privilégio de
+     createPlatformAdmin/setPlatformAdminStatus: administrator só exclui
+     operator, owner exclui qualquer um.
+     ======================================================================= */
+
+  await t('deletePlatformAdmin: operator não tem acesso', async () => {
+    await assertRejectsWithCode(
+      () => fns.deletePlatformAdmin.run({ uid: 'plat_admin_1' }, ctx('plat_operator_1')),
+      'permission-denied'
+    );
+  });
+
+  await t('deletePlatformAdmin: administrator NÃO PODE excluir outro administrator', async () => {
+    await seedPlatformAdmin(db, authInstance, { uid: 'plat_admin_para_excluir', email: 'plat_admin_para_excluir@teste.local', role: 'administrator' });
+    await assertRejectsWithCode(
+      () => fns.deletePlatformAdmin.run({ uid: 'plat_admin_para_excluir' }, ctx('plat_admin_1')),
+      'permission-denied'
+    );
+  });
+
+  await t('deletePlatformAdmin: administrator PODE excluir operator', async () => {
+    await seedPlatformAdmin(db, authInstance, { uid: 'plat_operator_para_excluir', email: 'plat_operator_para_excluir@teste.local', role: 'operator' });
+    await fns.deletePlatformAdmin.run({ uid: 'plat_operator_para_excluir' }, ctx('plat_admin_1'));
+    const doc = await db.collection('platformAdmins').doc('plat_operator_para_excluir').get();
+    assert.strictEqual(doc.exists, false);
+  });
+
+  await t('deletePlatformAdmin: não é possível excluir a própria conta', async () => {
+    await assertRejectsWithCode(
+      () => fns.deletePlatformAdmin.run({ uid: 'plat_owner_1' }, ctx('plat_owner_1')),
+      'invalid-argument'
+    );
+  });
+
+  await t('deletePlatformAdmin: uid inexistente retorna not-found', async () => {
+    await assertRejectsWithCode(
+      () => fns.deletePlatformAdmin.run({ uid: 'nunca_existiu_platform_admin' }, ctx('plat_owner_1')),
+      'not-found'
+    );
+  });
+
+  // NOTA: mesma inalcançabilidade documentada em setPlatformAdminStatus/
+  // setPlatformAdminRole se aplica à guarda de "não deixar zero owners
+  // ativos" aqui — só um owner pode agir sobre outro owner e auto-ação é
+  // sempre bloqueada antes dessa checagem, então o último owner remanescente
+  // nunca pode ser alvo de si mesmo. Mantida como defesa em profundidade.
 };

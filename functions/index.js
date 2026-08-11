@@ -2595,6 +2595,56 @@ exports.setPlatformAdminRole = functions.https.onCall(async (data, context) => {
   return { success: true };
 });
 
+// Callable: exclui definitivamente uma conta de equipe da plataforma (Firestore
+// + Auth) — ao contrário de setPlatformAdminStatus (soft delete, reversível),
+// esta é irreversível: mesma classe de operação de deleteAssociado. Mesma
+// escalada de privilégio de createPlatformAdmin/setPlatformAdminStatus:
+// administrator só exclui operator, owner exclui qualquer um.
+exports.deletePlatformAdmin = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+
+  const targetUid = data?.uid;
+  if (!targetUid) {
+    throw new functions.https.HttpsError('invalid-argument', 'uid é obrigatório.');
+  }
+  if (targetUid === caller.uid) {
+    throw new functions.https.HttpsError('invalid-argument', 'Não é possível excluir a própria conta — peça a outro administrador ou owner.');
+  }
+
+  const targetRef = db.collection('platformAdmins').doc(targetUid);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Administrador de plataforma não encontrado.');
+  }
+  const target = targetSnap.data();
+
+  if (caller.role === 'administrator' && target.role !== 'operator') {
+    throw new functions.https.HttpsError('permission-denied', 'Administrator só pode excluir contas com papel operator.');
+  }
+
+  if (target.role === 'owner') {
+    const othersSnap = await db.collection('platformAdmins')
+      .where('role', '==', 'owner').where('ativo', '==', true).get();
+    const remaining = othersSnap.docs.filter((d) => d.id !== targetUid);
+    if (remaining.length === 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Não é possível excluir o último owner ativo da plataforma.');
+    }
+  }
+
+  try {
+    await admin.auth().deleteUser(targetUid);
+  } catch (e) {
+    if (e.code !== 'auth/user-not-found') {
+      throw new functions.https.HttpsError('internal', `Falha ao excluir conta de autenticação: ${e.message}`);
+    }
+  }
+  await targetRef.delete();
+
+  await writePlatformAuditLog('platform_admin_excluido', { uid: targetUid, email: target.email, role: target.role }, context);
+  console.log(`deletePlatformAdmin: uid=${targetUid} role=${target.role} excluído por caller=${caller.uid}`);
+  return { success: true };
+});
+
 /* =========================================================================
    FEATURE FLAGS (Fase 3.8)
    — camada única de resolução (ver lib/features.js). resolveFeatureFlags é a
