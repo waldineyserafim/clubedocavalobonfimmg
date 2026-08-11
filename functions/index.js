@@ -12,6 +12,7 @@ const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpe
 const { createProvisioningService } = require('./lib/provisioning');
 const { createDomainsService } = require('./lib/domains');
 const { createFeatureService } = require('./lib/features');
+const { createSandboxBrandingService } = require('./lib/sandboxBranding');
 const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
 const { runAuthBackup } = require('./lib/authBackup');
 
@@ -89,6 +90,14 @@ const provisioningService = createProvisioningService({
 
 // Fase 3.5 — registro hostname → orgId, único escritor de domains/{hostname}.
 const domainsService = createDomainsService({
+  db,
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+});
+
+// Pós Fase 3.7/3.10 — restauração do branding do tenant Sandbox oficial
+// (ver lib/sandboxBranding.js). orgId é sempre a constante SANDBOX_ORG_ID
+// interna ao módulo, nunca escolhida por quem chama.
+const sandboxBrandingService = createSandboxBrandingService({
   db,
   serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
 });
@@ -2845,6 +2854,24 @@ exports.onOrganizationWritten = functions.firestore
     await publicRef.set(projection);
     return null;
   });
+
+/* =========================================================================
+   RESTAURAR BRANDING DO TENANT SANDBOX (após Fase 3.7/3.10)
+   — ação exclusiva do Painel Master pro tenant Sandbox oficial da
+   plataforma: depois de uma demonstração comercial mexer em logo/cores pra
+   mostrar White Label, restaura só esses 4 campos pro estado oficial —
+   nunca associados/eventos/financeiro/módulos/Feature Flags (isso é o Seed
+   Oficial, functions/scripts/seedSandboxTenant.js, não este mecanismo).
+   Alvo é a constante SANDBOX_ORG_ID de lib/sandboxBranding.js — não existe
+   parâmetro que escolha organização nenhuma (ver comentário no módulo).
+   ========================================================================= */
+exports.restoreSandboxBranding = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const result = await sandboxBrandingService.restoreSandboxBranding({ orgId: data?.orgId });
+  await writePlatformAuditLog('sandbox_branding_restaurado', { orgId: result.orgId }, context);
+  console.log(`restoreSandboxBranding: orgId=${result.orgId} por caller=${caller.uid}`);
+  return result;
+});
 
 // ─── VALIDAÇÃO DE CPF ─────────────────────────────────────────────────────────
 

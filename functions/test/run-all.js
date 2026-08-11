@@ -24,6 +24,7 @@ const TEST_FILES = [
   'platform.test.js',
   'provisioning.test.js',
   'domains.test.js',
+  'restore-sandbox-branding.test.js',
   'organization-public-sync.test.js',
   'billing-asaas.test.js',
   'billing-registry.test.js',
