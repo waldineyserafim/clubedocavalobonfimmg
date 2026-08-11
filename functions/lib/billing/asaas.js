@@ -164,6 +164,12 @@ function createAsaasBillingProvider({ apiKey, baseUrl, environment, fetchImpl = 
     return request(`/subscriptions/${subscriptionId}`);
   }
 
+  /** Lista assinaturas de um cliente — usado pra reconciliação (ex.: reconstruir asaasSubscriptionId perdido). */
+  async function listSubscriptionsByCustomer(customerId, { limit = 10 } = {}) {
+    const data = await request(`/subscriptions?customer=${encodeURIComponent(customerId)}&limit=${limit}`);
+    return data.data || [];
+  }
+
   /** status: 'ACTIVE' | 'INACTIVE' — pausa/reativa sem apagar (equivalente a "cancelSubscription" reversível). */
   async function updateSubscriptionStatus(subscriptionId, status) {
     const data = await request(`/subscriptions/${subscriptionId}`, { method: 'POST', body: { status } });
@@ -362,6 +368,7 @@ function createAsaasBillingProvider({ apiKey, baseUrl, environment, fetchImpl = 
     // Subscriptions
     createSubscription,
     getSubscription,
+    listSubscriptionsByCustomer,
     updateSubscriptionStatus,
     cancelSubscription,
     deleteSubscription,

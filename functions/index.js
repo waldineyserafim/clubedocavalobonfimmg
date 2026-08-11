@@ -11,12 +11,25 @@ const { getBillingProvider } = require('./lib/billing');
 const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpers } = require('./lib/platform');
 const { createProvisioningService } = require('./lib/provisioning');
 const { createDomainsService } = require('./lib/domains');
+const { createFeatureService } = require('./lib/features');
 const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
 const { runAuthBackup } = require('./lib/authBackup');
 
 const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
 const ASAAS_AUCTION_WEBHOOK_TOKEN = 'projects/clubecavalobonfim/secrets/asaas-auction-webhook-token/versions/latest';
+// Fase 3.7 (Sandbox multi-tenant) — segunda conta Asaas, exclusiva do tenant
+// Sandbox oficial da plataforma (organizations/{orgId}.billingEnvironment ===
+// "sandbox"). Outbound já era 100% resolvido por organização via
+// getProviderForOrg() (lib/billing) desde a Fase 3.4 — só o webhook (inbound)
+// ainda assumia 1 conta/token global, porque o Asaas manda o POST pra 1
+// conta/token só, sem informação de organização ANTES de validar o token (ver
+// getDefaultProvider). Como o Asaas já configura webhook por CONTA (não por
+// payload), e esta plataforma tem exatamente 1 tenant Sandbox (não N), a
+// mesma solução de auctionAsaasWebhook (endpoint dedicado + secret dedicado)
+// resolve sem precisar rotear por orgId em tempo de requisição.
+const ASAAS_SANDBOX_SECRET         = 'projects/clubecavalobonfim/secrets/asaas-sandbox-api-key/versions/latest';
+const ASAAS_SANDBOX_WEBHOOK_TOKEN  = 'projects/clubecavalobonfim/secrets/asaas-sandbox-webhook-token/versions/latest';
 
 // Remove prefixo 55 se o número já vier com código do país (13 dígitos)
 // Asaas espera número local: DDD + número (11 dígitos para celular)
@@ -78,6 +91,15 @@ const provisioningService = createProvisioningService({
 const domainsService = createDomainsService({
   db,
   serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+});
+
+// Fase 3.8 — camada única de resolução de Feature Flags. Nenhuma outra parte
+// deste arquivo deve ler featureFlags/{flagKey} direto do Firestore — sempre
+// via featureService (ver lib/features.js pro porquê).
+const featureService = createFeatureService({
+  db,
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+  deleteField: () => admin.firestore.FieldValue.delete(),
 });
 
 /** Provider da organização do documento/usuário em questão (resolve org → provider). */
@@ -1550,15 +1572,19 @@ exports.asaasReconciliationDaily = functions
    WEBHOOK ASAAS → FIREBASE
    Configurar no Asaas: Configurações → Integrações → Webhook
    URL: https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasWebhook
-   ======================================================================= */
-exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
+   Fase 3.7 (Sandbox multi-tenant) — extraído para handleAsaasWebhookRequest()
+   reutilizável por asaasWebhook (conta Asaas Production, CCBMG e demais
+   tenants) e asaasSandboxWebhook (conta Asaas Sandbox, tenant Sandbox
+   oficial da plataforma). O Asaas só suporta 1 webhook configurado por CONTA
+   — não há orgId no payload antes de resolver o provider — por isso são 2
+   endpoints/tokens distintos, não roteamento em tempo de requisição (mesmo
+   padrão já usado por auctionAsaasWebhook).
+   ======================================================================= */
+async function handleAsaasWebhookRequest(req, res, { tokenSecretName, resolveProvider }) {
   try {
-    const expectedToken = await getSecret(ASAAS_WEBHOOK_TOKEN);
+    const expectedToken = await getSecret(tokenSecretName);
     const receivedToken = req.headers['asaas-access-token'];
-    // Token único/global — ver "Pendências" no relatório da Fase 2B: só passa a ser
-    // por-organização quando existir mais de uma conta Asaas na plataforma.
     if (!receivedToken || receivedToken !== expectedToken) {
       logger.warn('asaasWebhook: token inválido ou ausente');
       return res.status(401).send('Unauthorized');
@@ -1571,10 +1597,8 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
   const { event, payment } = req.body || {};
 
   try {
-    // A verificação em si (anti-fraude) precisa de um provider — usa o default
-    // (única conta Asaas hoje) até existir mais de um provider na plataforma.
-    const defaultProvider = await getDefaultProvider();
-    const result = await defaultProvider.processWebhook({ event, payment });
+    const provider = await resolveProvider();
+    const result = await provider.processWebhook({ event, payment });
     if (!result.confirmed) return res.status(200).send('OK');
 
     const uid = result.subscriptionExternalReference;
@@ -1603,6 +1627,33 @@ exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
     logger.error('asaasWebhook error:', err.message);
     return res.status(500).send('Error');
   }
+}
+
+exports.asaasWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  return handleAsaasWebhookRequest(req, res, {
+    tokenSecretName: ASAAS_WEBHOOK_TOKEN,
+    resolveProvider: getDefaultProvider,
+  });
+});
+
+/* =======================================================================
+   WEBHOOK ASAAS SANDBOX → FIREBASE
+   Configurar na conta Asaas SANDBOX (sandbox.asaas.com): Configurações →
+   Integrações → Webhook. Usa token e conta Asaas próprios (asaas-sandbox-*
+   no Secret Manager) — nunca a conta de produção do CCBMG.
+   URL: https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasSandboxWebhook
+   ======================================================================= */
+exports.asaasSandboxWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+  return handleAsaasWebhookRequest(req, res, {
+    tokenSecretName: ASAAS_SANDBOX_WEBHOOK_TOKEN,
+    resolveProvider: () => getBillingProvider({
+      org: { billingEnvironment: 'sandbox' },
+      getSecret,
+      defaultSecretName: ASAAS_SANDBOX_SECRET,
+    }),
+  });
 });
 
 // Redefine a senha de um associado DA MESMA ORGANIZAÇÃO. Requer role master.
@@ -2516,6 +2567,85 @@ exports.setPlatformAdminRole = functions.https.onCall(async (data, context) => {
   await targetRef.update({ role: newRole, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   await writePlatformAuditLog('platform_admin_papel_alterado', { uid: targetUid, de: targetRole, para: newRole }, context);
   console.log(`setPlatformAdminRole: uid=${targetUid} ${targetRole}->${newRole} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+/* =========================================================================
+   FEATURE FLAGS (Fase 3.8)
+   — camada única de resolução (ver lib/features.js). resolveFeatureFlags é a
+   ÚNICA porta de entrada do CLIENTE (nunca lê featureFlags/{flagKey} direto —
+   ver comentário no topo de lib/features.js pro porquê: o doc agrega
+   overrides de todas as organizações, exposição direta vazaria dado
+   cross-tenant). As demais são gestão, restritas a Platform Administrator.
+   ========================================================================= */
+
+// Qualquer membro autenticado de uma organização resolve as flags DA PRÓPRIA
+// organização. Platform staff pode opcionalmente passar orgId pra pré-
+// visualizar o estado de outra organização (uso do Painel Master) — nunca o
+// contrário (organização nunca escolhe orgId de outra).
+exports.resolveFeatureFlags = functions.https.onCall(async (data, context) => {
+  // Sem checagem de auth própria aqui — requirePlatformStaff/requireOrganizationMember
+  // abaixo já exigem autenticação como primeiro passo de qualquer um dos dois ramos.
+  let org;
+  const requestedOrgId = data?.orgId ? String(data.orgId) : null;
+  if (requestedOrgId) {
+    await platformAuth.requirePlatformStaff(context);
+    org = await organizationResolver.getOrganization(requestedOrgId);
+    if (!org) throw new functions.https.HttpsError('not-found', `Organização "${requestedOrgId}" não encontrada.`);
+    org = { orgId: requestedOrgId, environment: org.environment };
+  } else {
+    const member = await auth.requireOrganizationMember(context);
+    const orgDoc = await organizationResolver.getOrganization(member.orgId);
+    org = { orgId: member.orgId, environment: orgDoc?.environment };
+  }
+
+  const flags = await featureService.resolveAll(org);
+  return { orgId: org.orgId, flags };
+});
+
+exports.createFeatureFlag = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const { key } = await featureService.createFlag({
+    key: String(data?.key || '').trim(),
+    description: String(data?.description || '').trim(),
+    category: data?.category || 'other',
+    environments: Array.isArray(data?.environments) ? data.environments : null,
+    createdBy: caller.uid,
+  });
+  await writePlatformAuditLog('feature_flag_criada', { key, category: data?.category || 'other' }, context);
+  console.log(`createFeatureFlag: key=${key} por caller=${caller.uid}`);
+  return { key };
+});
+
+exports.setFeatureFlagStatus = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const key = String(data?.key || '').trim();
+  if (!key) throw new functions.https.HttpsError('invalid-argument', 'key é obrigatória.');
+  await featureService.setStatus(key, data?.status, { rolloutPercentage: data?.rolloutPercentage, updatedBy: caller.uid });
+  await writePlatformAuditLog('feature_flag_status_alterado', { key, status: data?.status, rolloutPercentage: data?.rolloutPercentage ?? null }, context);
+  console.log(`setFeatureFlagStatus: key=${key} status=${data?.status} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+exports.setFeatureFlagOverride = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const key = String(data?.key || '').trim();
+  const orgId = String(data?.orgId || '').trim();
+  if (!key || !orgId) throw new functions.https.HttpsError('invalid-argument', 'key e orgId são obrigatórios.');
+  const value = data?.value === null ? null : data?.value === true;
+  await featureService.setOverride(key, orgId, value, { updatedBy: caller.uid });
+  await writePlatformAuditLog('feature_flag_override_alterado', { key, orgId, value }, context);
+  console.log(`setFeatureFlagOverride: key=${key} orgId=${orgId} value=${value} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+exports.archiveFeatureFlag = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const key = String(data?.key || '').trim();
+  if (!key) throw new functions.https.HttpsError('invalid-argument', 'key é obrigatória.');
+  await featureService.setArchived(key, data?.archived !== false, { updatedBy: caller.uid });
+  await writePlatformAuditLog('feature_flag_arquivada', { key, archived: data?.archived !== false }, context);
+  console.log(`archiveFeatureFlag: key=${key} archived=${data?.archived !== false} por caller=${caller.uid}`);
   return { success: true };
 });
 

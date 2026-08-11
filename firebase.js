@@ -13,7 +13,7 @@
 import { initTenantFirebase } from "https://portalassociativo.com.br/shared/core/auth/firebase-init.js?v=2026.08.7";
 import { createRoleResolver } from "https://portalassociativo.com.br/shared/core/auth/roles.js?v=2026.08.7";
 import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.7";
-import { getTenant } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.7";
+import { getTenant, TenantNotFoundError, renderTenantNotFoundPage } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.9";
 import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.7";
 import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.7";
 import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.7";
@@ -48,21 +48,45 @@ import {
 
 // === Config do tenant (window.__TENANT_CONFIG__, ver tenant.config.js) ===
 const _tenantConfig = window.__TENANT_CONFIG__;
-if (!_tenantConfig || !_tenantConfig.orgId) {
+if (!_tenantConfig || !_tenantConfig.firebase) {
   throw new Error(
-    "[firebase.js] window.__TENANT_CONFIG__ ausente ou sem orgId. " +
+    "[firebase.js] window.__TENANT_CONFIG__ ausente ou sem config do Firebase. " +
     'Adicione <script src="./tenant.config.js"></script> ANTES deste módulo (ver tenant.config.js).'
   );
 }
 
-// ─── MULTI-TENANT ───────────────────────────────────────────────────────────
-export const currentOrgId = _tenantConfig.orgId;
-async function getOrgId() {
-  return (await getTenant()).orgId;
-}
-
+// initTenantFirebase só precisa da config do SDK (apiKey/projectId/...) — igual
+// pra toda organização neste projeto único — nunca do orgId. Por isso pode
+// (e precisa) rodar ANTES da resolução de tenant abaixo: getTenant() consulta
+// domains/{hostname} no Firestore, então precisa de `db` já inicializado.
 const { auth, db, storage } = initTenantFirebase(_tenantConfig.firebase, { persistence: true });
 export { auth, db, storage };
+
+// ─── MULTI-TENANT (Fase 3.9 — resolução por hostname, ver tenant-context.js) ──
+// Top-level await: toda página que importa firebase.js já usa
+// <script type="module">, então a cadeia de import inteira espera esta
+// resolução terminar antes de qualquer código de página rodar — nenhum
+// consumidor de currentOrgId precisa lidar com Promise (comportamento
+// síncrono do ponto de vista de quem importa, só que resolvido dinamicamente
+// por trás). orgId vem SEMPRE de domains/{location.hostname} (ex.:
+// clubedocavalobonfim.com.br → org_bonfim, demo.portalassociativo.com.br →
+// org_teste_etapa10) — Fase 3.10: SEM fallback nenhum pra hostname não
+// cadastrado. Se domains/{hostname} não existir, renderiza uma página
+// amigável e interrompe a execução — nunca serve organização errada
+// silenciosamente, nem pro Sandbox nem pra nenhum outro caso.
+let _tenant;
+try {
+  _tenant = await getTenant({ db });
+} catch (err) {
+  if (err instanceof TenantNotFoundError) {
+    renderTenantNotFoundPage(err);
+  }
+  throw err; // interrompe a avaliação deste módulo — nenhum script de página roda depois disto
+}
+export const currentOrgId = _tenant.orgId;
+async function getOrgId() {
+  return currentOrgId;
+}
 
 // Compatibilidade: reexports (sem redeclarar nada)
 export { ref as sRef, uploadBytes, getDownloadURL };

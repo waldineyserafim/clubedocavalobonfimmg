@@ -10,6 +10,7 @@ Esta documentação foi gerada a partir de leitura integral do código-fonte (HT
 
 | Documento | Conteúdo |
 |---|---|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | **✅ Atualizado (Fase 3.8)** — ambiente local, emuladores, testes, lint, troubleshooting |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Visão geral, arquitetura, princípios, limitações, roadmap real vs. documentado |
 | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) | Hospedagem, Firebase, domínio, ambientes, deploy |
 | [DATABASE.md](DATABASE.md) | Todas as coleções Firestore, campos, tipos, relacionamentos |

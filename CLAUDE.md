@@ -385,6 +385,285 @@ Auditoria de prontidão comercial da plataforma inteira (não só CCBMG), com ev
 
 ---
 
+## Fase 3.7 — Tenant Sandbox Oficial da Plataforma ✅
+
+A plataforma sempre teve um único ambiente Firebase (`clubecavalobonfim`) — sem projeto de staging separado. Esta fase resolve isso sem criar um segundo projeto: transforma um tenant já existente no ambiente permanente de desenvolvimento funcional, homologação, QA, demonstrações comerciais, treinamento e validação de integrações — **nunca dados reais**. Não é um tenant qualquer; é *o* Sandbox oficial da plataforma (singular), do mesmo jeito que CCBMG é hoje o único tenant de produção real.
+
+### Identificação — nunca por nome
+
+```
+organizations/org_teste_etapa10
+  nome: "Clube dos Associados"           — só exibição, igual a qualquer outra organização
+  isSandbox: true                        — a ÚNICA fonte de verdade sobre "isto é o Sandbox"
+  environment: "sandbox"
+  isDemoTenant: true
+```
+
+Qualquer código futuro que precise se comportar diferente num tenant de demonstração (throttling mais permissivo, banners de aviso, exclusão de relatórios agregados, etc.) deve checar `organizations/{orgId}.isSandbox === true` — nunca `nome === "Clube dos Associados"` ou qualquer variação de string. O nome é só rótulo; pode mudar sem quebrar nada que dependa da flag.
+
+### Asaas Sandbox — reaproveitando a resolução por organização que já existia
+
+A Fase 3.4 já tinha criado `getBillingProvider({org, getSecret, defaultSecretName})` (`functions/lib/billing/index.js`) e `createAsaasBillingProvider({apiKey, environment})` (`functions/lib/billing/asaas.js`, que já resolvia `sandbox.asaas.com` vs `api.asaas.com` a partir de `org.billingEnvironment`) — e todo o outbound (criar cliente, assinatura, cobrança, cancelar, etc.) já passava por `getProviderForOrg(orgId)` em `functions/index.js` desde então. Ou seja: **a "camada única de resolução do ambiente de pagamento" pedida nesta fase já existia** — não foi criada de novo, só configurada e, pela primeira vez, exercitada com uma segunda conta Asaas de verdade.
+
+```
+organizations/org_teste_etapa10
+  billingProvider: "asaas"
+  billingEnvironment: "sandbox"
+  billingConfig.secretName: "projects/clubecavalobonfim/secrets/asaas-sandbox-api-key/versions/latest"
+```
+
+Qualquer Cloud Function que já chamava `getProviderForOrg(userData.orgId)` (criação de assinatura, sincronização de dados cadastrais, cancelamento/reativação self-service, cobrança avulsa, etc.) automaticamente passou a falar com o Asaas Sandbox para este tenant, com **zero mudança de código** nesses pontos — só a configuração da organização mudou. CCBMG (`org_bonfim`) continua sem `billingEnvironment` (ausente = produção, comportamento 100% retrocompatível).
+
+**A única lacuna real**: o webhook (inbound) nunca tinha sido pensado por-organização — o comentário original de `asaasWebhook` já dizia "só passa a ser por-organização quando existir mais de uma conta Asaas na plataforma" (Fase 2B). Esta fase chegou nesse ponto. Como o Asaas configura webhook por CONTA (não por payload — não há como saber a organização antes de validar o token), a solução foi mirror do padrão que `auctionAsaasWebhook` já usava (endpoint + secret dedicados), não um roteamento em tempo de requisição:
+
+| Função | Token (Secret Manager) | Provider |
+|---|---|---|
+| `asaasWebhook` (inalterado no comportamento) | `asaas-webhook-token` | conta Asaas Production (CCBMG e demais tenants futuros de produção) |
+| `asaasSandboxWebhook` (novo) | `asaas-sandbox-webhook-token` | conta Asaas Sandbox (só o tenant Sandbox oficial) |
+
+Ambos chamam o mesmo `handleAsaasWebhookRequest()` extraído de dentro de `asaasWebhook` — nenhuma lógica duplicada. A assinatura de webhook em si foi criada via `POST /v3/webhooks` da própria API do Asaas Sandbox (não precisa do painel manualmente): URL `https://us-central1-clubecavalobonfim.cloudfunctions.net/asaasSandboxWebhook`, eventos `PAYMENT_RECEIVED`/`PAYMENT_CONFIRMED`, `authToken` = valor do secret `asaas-sandbox-webhook-token` (gerado por este projeto, não pelo Asaas — é o mesmo token que a Cloud Function espera no header `asaas-access-token`). Validado ponta a ponta nesta fase: uma cobrança real marcada como recebida no Asaas Sandbox disparou o webhook, que criou `financeInvoices` e atualizou `finance/summary` no Firestore automaticamente, sem nenhuma intervenção manual.
+
+### Seed Oficial — `functions/scripts/seedSandboxTenant.js`
+
+Não existia nenhum seed reaproveitável antes desta fase (`functions/test/helpers/seed.js` é infraestrutura de teste contra o emulador, não um seed de tenant real). O novo script roda direto contra produção via REST (Firestore, Identity Toolkit/Auth, Secret Manager), autenticado com `gcloud auth print-access-token` do operador logado — sem depender de Application Default Credentials nem de uma chave de serviço distribuída.
+
+```
+node functions/scripts/seedSandboxTenant.js [team|associados|financeFollowup|events|partners|classificados|repairAsaasLinks|all]
+```
+
+- **Guarda de segurança**: antes de qualquer escrita, confirma `organizations/{SANDBOX_ORG_ID}.isSandbox === true` (mesma flag da seção acima) — recusa rodar contra qualquer outra organização, mesmo se `SANDBOX_ORG_ID` for trocado por engano.
+- **Idempotência por ID determinístico**: todo documento usa prefixo `sandbox_` (`sandbox_master_01`, `sandbox_assoc_01..35`, `sandbox_evt_01..05`, etc.) e `seedTag: "sandbox-seed-v1"`. Reexecutar nunca duplica.
+- **`users/{uid}` é campo minado para overwrite total**: esse documento é co-dono de Cloud Functions (`onNewAssociadoCriado` grava `asaasId`/`asaasSubscriptionId`/`asaasSync`; `onAssociadoAtualizado` reage a mudanças de `ativo`). Um `PATCH` sem `updateMask` (overwrite completo) *apaga* esses campos a cada reexecução — bug real, encontrado e corrigido durante esta fase (ver "Riscos e correções" no relatório da Fase 3.7). A correção — `upsertUserFields()`, que só grava os campos explicitamente passados via `updateMask.fieldPaths` — é a razão de existir do passo `repairAsaasLinks` (reconstrói o vínculo com o Asaas Sandbox a partir de `findCustomerByExternalReference`/`listSubscriptionsByCustomer` quando algo precisar ser recuperado).
+- **Sincronização real, não simulada**: criar os 40 associados/mirins com `cpf`/`role:"Associado"` dispara `onNewAssociadoCriado` de verdade (mesmo trigger de produção), que cria cliente + assinatura reais no Asaas Sandbox. O passo `financeFollowup` usa `provider.cancelSubscription()` (cancelados) e `provider.receiveInCash()` (adimplentes) — chamadas reais à API do Asaas Sandbox, reaproveitando `lib/billing/asaas.js` sem nenhum código novo de integração.
+- **Equipe administrativa** (Master/2×Admin/2×Operador): sem `cpf` (não são associados pagantes — evita disparar `onNewAssociadoCriado`), e-mail fictício em `@sandbox.invalid` (TLD reservado pela IANA, nunca resolve de verdade), login por `login_master.html` (não `login.html`, que é exclusivo do fluxo CPF→`@cpf.local`).
+- **Distribuição de cenários** entre os 35 associados normais: 1–15 adimplentes (cobrança confirmada de verdade no Asaas Sandbox via `receiveInCash`), 16–20 inativos (`ativo:false` real, dispara `onAssociadoAtualizado` pausando a assinatura), 21–25 cancelados (`assinaturaCanceladaPeloAssociado:true` + assinatura pausada de verdade, sem tocar `ativo` — mesmo contrato do autocancelamento self-service), 26–30 inadimplentes (fatura vencida há 20 dias, escrita direta no Firestore), 31–35 recém-cadastrados (assinatura criada agora, primeira cobrança em aberto, sem pós-processamento). Os 5 Mirins seguem o fluxo normal de cobrança (sem CPF próprio, cobrados no CPF do responsável, valor pela metade — mesma regra de `resolvePlanValue()`).
+- **Senha padrão** de todas as contas fictícias: `SandboxDemo#2026` (env `SANDBOX_SEED_PASSWORD` sobrescreve).
+
+### Fora de escopo desta fase (decisão deliberada)
+
+- **Módulo de Notícias**: não existe em nenhum dos dois repositórios (nem coleção, nem tela admin, nem exibição pública — só menção em copy de marketing do Portal Associativo). Construir um módulo novo é mudança de produto, não seed de tenant; não foi feito.
+- **Produtos/Serviços/Galeria/Diretoria/Leilões**: módulos ativados no plano (`plan: "enterprise"`, todos os módulos `true`) para o tenant ficar pronto pra uso, mas sem dados fictícios seedados — não estavam no escopo original desta fase (Usuários/Eventos/Parceiros/Classificados/Financeiro). Ficam como "estado vazio honesto" até alguém pedir.
+
+---
+
+## Fase 3.8 — Ambiente Local, CI/CD e Feature Flags ✅
+
+Três lacunas de engenharia resolvidas de forma definitiva (não paliativa): ambiente local 100% funcional, pipeline de qualidade no GitHub Actions (sem automatizar deploy) e uma camada de Feature Flags multi-tenant. Pensada para "dezenas ou centenas de organizações" — nenhuma solução aqui assume o tamanho atual da plataforma.
+
+### Ambiente local — Java era o único bloqueio real
+
+`firebase emulators:start` (Firestore/Storage) depende de um binário `java` no PATH — ausente nesta máquina, o que impedia rodar `functions/test/*` localmente (só era possível contra produção, o problema identificado na sessão anterior). Resolvido com `brew install openjdk` + `export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"` (openjdk do Homebrew é keg-only, não se auto-linka) — **sem sudo, sem symlink de sistema**, só PATH da sessão de shell, documentado em `docs/DEVELOPMENT.md` para qualquer máquina. Validado rodando a suíte completa: **193 verificações passando localmente** (139 unidade/integração + 38 Firestore Rules + 15 Storage Rules) antes desta fase acrescentar mais 26 (Feature Flags) — 219 no total ao final.
+
+Scripts novos (raiz `package.json`, `functions/package.json`):
+- `npm install` → dispara `postinstall` → instala `functions/` junto (não precisa rodar duas vezes).
+- `npm run dev` → `firebase emulators:start --only firestore,auth,functions,storage`. **Hosting emulator não é usado** — o frontend é servido pelo GitHub Pages, não Firebase Hosting (documentado, não é lacuna).
+- `npm test` → `firebase emulators:exec` envolvendo `functions/test:all` (unidade + Rules + Storage Rules, os três em uma única sessão de emulador — antes, cada um exigia uma invocação manual separada contra um emulador já de pé, sem nenhum comando único).
+- `npm run lint` → ESLint (flat config, `eslint.config.js`) — escopo deliberadamente restrito a `functions/**`, `firebase.js`, `tenant.config.js` (núcleo compartilhado, maior alcance de bug). **Não** lint os `<script type="module">` inline das dezenas de páginas admin — nunca foram escritas pensando em lint, cobertura ali seria ruído sem consertar bug nenhum; ver comentário no topo de `eslint.config.js`.
+- `npm run build` → `scripts/check-syntax.js` (`node --check` em todo `.js` do repo). Este projeto não tem bundler (GitHub Pages serve estático, Cloud Functions roda `.js` como está) — "build" aqui é o equivalente honesto de "quebrou a build" numa stack sem etapa de compilação, não uma etapa decorativa.
+- `.nvmrc` (`22`, mesma versão de `functions.engines.node`) — reduz "funciona local, quebra no deploy".
+
+**Decisão documentada — sem "typecheck"**: projeto 100% JavaScript vanilla, sem TypeScript e sem JSDoc com verificação de tipo em nenhum arquivo. Um step de typecheck aqui não checaria nada de verdade — cargo-culting de template genérico é exatamente o tipo de "solução paliativa" que este prompt pediu pra evitar. Se o projeto adotar TS/JSDoc no futuro, é aí que este step ganha sentido (ver Recomendações no relatório da fase).
+
+### CI/CD — `.github/workflows/ci.yml`
+
+Dois jobs paralelos e independentes, PR e push em `main`, **sem automatizar deploy** (continua manual, via `firebase deploy` local, como sempre foi):
+- `lint-and-build` — rápido, sem Java: `npm ci` → `npm run lint` → `npm run build`.
+- `test` — instala Java (`actions/setup-java@v4`, Temurin 21) + Firebase CLI, roda `npm test` (mesmo comando que um dev roda local — zero divergência entre "passa no meu commit" e "passa no CI").
+
+Cache de dependências via `actions/setup-node@v4` (`cache: npm`); `concurrency` cancela runs obsoletos do mesmo PR. Branch protection (GitHub → Settings → Branches, exigir os checks `lint-and-build`/`test` antes de merge) é um passo manual de configuração do repositório — a Cloud Function/workflow não consegue se auto-configurar como obrigatório, só o painel do GitHub decide isso.
+
+**Validação desta fase**: os comandos reais (`npm ci`, `npm run lint`, `npm run build`, `npm test`) rodaram e passaram nesta máquina antes do workflow ser considerado pronto — mesma disciplina que o workflow força no CI. `act` (executor local de GitHub Actions) foi instalado mas não usado de fim a fim: exige Docker rodando (via Colima aqui), que não estava ativo, e subir uma VM só para essa validação extra foi julgado desproporcional — pendência anotada no relatório, não um "confiei sem checar".
+
+### Feature Flags — `functions/lib/features.js`
+
+A parte mais substancial da fase. Deploy ≠ Release: uma funcionalidade pode estar no código publicado sem estar disponível pra ninguém (ou pra quase ninguém) até uma decisão explícita, sem outro deploy.
+
+**Schema — `featureFlags/{flagKey}`** (coleção nova, plataforma):
+```
+key, description, category ("experiment"|"beta"|"premium"|"killswitch"|"other" — só rótulo/filtro, nunca muda a lógica de resolução)
+status: "off" | "on" | "rollout"
+rolloutPercentage: number (0-100, só relevante com status="rollout")
+overrides: { [orgId]: boolean }  — SEMPRE vence status/rollout; é o único mecanismo pra
+  beta interno/cliente piloto (override:true) E desligamento emergencial por tenant
+  (override:false) — não precisa de "modo" separado pra cada caso de uso
+environments: string[] | null — restringe por organizations/{orgId}.environment
+  (Fase 3.7), NUNCA por nome de organização
+archived: boolean — soft-state; nunca hard-delete (mesma filosofia de ativo:false já usada em toda a base)
+createdAt, updatedAt, createdBy, updatedBy
+```
+
+**Resolução — função pura, testável sem Firestore** (`resolveFlag(flag, org)` em `lib/features.js`): override da organização sempre vence; senão `environments` filtra; senão `status` decide (`off`→false, `on`→true, `rollout`→bucket determinístico via hash `key+orgId`, mesma org sempre no mesmo grupo conforme o % sobe). **Fail-CLOSED pra flag desconhecida/arquivada** — divergência deliberada do fail-open de `modules.js`/`branding.js`: lá, campo ausente = entitlement herdado (age como sempre agiu); aqui, flag desconhecida = funcionalidade nova/incompleta que nunca foi ligada explicitamente — o padrão seguro é não vazar.
+
+**Por que o cliente NÃO lê `featureFlags/{flagKey}` direto (ao contrário de `modules.js`/`branding.js`)**: o documento agrega o mapa `overrides` de **todas** as organizações da plataforma. Se exposto via `getDoc()` client-side, qualquer usuário logado de qualquer organização veria pra quais outras organizações um recurso está ligado — vazamento cross-tenant. Solução: `resolveFeatureFlags` (Cloud Function callable) é a **única porta de entrada do cliente**, devolve só o mapa já resolvido (flagKey→booleano) pra UMA organização, nunca o documento cru. Firestore Rules restringem leitura direta de `featureFlags/*` a `isPlatformStaff()` — só o Painel Master (que precisa administrar, não só consumir) lê a coleção inteira.
+
+**Camada única, sem IFs espalhados**: toda checagem de flag passa por `featureService.isEnabled(key, org)` (dentro de Cloud Functions) ou pela callable/`shared/core/tenant/features.js` (cliente) — nenhuma outra parte do sistema lê `featureFlags` do Firestore.
+
+**Cloud Functions** (`functions/index.js`): `resolveFeatureFlags` (qualquer membro autenticado, resolve a própria org; Platform Staff pode passar `orgId` pra pré-visualizar outra — uso do Painel Master), `createFeatureFlag`/`setFeatureFlagStatus`/`setFeatureFlagOverride`/`archiveFeatureFlag` (Platform Administrator/Owner, auditados em `systemLogs` via `writePlatformAuditLog`, mesmo mecanismo já usado pra `platformAdmins`).
+
+**Cliente** — `shared/core/tenant/features.js` (portal-associativo), mesma FORMA de `modules.js`/`branding.js` (factory com DI, cache em `sessionStorage`, fail-safe, `applyFeatureVisibility()` simétrico a `applyModuleVisibility()` via `[data-feature="chave"]`) mas fonte de dado diferente (callable, não `getDoc()` direto — ver acima). TTL de cache do cliente: 1 min (vs. 10 min de módulos/branding — uma flag muda com muito mais frequência que módulo contratado).
+
+**Painel Master** — `admin/feature-flags.html` (nova página + entrada na sidebar): listar flags, criar, mudar status/rollout, adicionar/remover exceção por organização (dropdown com todas as orgs), arquivar. Mesmo padrão de `admin/platform-operators.html` (auth guard, tabela, modais Bootstrap).
+
+**Achado real durante a validação — SLA de propagação, não bug de lógica**: `invalidateCache()` (chamado por toda mutação) só limpa o cache da **instância de processo** que executou a escrita — cada Cloud Function exportada roda em containers separados mesmo compartilhando `index.js`, sem memória compartilhada entre elas. Confirmado empiricamente no deploy desta fase: `setFeatureFlagStatus` mudando uma flag e `resolveFeatureFlags` (instância própria, já quente) ainda devolvendo o valor antigo por alguns segundos. `CACHE_TTL_MS` (20s, `lib/features.js`) **é o SLA real de propagação de um kill-switch**, não uma otimização cosmética — documentado extensivamente no código pra nunca ser reintroduzido como surpresa. Testado ponta a ponta com uma conta `platformAdmins` descartável (criada, testada, apagada — nunca a conta owner real) contra as 5 Cloud Functions já em produção.
+
+### Testes
+
+`functions/test/features.test.js` (26 verificações): `resolveFlag`/`isInRolloutBucket` puros (override vence status, kill-switch por tenant, `environments`, fail-closed) + `createFeatureService` contra o emulador real (ciclo completo create→status→override→archive, idempotência de `createFlag` por chave duplicada, validação de `rolloutPercentage`). Suíte completa: **219 verificações, 0 falhas** (166 unidade/integração — incluindo as 26 novas, 38 Rules, 15 Storage Rules).
+
+---
+
+## Fase 3.9 — Tenant Resolver por Hostname (G4 resolvido) ✅
+
+Resolve o gap G4 (documentado desde a Fase 3.5, `docs/SAAS_MULTITENANT.md`): um único deployment do CCBMG (GitHub Pages) passa a servir **mais de uma organização**, decidindo qual pelo hostname que serviu a página — sem segundo frontend, sem segundo projeto Firebase, sem `currentOrgId` hardcoded pros dois casos abaixo.
+
+### Domínios ativos
+
+| Hostname | orgId | Como chegou até aqui |
+|---|---|---|
+| `clubedocavalobonfim.com.br` | `org_bonfim` | Origem real (GitHub Pages) — arquivos servidos diretamente |
+| `demo.portalassociativo.com.br` | `org_teste_etapa10` ("Clube dos Associados", tenant Sandbox — Fase 3.7) | Cloudflare Worker fazendo proxy reverso pra `clubedocavalobonfim.com.br` (ver abaixo) |
+
+Ambos registrados em `domains/{hostname}` (Fase 3.5) via `setOrganizationDomains` — nenhum registro novo de mecanismo, só uso do que já existia.
+
+### Limitação confirmada do GitHub Pages (verificada antes de implementar, como pedido)
+
+GitHub Pages associa **um único domínio customizado por repositório** — não existe forma suportada de um mesmo Pages site responder por dois hostnames diferentes (confirmado: [GitHub Community Discussion #22779](https://github.com/orgs/community/discussions/22779), [#30915](https://github.com/orgs/community/discussions/30915)). `clubedocavalobonfim.com.br` resolve direto pros IPs do GitHub Pages (`185.199.10x.153`, `server: GitHub.com`) — sem CDN na frente. `portalassociativo.com.br`, por outro lado, **já está atrás do Cloudflare** (`server: cloudflare`, confirmado via `dig`/headers) — o comentário sobre "cache de 4h do Cloudflare" já registrado na Fase 3.6 é esse mesmo Cloudflare. Isso definiu a solução: em vez de brigar com a limitação do GitHub Pages, usar a infraestrutura de edge **que já existe** (não é uma peça nova no stack) como camada de proxy.
+
+### Arquitetura: Cloudflare Worker como proxy reverso (não um segundo frontend)
+
+```
+Browser → demo.portalassociativo.com.br (Cloudflare Worker)
+              │  fetch(https://clubedocavalobonfim.com.br + path, preservando path/query)
+              ▼
+         clubedocavalobonfim.com.br (GitHub Pages — ORIGEM ÚNICA, arquivo idêntico)
+```
+
+O Worker é puro proxy — não hospeda nenhum HTML/JS próprio, não sabe nada sobre organizações. `location.hostname`, do ponto de vista do navegador, continua sendo `demo.portalassociativo.com.br` (é ele quem está na barra de endereço — o Worker busca o conteúdo de outro lugar e devolve, o browser nunca é redirecionado). É exatamente esse `location.hostname` que o resolvedor abaixo lê.
+
+**Script do Worker** (genérico — o MESMO worker atende qualquer domínio futuro adicionado como Custom Domain dele; nenhuma mudança de código por organização nova):
+```js
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    const originRequest = new Request(`https://clubedocavalobonfim.com.br${url.pathname}${url.search}`, request);
+    const response = await fetch(originRequest, { cf: { cacheTtl: 300 } });
+    return new Response(response.body, response);
+  }
+}
+```
+
+**Passos manuais pendentes (fora do que Claude Code consegue provisionar — sem acesso à conta Cloudflare):**
+1. Cloudflare Dashboard → Workers & Pages → Create Worker (nome sugerido: `sandbox-demo-proxy`) → colar o script acima → Deploy.
+2. No Worker criado → Settings → Domains & Routes → Add → Custom Domain → `demo.portalassociativo.com.br` (a zona `portalassociativo.com.br` já está no Cloudflare, então o registro DNS é criado automaticamente pelo próprio botão — não precisa mexer em DNS manualmente).
+3. Aguardar alguns minutos (emissão de certificado SSL do Cloudflare para o novo hostname).
+4. Testar: `curl -I https://demo.portalassociativo.com.br/login.html` deve devolver `200`.
+
+Depois disso, **nenhum outro passo de infraestrutura** é necessário — a resolução de organização já está pronta do lado do código (ver abaixo) e já foi validada contra produção.
+
+### Tenant Resolver — `shared/core/tenant/tenant-context.js`
+
+`getTenant({db})` (Portal Associativo, único consumidor real é `firebase.js` do CCBMG — confirmado por varredura nos dois repositórios antes de mexer) passou a consultar `domains/{location.hostname}` de verdade, não só documentar a intenção como antes da Fase 3.9:
+
+1. `domains/{location.hostname}` no Firestore — cacheado em `sessionStorage` por 1h (mapeamento muda raríssimo).
+2. Ausente/erro → ~~cai pro `orgId` estático de `tenant.config.js`~~ **(revisado na Fase 3.10 — ver abaixo: sem fallback nenhum, hostname não cadastrado nunca mais resolve organização nenhuma, nem a estática).**
+
+Um hostname registrado **sempre vence** qualquer config estática — é isso que permite o mesmo `tenant.config.js` (que, desde a Fase 3.10, nem declara `orgId` mais) ser servido atrás de dois hostnames diferentes resolvendo pra organizações diferentes.
+
+`firebase.js` (CCBMG) mudou a ordem de inicialização: `initTenantFirebase()` (config do SDK, igual pra qualquer organização) roda **antes** de `getTenant({db})`, porque a consulta a `domains/` precisa de `db` já pronto. `currentOrgId` virou `const currentOrgId = (await getTenant({db})).orgId` — **top-level await**, seguro porque toda página já importa `firebase.js` via `<script type="module">` (a cadeia de import inteira espera a resolução terminar antes de qualquer código de página rodar — nenhum consumidor de `currentOrgId` precisou mudar, confirmado por varredura nas 28 páginas que o importam).
+
+### Validação (antes de qualquer deploy — lição já aplicada nas fases anteriores)
+
+Testado ponta a ponta com Playwright interceptando requests pro hostname real e servindo os arquivos locais (não alterou `/etc/hosts`, não precisou de DNS) — `location.hostname` genuíno, consulta batendo na produção de verdade:
+
+| Hostname testado | `currentOrgId` resolvido | Resultado |
+|---|---|---|
+| `clubedocavalobonfim.com.br` | `org_bonfim` | ✅ via `domains/` |
+| hostname não cadastrado (qualquer um) | `org_bonfim` (fallback, comportamento da Fase 3.9) | ✅ na época — **substituído na Fase 3.10, ver abaixo** |
+| `demo.portalassociativo.com.br` | `org_teste_etapa10` | ✅ via `domains/` |
+
+### Genérico para o futuro
+
+Adicionar um domínio próprio pra uma organização nova (cliente piloto com domínio dele, por exemplo) não exige nenhuma mudança de código daqui pra frente — só: `setOrganizationDomains({orgId, dominioPrincipal})` (já existe, Fase 3.5) + registrar o mesmo Custom Domain no Worker já criado (passo 2 acima, reaproveitando o mesmo Worker — nenhum código novo).
+
+### Arquivos alterados
+
+`shared/core/tenant/tenant-context.js` (Portal Associativo — resolução por hostname), `firebase.js` (CCBMG — reordena init, `currentOrgId` top-level await, bump `?v=2026.08.8` no import de `tenant-context.js` — cache de 4h do Cloudflare exige isso, mesma lição da Fase 3.6).
+
+---
+
+## Fase 3.10 — Tenant Resolver: sem fallback + Gestão de Domínios ✅
+
+Fecha duas lacunas da Fase 3.9: o fallback pro `orgId` estático mascarava erro de DNS/configuração (podia servir a organização errada silenciosamente pra um hostname mal configurado), e a manutenção de `domains/` dependia de entrar em `organization-detail.html` organização por organização — sem visão global, sem busca.
+
+### Decisão 1 — sem fallback automático, pra ninguém
+
+`getTenant({db})` (`shared/core/tenant/tenant-context.js`) não cai mais pro `orgId` de `tenant.config.js` quando o hostname não está em `domains/`. `tenant.config.js` nem declara `orgId` mais — só a config do SDK do Firebase (igual pra qualquer organização). `db` passou de opcional pra **obrigatório** em `getTenant()` (não tem mais pra onde cair sem ele).
+
+```
+Hostname em domains/{hostname}?
+  SIM → resolve orgId normalmente, aplicação inicia
+  NÃO → TenantNotFoundError → renderTenantNotFoundPage() → página amigável, execução interrompida
+```
+
+`TenantNotFoundError` (nova classe exportada de `tenant-context.js`) é o sinal distinguível — quem chama decide o que fazer com ele; `renderTenantNotFoundPage(err)` é o comportamento padrão que `firebase.js` usa: substitui **todo** o `<body>` por uma mensagem central ("Organização não encontrada", hostname que falhou, orientação pra quem for administrador da plataforma) — sem CSS/branding externo (não dá pra aplicar branding de uma organização que não foi resolvida), depois relança o erro pra interromper a avaliação do módulo (nenhum script de página específica roda depois — ver comentário em `firebase.js`).
+
+**Sem exceção pro Sandbox nem pra nenhum caso** — o mesmo mecanismo vale pra `clubedocavalobonfim.com.br`, `demo.portalassociativo.com.br` e qualquer domínio futuro. Validado com Playwright (interceptação de hostname real, produção de verdade): hostname cadastrado resolve certo, hostname não cadastrado mostra a página amigável — nunca mais o fallback.
+
+### Decisão 2 — Gestão de Domínios reaproveita a Cloud Function existente, não cria CRUD paralelo
+
+`admin/domains.html` (novo, nav "Domínios" no Painel Master) é a primeira visão **global/cross-organização** de `domains/` — lista todos os hostnames com a organização dona (join com `organizations`), tipo (Principal/Alternativo), status, busca client-side por hostname ou nome da organização.
+
+**Por que não criar `createDomain`/`updateDomain`/`deleteDomain` granulares**: `setOrganizationDomains({orgId, dominioPrincipal, dominiosAlternativos})` (Fase 3.5) já modela "o conjunto de domínios de uma organização" como substituição atômica (garante unicidade global, mirror em `organizations/{orgId}.dominio`, auditoria) — exatamente o mesmo modelo que `organization-detail.html` já usa há uma fase inteira. Criar callables por-domínio duplicaria essa lógica de validação/auditoria em dois lugares. Em vez disso, `domains.html`:
+- **Listar**: leitura direta de `domains`/`organizations` (Firestore Rules já permitem `isPlatformStaff()` listar — nenhuma mudança de Rules necessária).
+- **Criar/promover a principal**: modal "Novo domínio" — escolhe organização + hostname + tipo; a tela busca o conjunto atual da organização, calcula o conjunto desejado (adiciona como alternativo, ou promove a principal empurrando o anterior pra alternativo) e chama `setOrganizationDomains` — mesma Cloud Function, mesma validação de duplicidade (`already-exists`, mensagem já existente) e de organização inexistente (dropdown só lista organizações reais — impossível selecionar uma que não existe).
+- **Remover** (só domínios alternativos, direto da lista — um clique): recalcula o conjunto da organização sem aquele hostname e chama `setOrganizationDomains`. Remover um domínio **principal** não tem atalho de um clique de propósito — expulsar o domínio que resolve a organização é uma mudança grande o bastante pra exigir passar por `organization-detail.html` (onde dá pra escolher explicitamente o novo principal), não um "Remover" impensado numa lista.
+- **Editar**: "Ver organização" leva direto pra `organization-detail.html?id={orgId}` (aba Geral, onde o editor completo de domínios já existe desde a Fase 3.5) — zero duplicação de formulário.
+
+`domains` continua sendo **só o resolvedor de hostname** (nenhum campo novo, nenhuma mudança de schema) — `organizations` continua sendo a fonte oficial de quem é a organização. Validado com Playwright autenticado como Platform Owner contra produção: listagem com nomes corretos, busca, adicionar domínio alternativo via UI, remover via UI — ciclo completo, sem deixar resíduo.
+
+### Fluxo completo (hostname → aplicação)
+
+```
+1. Browser resolve DNS de demo.portalassociativo.com.br → Cloudflare
+2. Cloudflare Worker recebe a request, faz fetch(clubedocavalobonfim.com.br + path)
+   e devolve a resposta verbatim — location.hostname no browser continua
+   sendo demo.portalassociativo.com.br (nunca há redirect)
+3. Frontend carrega (mesmo HTML/JS de sempre — tenant.config.js só tem a
+   config do SDK, sem orgId)
+4. firebase.js: initTenantFirebase() (config do SDK) → db pronto
+5. firebase.js: await getTenant({db}) — tenant-context.js consulta
+   domains/{location.hostname} no Firestore (cacheado 1h em sessionStorage)
+6a. Encontrado → orgId resolvido → currentOrgId exportado → app roda normal
+6b. Não encontrado → TenantNotFoundError → renderTenantNotFoundPage() →
+    "Organização não encontrada" → execução interrompida
+```
+
+### Tratamento de erros
+
+| Cenário | Onde é pego | Comportamento |
+|---|---|---|
+| Hostname sem registro em `domains/` | `getTenant()` → `TenantNotFoundError` | Página amigável, sem fallback |
+| Domínio duplicado (já é de outra org) | `setOrganizationDomains` (`already-exists`) | Mensagem clara na tela (`domains.html` e `organization-detail.html`) |
+| Domínio vazio/inválido | `setOrganizationDomains` (`invalid-argument`, `isValidHostname`) | Mensagem clara na tela |
+| Organização inexistente | `setOrganizationDomains` (`not-found`) — na prática inatingível pela UI, dropdown só lista organizações reais | Mensagem clara se atingido via chamada direta à Cloud Function |
+| Firestore inacessível durante a consulta a `domains/` | `getTenant()` deixa o erro propagar (sem try/catch silencioso) | Página quebra visivelmente em vez de mascarar — deliberado, mesmo raciocínio da Decisão 1: melhor falha visível que organização errada silenciosa |
+
+### Operação
+
+**Publicar um domínio novo pra uma organização já existente**: Painel Master → Domínios → Novo domínio → escolher organização + hostname + tipo → Cadastrar. Se o domínio for servido por um novo hostname físico (não só um path), configurar DNS/Cloudflare Worker separadamente (ver Fase 3.9 pros passos exatos do Worker) — o cadastro em `domains/` sozinho não cria infraestrutura de rede, só ensina o Tenant Resolver a reconhecer o hostname.
+
+**Criar um novo ambiente de demonstração** (mesmo padrão do Sandbox): 1) organização já provisionada (`provisionOrganization`, Fase 3.3); 2) adicionar Custom Domain no Worker do Cloudflare já existente (Fase 3.9); 3) Painel Master → Domínios → Novo domínio, apontando o hostname pra essa organização.
+
+**Adicionar domínio de cliente futuramente**: idêntico ao passo anterior — nenhuma mudança de código, nenhuma exceção específica. É exatamente o que "genérico pra qualquer organização futura" significa aqui.
+
+**Remover um domínio**: Painel Master → Domínios → localizar a linha → Remover (alternativos) ou "Ver organização" → editar/remover o principal pela aba Geral.
+
+### Arquivos alterados/criados
+
+`shared/core/tenant/tenant-context.js` (sem fallback, `TenantNotFoundError`, `renderTenantNotFoundPage`), `firebase.js` (trata o erro, bump `?v=2026.08.9`), `tenant.config.js` (remove `orgId`), `admin/domains.html` (novo), `admin/assets/admin-nav.js` (item "Domínios").
+
+---
+
 ## Integração Asaas ✅ (Fase 2 — LIVE)
 
 **API:** `https://api.asaas.com/v3`

@@ -20,7 +20,9 @@
 
     "test:rules": "node test/rules.test.js",
 
-    "test:storage-rules": "node test/storage-rules.test.js"
+    "test:storage-rules": "node test/storage-rules.test.js",
+
+    "test:all": "npm test && npm run test:rules && npm run test:storage-rules"
 
   },
 

@@ -3,12 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "cd functions && npm install",
     "serve": "npx serve . -l 3333 --no-clipboard",
+    "dev": "firebase emulators:start --only firestore,auth,functions,storage",
+    "lint": "eslint functions firebase.js tenant.config.js",
+    "build": "node scripts/check-syntax.js",
+    "test": "firebase emulators:exec --only firestore,auth,storage \"cd functions && npm run test:all\"",
     "test:e2e": "npx playwright test",
     "test:e2e:report": "npx playwright show-report"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0",
     "serve": "^14.2.6"
   }
 }

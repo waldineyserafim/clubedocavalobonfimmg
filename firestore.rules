@@ -560,6 +560,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Fase 3.8 — Feature Flags. Leitura restrita a equipe de plataforma (nunca
+    // ao cliente de uma organização): o documento agrega `overrides` de TODAS
+    // as organizações — expor isso a um usuário comum vazaria dado
+    // cross-tenant (ver comentário no topo de functions/lib/features.js).
+    // Organizações resolvem sua própria flag via callable resolveFeatureFlags
+    // (Admin SDK, ignora Rules, devolve só o booleano já resolvido). Escrita
+    // sempre via Cloud Function (mesma garantia estrutural de platformAdmins).
+    match /featureFlags/{flagKey} {
+      allow read: if isPlatformStaff();
+      allow write: if false;
+    }
+
     match /systemPlans/{planId} {
       allow read: if isLoggedIn();
       allow write: if isPlatformAdministrator();

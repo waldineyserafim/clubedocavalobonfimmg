@@ -1,0 +1,75 @@
+# CI — valida qualidade, NUNCA faz deploy (deploy continua manual, ver docs/DEVELOPMENT.md
+# e CLAUDE.md "Fase 3.8"). Todo Pull Request e todo push em `main` precisa passar em todos
+# os jobs abaixo para poder ser mesclado — configure branch protection em Settings → Branches
+# exigindo os checks "lint-and-build" e "test" (ver CLAUDE.md pra instruções).
+#
+# Dois jobs paralelos e independentes (sem dependência um do outro — o objetivo é feedback
+# rápido, "build" quebrado não deveria esperar a suíte de emuladores terminar pra aparecer):
+#   lint-and-build — rápido, sem Java/emuladores: eslint + syntax-check.
+#   test           — instala Java (Temurin), sobe Firestore/Auth/Storage Emulator via Firebase
+#                     CLI e roda as 193 verificações (unidade/integração + Firestore Rules +
+#                     Storage Rules) com `npm test` — o mesmo comando que um dev roda local.
+#
+# Sem "typecheck": este é um projeto JavaScript puro, sem TypeScript e sem JSDoc com
+# verificação de tipo em lugar nenhum (ver CLAUDE.md, regra 2: "JavaScript Vanilla"). Um step
+# de typecheck aqui não checaria nada de verdade — ver CLAUDE.md "Fase 3.8" pela decisão
+# documentada e o que seria necessário para adotar essa etapa de verdade no futuro.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    name: Lint & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependências (raiz + functions)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (syntax-check — projeto sem bundler, ver scripts/check-syntax.js)
+        run: npm run build
+
+  test:
+    name: Testes (Cloud Functions + Firestore/Storage Rules, via Emulators)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependências (raiz + functions)
+        run: npm ci
+
+      - name: Instalar Java (Firestore/Storage Emulator dependem dele)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Instalar Firebase CLI
+        run: npm install -g firebase-tools@15 # mesma major usada localmente (ver docs/DEVELOPMENT.md) — bump é mudança deliberada aqui
+
+      - name: Testes (emulators:exec — Firestore, Auth, Storage; 193 verificações)
+        run: npm test
