@@ -189,6 +189,20 @@ async function ensureAuthUser({ localId, email, password, displayName }) {
   return { created: true, uid: localId };
 }
 
+/** Converge o e-mail de uma conta Auth já existente pro esperado (idempotente —
+ * no-op se já bate). Necessário pra TEAM: uma conta pode ter sido criada antes
+ * de ganhar `cpf` (login_master.html → login.html), e ensureAuthUser sozinho
+ * nunca atualiza e-mail de conta pré-existente. */
+async function ensureAuthUserEmail({ localId, email }) {
+  const existing = await authLookupByLocalId(localId);
+  if (!existing || existing.email === email) return { updated: false };
+  await gfetch(`${IDENTITY_BASE}/accounts:update`, {
+    method: 'POST',
+    body: JSON.stringify({ localId, email, emailVerified: true }),
+  });
+  return { updated: true };
+}
+
 /* ============================ Secret Manager ============================ */
 
 async function getSecretValue(name) {
@@ -283,10 +297,17 @@ async function assertSandboxOrg() {
 
 /* ============================ Passo: equipe (Master/Admin/Operador) ============================ */
 
+// Único membro da equipe com role "Admin" (Fase 3.12 — antes eram 2, o
+// pedido foi reduzir pra 1 só). Perfil (nome/apelido/telefone) copiado do
+// perfil real de uma associada do CCBMG a pedido do operador — só os campos
+// de identificação pessoal, nunca dados de billing (asaasId/planType/etc,
+// que não fazem sentido numa conta administrativa e nunca devem cruzar de
+// um associado real de org_bonfim pra uma conta do Sandbox). CPF é sintético
+// (nunca o CPF real da pessoa copiada) — login.html funciona por CPF, e
+// login_master.html/admin_master.html são mecanismo legado (ver Fase 3.12).
 const TEAM = [
   { id: 'sandbox_master_01', role: 'Master', nome: 'Marina Albuquerque' },
-  { id: 'sandbox_admin_01', role: 'Admin', nome: 'Ricardo Fontenele' },
-  { id: 'sandbox_admin_02', role: 'Admin', nome: 'Patrícia Wanderley' },
+  { id: 'sandbox_admin_01', role: 'Admin', nome: 'Mariana Parreiras Marques', apelido: 'Mari', cpf: '11122233043', telefone: '(31) 98267-2712' },
   { id: 'sandbox_operador_01', role: 'Operador', nome: 'Diego Sampaio' },
   { id: 'sandbox_operador_02', role: 'Operador', nome: 'Camila Brant' },
 ];
@@ -294,18 +315,26 @@ const TEAM = [
 async function seedTeam() {
   console.log('\n== Equipe administrativa (Master/Admin/Operador) ==');
   for (const member of TEAM) {
-    const email = `${member.id}@sandbox.invalid`;
+    // Membro com cpf loga pela tela normal de associado (login.html, CPF) —
+    // mesma convenção de qualquer associado, e-mail de Auth = {cpf}@cpf.local.
+    // Sem cpf, mantém o e-mail fictício @sandbox.invalid (login_master.html,
+    // mecanismo legado — só ainda serve pra Master, ver Fase 3.12).
+    const email = member.cpf ? `${member.cpf}@cpf.local` : `${member.id}@sandbox.invalid`;
     const auth = await ensureAuthUser({ localId: member.id, email, password: DEMO_PASSWORD, displayName: member.nome });
+    if (!auth.created) await ensureAuthUserEmail({ localId: member.id, email });
     await upsertUserFields(`users/${member.id}`, (existing) => ({
       role: member.role,
       nome: member.nome,
       email,
       orgId: SANDBOX_ORG_ID,
+      ...(member.apelido ? { apelido: member.apelido } : {}),
+      ...(member.cpf ? { cpf: member.cpf } : {}),
+      ...(member.telefone ? { telefone: member.telefone } : {}),
       ...(existing ? {} : { ativo: true, primeiroAcesso: true }),
       seedTag: SEED_TAG,
       updatedAt: new Date(),
     }));
-    console.log(`  ${member.id} (${member.role}) — auth:${auth.created ? 'criado' : 'já existia'} — login: login_master.html com ${email}`);
+    console.log(`  ${member.id} (${member.role}) — auth:${auth.created ? 'criado' : 'já existia'} — login: ${member.cpf ? 'login.html (CPF)' : 'login_master.html'} com ${email}`);
   }
 }
 
