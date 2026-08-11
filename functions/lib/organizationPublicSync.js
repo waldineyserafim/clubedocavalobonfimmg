@@ -37,6 +37,61 @@ function computePublicBrandingProjection(orgData, serverTimestamp) {
     email: o.email || '',
     site: o.site || '',
     endereco: o.endereco || '',
+    // whatsapp (Evolução Multi-Tenant, Fase 4): já existia em
+    // organizations/{orgId} desde a Fase 3.4 (aba Comunicação), mas nunca
+    // tinha sido incluído nesta projeção — páginas públicas continuavam com
+    // o WhatsApp do CCBMG hardcoded no HTML por falta de onde ler o valor
+    // real da organização (achado #28 da auditoria de hardcodes). Mesmo
+    // raciocínio de telefone/email acima: contato institucional é conteúdo
+    // público por natureza, não dado sensível.
+    whatsapp: o.whatsapp || '',
+    // redesSociais (Fase 4): existe em organizations/{orgId}.portal.redesSociais
+    // desde a Fase 3.4 (aba Portal), mas nunca tinha consumidor — index.html/
+    // board.html continuavam com o link do Instagram do CCBMG hardcoded
+    // (achado #36 da auditoria). Precisa ser público (aparece no rodapé/home
+    // sem login).
+    redesSociais: {
+      facebook: o.portal?.redesSociais?.facebook || '',
+      instagram: o.portal?.redesSociais?.instagram || '',
+      youtube: o.portal?.redesSociais?.youtube || '',
+    },
+    // billing.plans (Fase 4): tabela de planos/preços da associação —
+    // precisa ser pública porque sobre.html mostra os valores pra visitante
+    // anônimo, antes de qualquer login (mesma razão de telefone/email acima).
+    // Só o array de planos em si (id/label/cycle/price) — nunca
+    // mirimDiscountRatio/lateInterestRate, que não aparecem em nenhuma
+    // página pública hoje e não precisam sair daqui.
+    billing: { plans: Array.isArray(o.billing?.plans) ? o.billing.plans : [] },
+    // business.classifieds (Fase 4): classificados.html é pública e mostra o
+    // preço/prazo mínimo do anúncio antes de qualquer login.
+    //
+    // business.auction (Fase 4): leilao_lote.html (visualização de um lote)
+    // TAMBÉM é pública (sem requireAuth — só dar lance exige login, via
+    // placeBid) e mostra o texto de comissão/incremento mínimo antes de
+    // qualquer login. commissionSistemaPct entra aqui também — não é dado
+    // sensível (já era texto público estático "5%+5%" antes desta fase),
+    // só o próprio split da organização, nunca de outras.
+    business: {
+      // membership (Fase 4): pg_associado.html (área logada) usa
+      // renewSoonDays/graceOverdueDays pra decidir aviso de renovação e
+      // bloqueio por inadimplência — lido da MESMA chamada getOrgBranding()
+      // já usada nessa página pro nome da organização, sem round-trip extra.
+      // Não é dado sensível (são só dias de política, não valores financeiros).
+      membership: {
+        renewSoonDays: typeof o.business?.membership?.renewSoonDays === 'number' ? o.business.membership.renewSoonDays : 0,
+        graceOverdueDays: typeof o.business?.membership?.graceOverdueDays === 'number' ? o.business.membership.graceOverdueDays : 0,
+      },
+      classifieds: {
+        pricePerDay: typeof o.business?.classifieds?.pricePerDay === 'number' ? o.business.classifieds.pricePerDay : 0,
+        minimumDays: typeof o.business?.classifieds?.minimumDays === 'number' ? o.business.classifieds.minimumDays : 0,
+      },
+      auction: {
+        minBidIncrementPct: typeof o.business?.auction?.minBidIncrementPct === 'number' ? o.business.auction.minBidIncrementPct : 0,
+        antiSniperExtensionMs: typeof o.business?.auction?.antiSniperExtensionMs === 'number' ? o.business.auction.antiSniperExtensionMs : 0,
+        commissionClubePct: typeof o.business?.auction?.commissionClubePct === 'number' ? o.business.auction.commissionClubePct : 0,
+        commissionSistemaPct: typeof o.business?.auction?.commissionSistemaPct === 'number' ? o.business.auction.commissionSistemaPct : 0,
+      },
+    },
     // isSandbox (Fase 3.7) precisa ser público: páginas públicas (index/board/
     // gallery/sobre) usam pra esconder conteúdo institucional hardcoded que
     // pertence só ao CCBMG hoje (fotos reais de diretoria, histórico) — nunca

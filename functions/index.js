@@ -12,6 +12,7 @@ const { PLATFORM_ROLES, createPlatformResolver, createPlatformAuthorizationHelpe
 const { createProvisioningService } = require('./lib/provisioning');
 const { createDomainsService } = require('./lib/domains');
 const { createFeatureService } = require('./lib/features');
+const { createLeadsService } = require('./lib/leads');
 const { createSandboxBrandingService } = require('./lib/sandboxBranding');
 const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
 const { runAuthBackup } = require('./lib/authBackup');
@@ -109,6 +110,13 @@ const featureService = createFeatureService({
   db,
   serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
   deleteField: () => admin.firestore.FieldValue.delete(),
+});
+
+// Release 2 — Leads (agenda comercial do núcleo da plataforma, ver lib/leads.js).
+// Módulo 100% independente de organizations/tenants nesta fase.
+const leadsService = createLeadsService({
+  db,
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
 });
 
 /** Provider da organização do documento/usuário em questão (resolve org → provider). */
@@ -283,19 +291,20 @@ exports.sendDailyPaymentReport = functions.pubsub.schedule('0 8 * * *')
       // destinatários daquela organização — antes desta correção, o relatório
       // unia os e-mails de TODAS as organizações e mandava um e-mail só com
       // os blocos de TODAS elas pra TODOS os destinatários (vazamento
-      // cross-tenant de nome/CPF/telefone/vencimento de inadimplência,
-      // dormant só porque havia 1 organização real até agora). Cada
-      // organização pode declarar `notificationEmails` no próprio documento
-      // (organizations/{orgId}) — array presente (mesmo vazio) = configurado
-      // explicitamente, respeita inclusive "nenhum destinatário" (Fase 3.11);
-      // só cai no fallback de sempre quando o campo nem existe no doc.
+      // cross-tenant de nome/CPF/telefone/vencimento de inadimplência).
+      //
+      // Evolução Multi-Tenant (Fase 4): removido o fallback pra e-mails
+      // pessoais fixos no código quando `notificationEmails` não está
+      // configurado — esse fallback vazava PII de associados de QUALQUER
+      // organização (não só CCBMG) pros e-mails pessoais dos operadores da
+      // plataforma. `notificationEmails` é obrigatório desde o provisionamento
+      // (ver provisioning.js) — organização sem o campo configurado é estado
+      // controlado (loga e não envia), nunca "manda pra alguém mesmo assim".
       for (const report of reportsByOrg) {
         const { org } = report;
-        const emails = Array.isArray(org.notificationEmails)
-          ? org.notificationEmails
-          : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
+        const emails = Array.isArray(org.notificationEmails) ? org.notificationEmails : [];
         if (emails.length === 0) {
-          console.log(`sendDailyPaymentReport: orgId=${org.id} sem notificationEmails configurado (lista vazia explícita) — pulando envio.`);
+          console.log(`sendDailyPaymentReport: orgId=${org.id} sem notificationEmails configurado — pulando envio (nenhum destinatário pessoal usado como fallback).`);
           continue;
         }
 
@@ -508,10 +517,14 @@ function getNextDueDate() {
   return due.toISOString().slice(0, 10);
 }
 
-// Retorna data de fim do plano: último dia do período (mensal=+1m, trimestral=+3m, semestral=+6m)
-function calculatePlanEnd(startDate, planType) {
+// Retorna data de fim do plano: último dia do período, derivado do `cycle`
+// configurado em billing.plans (não mais de um nome de plano fixo — ver
+// resolvePlanCycle). Ciclo desconhecido/organização sem o plano = 1 mês,
+// mesmo default conservador de sempre, agora orientado por dado.
+const CYCLE_MONTHS = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUALLY: 6, YEARLY: 12 };
+function calculatePlanEnd(org, startDate, planType) {
+  const months = CYCLE_MONTHS[resolvePlanCycle(org, planType)] || 1;
   const d = new Date(startDate);
-  const months = planType === 'trimestral' ? 3 : planType === 'semestral' ? 6 : 1;
   return new Date(d.getFullYear(), d.getMonth() + months, 0); // dia 0 = último dia do mês anterior
 }
 
@@ -570,10 +583,11 @@ async function upsertInvoiceFromAsaasPayment(uid, normalizedPayment) {
   const userSnap = await db.collection('users').doc(uid).get();
   if (!userSnap.exists) return { action: 'skipped', reason: 'user_not_found' };
 
-  const planType  = String(userSnap.data().planType || 'mensal').toLowerCase().trim();
+  const org       = await organizationResolver.getOrganization(userSnap.data().orgId);
+  const planType  = String(userSnap.data().planType || '').toLowerCase().trim();
   const dueDate   = new Date(normalizedPayment.dueDate);
   const planStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
-  const planEnd   = calculatePlanEnd(planStart, planType);
+  const planEnd   = calculatePlanEnd(org, planStart, planType);
   const nowTs     = admin.firestore.FieldValue.serverTimestamp();
   const status    = normalizedPayment.status;
 
@@ -712,19 +726,19 @@ exports.onNewAssociadoCriado = functions.firestore
       }
 
       const org         = await organizationResolver.getOrganization(userData.orgId);
-      const planType    = String(userData.planType || 'mensal').toLowerCase().trim();
+      const planType    = String(userData.planType || '').toLowerCase().trim();
       const nextDueDate = getNextDueDate();
-      const value       = resolvePlanValue(planType, userData.categoriaAssociado);
-      const descricao   = `Mensalidade ${org?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType] || 'Mensal'}${isMirim ? ' (Mirim)' : ''}`;
+      const value       = resolvePlanValue(org, planType, userData.categoriaAssociado);
+      const descricao   = `Mensalidade ${org?.nome || 'Associação'} - Plano ${resolvePlanLabel(org, planType)}${isMirim ? ' (Mirim)' : ''}`;
 
       const { providerId: subscriptionId } = await provider.createSubscription({
         customerId: asaasId,
         value,
         nextDueDate,
-        cycle: PLAN_CYCLE[planType] || 'MONTHLY',
+        cycle: resolvePlanCycle(org, planType) || 'MONTHLY',
         description: descricao,
         externalReference: uid,
-        interest: { value: 0.01 },
+        interest: { value: resolveInterestRate(org) },
       });
 
       await snap.ref.update({
@@ -760,16 +774,72 @@ exports.onNewAssociadoCriado = functions.firestore
    ASAAS — ASSINATURAS
    ======================================================================= */
 
-const PLAN_CYCLE = { mensal: 'MONTHLY', trimestral: 'QUARTERLY', semestral: 'SEMIANNUALLY' };
-const PLAN_VALUE = { mensal: 30, trimestral: 85, semestral: 170 };
-const PLAN_LABEL = { mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral' };
-
-// Mirim paga metade do valor do plano normal, cobrado no CPF do responsável
-// (categoriaAssociado/responsavelCpf em users/{uid} — mirim não tem login próprio).
-function resolvePlanValue(planType, categoriaAssociado) {
-  const base = PLAN_VALUE[String(planType || 'mensal').toLowerCase().trim()] || 30;
-  return categoriaAssociado === 'mirim' ? base / 2 : base;
+// Evolução Multi-Tenant (Fase 4) — planos de associado deixaram de ser
+// constante de módulo (preços/ciclos do CCBMG compartilhados por toda a
+// plataforma) e passaram a ser configuração de cada organização, em
+// organizations/{orgId}.billing.plans[] ({id,label,cycle,price}), editável
+// pela própria organização (Configurações → Associados, ver
+// admin_configuracoes.html). As funções abaixo SEMPRE recebem `org`
+// (organizations/{orgId}.data(), já resolvido por quem chama) — nunca há
+// fallback pra um valor de negócio fixo: organização sem o plano configurado
+// é erro controlado (ver CLAUDE.md, seção "Fallbacks"), não um preço do
+// CCBMG aplicado silenciosamente a outro tenant.
+function getPlanDef(org, planType) {
+  const plans = Array.isArray(org?.billing?.plans) ? org.billing.plans : [];
+  const key = String(planType || '').toLowerCase().trim();
+  return plans.find((p) => String(p.id || '').toLowerCase().trim() === key) || null;
 }
+
+// Mirim paga billing.mirimDiscountRatio (padrão institucional do CCBMG é 0.5,
+// gravado no próprio documento da organização, não aqui) do valor do plano
+// normal, cobrado no CPF do responsável (categoriaAssociado/responsavelCpf em
+// users/{uid} — mirim não tem login próprio). Ausência de mirimDiscountRatio
+// configurado = 1 (sem desconto) — default neutro, não o número do CCBMG.
+function resolvePlanValue(org, planType, categoriaAssociado) {
+  const plan = getPlanDef(org, planType);
+  if (!plan || typeof plan.price !== 'number') {
+    throw new Error(`resolvePlanValue: organização "${org?.id || '?'}" não possui o plano "${planType}" configurado em billing.plans.`);
+  }
+  const ratio = typeof org?.billing?.mirimDiscountRatio === 'number' ? org.billing.mirimDiscountRatio : 1;
+  const value = categoriaAssociado === 'mirim' ? plan.price * ratio : plan.price;
+  return Math.round(value * 100) / 100;
+}
+
+function resolvePlanCycle(org, planType) {
+  return getPlanDef(org, planType)?.cycle || null;
+}
+
+function resolvePlanLabel(org, planType) {
+  return getPlanDef(org, planType)?.label || planType;
+}
+
+// Juros de atraso (Asaas `interest.value`) — 0 (nenhum) é o default seguro
+// quando a organização não configurou billing.lateInterestRate; não é o valor
+// do CCBMG (0.01 = 1%), que passa a viver só no documento da própria organização.
+function resolveInterestRate(org) {
+  const rate = org?.billing?.lateInterestRate;
+  return typeof rate === 'number' ? rate : 0;
+}
+
+// Regras de leilão (organizations/{orgId}.business.auction.*) — todos os
+// defaults são 0 (efetivamente "recurso desligado": sem incremento mínimo
+// extra, sem extensão anti-sniper, sem comissão) quando a organização ainda
+// não configurou, nunca os números do CCBMG (2%/2min/5%+5%). commissionSistemaPct
+// é a única sub-chave que a própria organização NUNCA escreve (ver
+// firestore.rules — Firestore Rules bloqueiam a escrita desse campo por
+// isOrgMaster; é sempre a plataforma quem grava, mesmo quando o resto de
+// `business.auction` é editável pela organização).
+function resolveAuctionConfig(org) {
+  const auction = org?.business?.auction || {};
+  const num = (v) => (typeof v === 'number' ? v : 0);
+  return {
+    minBidIncrementPct: num(auction.minBidIncrementPct),
+    antiSniperExtensionMs: num(auction.antiSniperExtensionMs),
+    commissionClubePct: num(auction.commissionClubePct),
+    commissionSistemaPct: num(auction.commissionSistemaPct),
+  };
+}
+
 // Vencimento da 1ª cobrança quando o associado não tem fatura paga anterior
 // (pendente/atrasado/novo): hoje + 5 dias, calculado a cada chamada para nunca
 // cair no passado (era uma data fixa hardcoded que ficou obsoleta).
@@ -779,8 +849,12 @@ function getPendingRestartDate() {
   return d.toISOString().slice(0, 10);
 }
 
-// Retorna o planType da fatura mais recente; fallback para userData.planType; default 'mensal'
-function detectPlanType(invoices, userPlanType) {
+// Retorna o planType da fatura mais recente; fallback para userData.planType;
+// default = 1º plano configurado da organização (nunca um nome fixo tipo
+// "mensal", que pode nem existir pra esta organização). null só se a própria
+// organização não tiver nenhum plano configurado (estado inválido — provisionamento
+// sempre grava ao menos um, ver provisioning.js).
+function detectPlanType(org, invoices, userPlanType) {
   const paid = invoices.filter(i =>
     ['pago', 'paga', 'paid'].includes(String(i.status || '').toLowerCase())
   );
@@ -793,13 +867,14 @@ function detectPlanType(invoices, userPlanType) {
 
   for (const inv of sorted) {
     const pt = String(inv.planType || '').toLowerCase().trim();
-    if (PLAN_CYCLE[pt]) return pt;
+    if (getPlanDef(org, pt)) return pt;
   }
 
   const up = String(userPlanType || '').toLowerCase().trim();
-  if (PLAN_CYCLE[up]) return up;
+  if (getPlanDef(org, up)) return up;
 
-  return 'mensal';
+  const fallbackPlan = Array.isArray(org?.billing?.plans) ? org.billing.plans[0] : null;
+  return fallbackPlan?.id || null;
 }
 
 // Retorna a data de fim do último plano pago (Date | null)
@@ -843,7 +918,7 @@ exports.createAsaasSubscriptions = functions
         const invSnap = await db.collection('users').doc(userDoc.id).collection('financeInvoices').get();
         const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        const planType = detectPlanType(invoices, userData.planType);
+        const planType = detectPlanType(callerOrg, invoices, userData.planType);
 
         const membership = computeMembership({ invoices, summary: {} });
         let nextDueDate;
@@ -857,12 +932,12 @@ exports.createAsaasSubscriptions = functions
 
         const { providerId: subscriptionId } = await provider.createSubscription({
           customerId: userData.asaasId,
-          value: resolvePlanValue(planType, userData.categoriaAssociado),
+          value: resolvePlanValue(callerOrg, planType, userData.categoriaAssociado),
           nextDueDate,
-          cycle: PLAN_CYCLE[planType],
-          description: `Mensalidade ${callerOrg?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType]}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
+          cycle: resolvePlanCycle(callerOrg, planType) || 'MONTHLY',
+          description: `Mensalidade ${callerOrg?.nome || 'Associação'} - Plano ${resolvePlanLabel(callerOrg, planType)}${userData.categoriaAssociado === 'mirim' ? ' (Mirim)' : ''}`,
           externalReference: userDoc.id,
-          interest: { value: 0.01 },
+          interest: { value: resolveInterestRate(callerOrg) },
         });
 
         const updatePayload = {
@@ -1123,16 +1198,16 @@ async function cancelOpenPayments(provider, uid, asaasId) {
 
 // Cria uma cobrança avulsa imediata ao reativar um associado.
 async function createImmediateChargeOnReactivation(provider, uid, after) {
-  const planType = String(after.planType || 'mensal').toLowerCase().trim();
-  const value = resolvePlanValue(planType, after.categoriaAssociado);
-  const today = new Date().toISOString().slice(0, 10);
   const org = await organizationResolver.getOrganization(after.orgId);
+  const planType = String(after.planType || '').toLowerCase().trim();
+  const value = resolvePlanValue(org, planType, after.categoriaAssociado);
+  const today = new Date().toISOString().slice(0, 10);
 
   const { providerId, raw } = await provider.createCharge({
     customerId: after.asaasId,
     value,
     dueDate: today,
-    description: `Mensalidade ${org?.nome || 'Associação'} - Plano ${PLAN_LABEL[planType] || 'Mensal'} (reativação)`,
+    description: `Mensalidade ${org?.nome || 'Associação'} - Plano ${resolvePlanLabel(org, planType)} (reativação)`,
   });
 
   const normalized = provider.normalizePayment(raw);
@@ -1208,9 +1283,11 @@ exports.getAsaasPaymentLink = functions.https.onCall(async (data, context) => {
    ======================================================================= */
 
 // Envia um e-mail curto de aviso aos admins da ORGANIZAÇÃO do associado (campo
-// opcional `organizations/{orgId}.notificationEmails`; sem ele, cai no mesmo
-// fallback global de sempre — retrocompatível com o CCBMG). Nunca lança — falha
-// de e-mail não pode impedir o cancelamento/reativação em si.
+// `organizations/{orgId}.notificationEmails`, obrigatório desde o
+// provisionamento). Evolução Multi-Tenant (Fase 4): removido o fallback pra
+// e-mails pessoais fixos no código — organização sem o campo configurado
+// simplesmente não recebe (estado controlado, nunca vaza PII pra terceiros).
+// Nunca lança — falha de e-mail não pode impedir o cancelamento/reativação em si.
 async function notifyAdminsByEmail(orgId, subject, bodyHtml) {
   const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
   const send = (async () => {
@@ -1223,15 +1300,9 @@ async function notifyAdminsByEmail(orgId, subject, bodyHtml) {
       });
 
       const org = orgId ? await organizationResolver.getOrganization(orgId) : null;
-      // Array presente (mesmo vazio) = organização configurou explicitamente
-      // — respeita, inclusive "nenhum destinatário" (não é mais "ausente").
-      // Só cai no fallback de sempre quando o campo nem existe no doc
-      // (retrocompatível: é exatamente o estado do CCBMG hoje).
-      const recipients = Array.isArray(org?.notificationEmails)
-        ? org.notificationEmails
-        : ['waldiney.serafim@gmail.com', 'mpmarquesnutri@gmail.com'];
+      const recipients = Array.isArray(org?.notificationEmails) ? org.notificationEmails : [];
       if (recipients.length === 0) {
-        console.log(`notifyAdminsByEmail: orgId=${orgId} sem notificationEmails configurado (lista vazia explícita) — pulando envio.`);
+        console.log(`notifyAdminsByEmail: orgId=${orgId} sem notificationEmails configurado — pulando envio (nenhum destinatário pessoal usado como fallback).`);
         return;
       }
 
@@ -1556,9 +1627,13 @@ exports.asaasReconciliationDaily = functions
   .timeZone('America/Sao_Paulo')
   .onRun(async () => {
     const orgsSnap = await db.collection('organizations').get();
-    const orgs = orgsSnap.empty
-      ? [{ id: 'org_bonfim' }]
-      : orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+    // Evolução Multi-Tenant (Fase 4): removido o fallback pra 'org_bonfim' —
+    // organizations vazia é estado controlado (nada pra reconciliar), nunca
+    // "assume que é o CCBMG" (RC1-04, agora fechado por completo).
+    const orgs = orgsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.ativo !== false);
+    if (!orgs.length) {
+      console.log('asaasReconciliationDaily: nenhuma organização ativa encontrada — nada a reconciliar.');
+    }
 
     const results = { synced: 0, errors: [] };
 
@@ -1945,6 +2020,9 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'Sua conta está bloqueada por inadimplência.');
   }
 
+  const org = await organizationResolver.getOrganization(bidder.orgId);
+  const { minBidIncrementPct, antiSniperExtensionMs } = resolveAuctionConfig(org);
+
   const result = await db.runTransaction(async (tx) => {
     const lotSnap = await tx.get(lotRef);
     if (!lotSnap.exists) throw new functions.https.HttpsError('not-found', 'Lote não encontrado.');
@@ -1968,7 +2046,7 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
     }
 
     const base    = (lot.lastBid && lot.lastBid > 0) ? lot.lastBid : lot.initialBid;
-    const minBid  = Math.ceil(base * 1.02 * 100) / 100;
+    const minBid  = Math.ceil(base * (1 + minBidIncrementPct) * 100) / 100;
     if (amount < minBid) {
       throw new functions.https.HttpsError(
         'invalid-argument',
@@ -1977,8 +2055,8 @@ exports.placeBid = functions.https.onCall(async (data, context) => {
     }
 
     let newEndTime = lot.endTime;
-    if (endMs && (endMs - nowMs) < 120000) {
-      newEndTime = new admin.firestore.Timestamp.fromMillis(nowMs + 120000);
+    if (antiSniperExtensionMs > 0 && endMs && (endMs - nowMs) < antiSniperExtensionMs) {
+      newEndTime = new admin.firestore.Timestamp.fromMillis(nowMs + antiSniperExtensionMs);
     }
 
     const bidId  = bidsRef.doc().id;
@@ -2023,9 +2101,12 @@ exports.encerrarLotesExpirados = functions.pubsub.schedule('every 1 minutes')
       const existingSale = await db.collection('auctionSales').where('lotId', '==', doc.id).limit(1).get();
       if (!existingSale.empty) continue;
 
+      const lotOrg = await organizationResolver.getOrganization(lot.orgId);
+      const { commissionClubePct, commissionSistemaPct } = resolveAuctionConfig(lotOrg);
+
       const finalAmount       = lot.lastBid;
-      const commissionClube   = Math.round(finalAmount * 0.05 * 100) / 100;
-      const commissionSistema = Math.round(finalAmount * 0.05 * 100) / 100;
+      const commissionClube   = Math.round(finalAmount * commissionClubePct * 100) / 100;
+      const commissionSistema = Math.round(finalAmount * commissionSistemaPct * 100) / 100;
       const commissionTotal   = Math.round((commissionClube + commissionSistema) * 100) / 100;
       const netSeller         = Math.round((finalAmount - commissionTotal) * 100) / 100;
 
@@ -2722,6 +2803,74 @@ exports.archiveFeatureFlag = functions.https.onCall(async (data, context) => {
   await writePlatformAuditLog('feature_flag_arquivada', { key, archived: data?.archived !== false }, context);
   console.log(`archiveFeatureFlag: key=${key} archived=${data?.archived !== false} por caller=${caller.uid}`);
   return { success: true };
+});
+
+/* =========================================================================
+   LEADS (Release 2)
+   — agenda comercial do núcleo da plataforma (ver lib/leads.js). Acesso
+   restrito a Platform Administrator/Owner (requirePlatformAdministrator já
+   exclui operator automaticamente — é exatamente o requisito de acesso do
+   módulo, nenhuma checagem extra necessária). Sem integração com
+   organizations/tenants nesta fase.
+   ========================================================================= */
+
+function toDateOrNull(v) {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function proximaAcaoFromPayload(pa) {
+  if (!pa || typeof pa !== 'object') return undefined;
+  return { ...pa, data: toDateOrNull(pa.data) };
+}
+
+exports.createLead = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const fields = { ...(data || {}) };
+  if (fields.proximaAcao) fields.proximaAcao = proximaAcaoFromPayload(fields.proximaAcao);
+  const { id } = await leadsService.createLead(fields, { ownerUid: caller.uid });
+  await writePlatformAuditLog('lead_criado', { id, organizacaoNome: fields.organizacaoNome }, context);
+  console.log(`createLead: id=${id} por caller=${caller.uid}`);
+  return { id };
+});
+
+exports.updateLead = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const id = String(data?.id || '').trim();
+  if (!id) throw new functions.https.HttpsError('invalid-argument', 'id é obrigatório.');
+  const fields = { ...(data || {}) };
+  delete fields.id;
+  if (fields.proximaAcao) fields.proximaAcao = proximaAcaoFromPayload(fields.proximaAcao);
+  await leadsService.updateLead(id, fields);
+  await writePlatformAuditLog('lead_atualizado', { id, campos: Object.keys(fields) }, context);
+  console.log(`updateLead: id=${id} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+exports.archiveLead = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const id = String(data?.id || '').trim();
+  if (!id) throw new functions.https.HttpsError('invalid-argument', 'id é obrigatório.');
+  const archived = data?.archived !== false;
+  await leadsService.archiveLead(id, archived);
+  await writePlatformAuditLog('lead_arquivado', { id, archived }, context);
+  console.log(`archiveLead: id=${id} archived=${archived} por caller=${caller.uid}`);
+  return { success: true };
+});
+
+exports.addLeadHistory = functions.https.onCall(async (data, context) => {
+  const caller = await platformAuth.requirePlatformAdministrator(context);
+  const leadId = String(data?.leadId || '').trim();
+  if (!leadId) throw new functions.https.HttpsError('invalid-argument', 'leadId é obrigatório.');
+  const { id } = await leadsService.addLeadHistory(leadId, {
+    tipo: data?.tipo,
+    data: toDateOrNull(data?.data),
+    descricao: data?.descricao,
+  }, { createdBy: caller.uid });
+  await writePlatformAuditLog('lead_historico_registrado', { leadId, historyId: id, tipo: data?.tipo }, context);
+  console.log(`addLeadHistory: leadId=${leadId} historyId=${id} por caller=${caller.uid}`);
+  return { id };
 });
 
 // ---- migratePlatformAdmins (onCall, uso único — bootstrap da Fase 3.2) ----

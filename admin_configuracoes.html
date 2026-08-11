@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
+  <title>Admin • Configurações</title>
+  <meta name="description" content="Configurações de negócio da associação.">
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/custom.css?v=cfg-2026-08">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <style>
+    .badge-role{ background:var(--accent); }
+    main.container{ padding-top:1rem; padding-bottom:5rem; }
+    .section-card{ border:1px solid #e9ecef; border-radius:10px; padding:1.25rem; margin-bottom:1.25rem; }
+    .section-card h6{ color:var(--brand); font-weight:700; margin-bottom:.25rem; font-size:.95rem; }
+    .section-card .section-hint{ font-size:.82rem; color:#6c757d; margin-bottom:1rem; }
+    .plan-row{ display:grid; grid-template-columns: 1fr 1fr 130px 130px 40px; gap:.5rem; align-items:center; margin-bottom:.5rem; }
+    @media (max-width:767.98px){ .plan-row{ grid-template-columns: 1fr 1fr; } .plan-row .btn{ grid-column: span 2; } }
+    .readonly-note{ font-size:.78rem; color:#6c757d; }
+    .save-bar{ position:sticky; bottom:0; background:#fff; border-top:1px solid #e9ecef; padding:.6rem 0; z-index:5; text-align:right; }
+    #viewerNotice{ display:none; }
+    body.viewer-mode #viewerNotice{ display:block; }
+    body.viewer-mode input, body.viewer-mode button.btn-primary{ pointer-events:none; opacity:.6; }
+  </style>
+</head>
+<body data-page-title="Admin • Configurações">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container d-flex align-items-center flex-nowrap gap-2">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="index.html">
+      <img class="brand-logo" src="assets/img/logo_CCBMG.png" alt="Logo" data-tenant-logo>
+      <span class="brand-title" data-tenant-name>Clube do Cavalo - Bonfim MG</span>
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <a class="nav-link text-white small" href="admin.html"><i class="bi bi-grid me-1"></i>Admin</a>
+      <button id="btnLogout" class="btn btn-sm btn-outline-light"><i class="bi bi-box-arrow-right me-1"></i>Sair</button>
+    </div>
+  </div>
+</nav>
+
+<header class="border-bottom bg-light">
+  <div class="container py-3 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+    <div>
+      <h1 class="h4 mb-1">Configurações da Associação</h1>
+      <p class="text-secondary mb-0">Planos, regras de negócio e contato — específicos desta organização, não do sistema todo.</p>
+    </div>
+    <div class="text-md-end">
+      <div class="small">Logado como: <strong id="opName">—</strong></div>
+      <span id="opRole" class="badge badge-role d-none text-uppercase">admin</span>
+    </div>
+  </div>
+</header>
+
+<main class="container" style="max-width:820px">
+  <div id="loadingMsg" class="text-center text-secondary py-4">Carregando configurações…</div>
+
+  <div id="viewerNotice" class="alert alert-info small mb-3">
+    <i class="bi bi-eye me-1"></i>Modo somente leitura — só o <strong>Master</strong> da associação pode alterar estas configurações.
+  </div>
+
+  <form id="cfgForm" class="d-none">
+
+    <!-- Minha Associação -->
+    <div class="section-card">
+      <h6><i class="bi bi-building me-1"></i>Minha Associação</h6>
+      <p class="section-hint">Identidade visual (logo, cores) e domínio continuam no Painel Master (suporte da plataforma) — aqui ficam só contato e redes sociais.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Telefone</label>
+          <input class="form-control" id="cfgTelefone" placeholder="(31) 90000-0000">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">WhatsApp (só números, com DDI 55)</label>
+          <input class="form-control" id="cfgWhatsapp" placeholder="5531900000000">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Instagram</label>
+          <input class="form-control" id="cfgInstagram" placeholder="https://instagram.com/suaorganizacao">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Facebook</label>
+          <input class="form-control" id="cfgFacebook" placeholder="https://facebook.com/suaorganizacao">
+        </div>
+      </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSalvarContato">Salvar Contato</button>
+      </div>
+    </div>
+
+    <!-- Associados: planos -->
+    <div class="section-card">
+      <h6><i class="bi bi-people me-1"></i>Associados — Planos</h6>
+      <p class="section-hint">Planos que a associação oferece aos próprios associados (não confundir com o plano SaaS contratado da plataforma, esse é administrado pela Serafim Technologies). Cada plano precisa de um identificador único (id), usado internamente — mudar o id de um plano em uso pode desalinhar cobranças já criadas com esse id.</p>
+      <div id="plansList"></div>
+      <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="btnAddPlan"><i class="bi bi-plus-lg me-1"></i>Adicionar plano</button>
+
+      <div class="row g-3 mt-3">
+        <div class="col-md-6">
+          <label class="form-label">Desconto categoria Mirim</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgMirimDiscountPct" type="number" min="0" max="100" step="1">
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="form-text">Percentual do valor do plano que o Mirim efetivamente paga. Ex.: 50 = paga metade. 100 = sem desconto.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Aviso de renovação</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgRenewSoonDays" type="number" min="0" step="1">
+            <span class="input-group-text">dias antes</span>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Carência de inadimplência</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgGraceOverdueDays" type="number" min="0" step="1">
+            <span class="input-group-text">dias</span>
+          </div>
+          <div class="form-text">Após esse prazo vencido, o portal bloqueia o acesso do associado até regularizar.</div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSalvarAssociados">Salvar Associados</button>
+      </div>
+    </div>
+
+    <!-- Financeiro -->
+    <div class="section-card">
+      <h6><i class="bi bi-cash-coin me-1"></i>Financeiro</h6>
+      <p class="section-hint">Provider de pagamento (Asaas) e credenciais continuam no Painel Master — aqui só a regra de juros de atraso e quem recebe os alertas administrativos.</p>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Juros de atraso</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgLateInterestRate" type="number" min="0" max="100" step="0.1">
+            <span class="input-group-text">% ao mês</span>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">E-mails para alertas administrativos</label>
+          <input class="form-control" id="cfgNotificationEmails" placeholder="financeiro@suaorganizacao.com.br, presidente@suaorganizacao.com.br">
+          <div class="form-text">Separados por vírgula. Recebem: relatório diário de inadimplência, avisos de autocancelamento/reativação de associados. Deixe em branco se ninguém deve receber.</div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSalvarFinanceiro">Salvar Financeiro</button>
+      </div>
+    </div>
+
+    <!-- Classificados -->
+    <div class="section-card" id="cardClassificados">
+      <h6><i class="bi bi-tag me-1"></i>Classificados</h6>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">Preço por dia</label>
+          <div class="input-group">
+            <span class="input-group-text">R$</span>
+            <input class="form-control" id="cfgClsPricePerDay" type="number" min="0" step="0.01">
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Prazo mínimo do anúncio</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgClsMinimumDays" type="number" min="1" step="1">
+            <span class="input-group-text">dias</span>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSalvarClassificados">Salvar Classificados</button>
+      </div>
+    </div>
+
+    <!-- Leilões -->
+    <div class="section-card" id="cardLeiloes">
+      <h6><i class="bi bi-hammer me-1"></i>Leilões</h6>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Incremento mínimo por lance</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgAuctionIncrementPct" type="number" min="0" max="100" step="0.1">
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Extensão anti-sniper</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgAuctionAntiSniperMin" type="number" min="0" step="0.5">
+            <span class="input-group-text">min</span>
+          </div>
+          <div class="form-text">Se um lance chegar faltando menos que isso pro fim, o prazo se estende por esse tempo.</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Comissão da associação</label>
+          <div class="input-group">
+            <input class="form-control" id="cfgAuctionCommissionClube" type="number" min="0" max="100" step="0.1">
+            <span class="input-group-text">%</span>
+          </div>
+        </div>
+      </div>
+      <p class="readonly-note mt-2 mb-0"><i class="bi bi-lock-fill me-1"></i>A comissão da plataforma (sobre cada lote arrematado) é controlada pela Serafim Technologies e não aparece nem é alterável aqui.</p>
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-primary btn-sm" id="btnSalvarLeiloes">Salvar Leilões</button>
+      </div>
+    </div>
+
+  </form>
+</main>
+
+<div id="toastArea" style="position:fixed; bottom:1rem; right:1rem; z-index:2000;"></div>
+
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script src="./tenant.config.js"></script>
+<script type="module">
+import { requireAuth, currentOrgId, checkModuleEnabled, applyModuleVisibility, logAction } from "./firebase.js";
+import { auth, db } from "./firebase.js";
+import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+
+// Evolução Multi-Tenant (Fase 4) — esta página é o Portal da Associação
+// (organização opera sua PRÓPRIA config), diferente do Painel Master
+// (portal-associativo/admin/organization-detail.html, equipe da Serafim
+// Technologies operando em nome de qualquer organização). As duas telas
+// escrevem no MESMO documento organizations/{orgId} — nunca duas fontes de
+// verdade — só que esta aqui só pode tocar os campos liberados pra
+// Organization Master nas Firestore Rules (isOrgMasterSelfService).
+//
+// Admin/Admin View entram em modo SOMENTE LEITURA (visualizar é permitido,
+// alterar não — mesmo princípio do Núcleo Admin, ver CLAUDE.md). A Firestore
+// Rule já bloqueia a escrita de quem não é Master; o viewer-mode aqui é só
+// UX (não deixar clicar em Salvar e levar um erro de permissão).
+requireAuth({ requiredRole: ["Admin", "Master", "admin", "master", "Admin View", "adminView"] });
+applyModuleVisibility();
+
+let currentRole = "";
+let orgData = {};
+
+function toast(msg, type = "success") {
+  const el = document.createElement("div");
+  el.className = `toast align-items-center text-white bg-${type} border-0 show mb-2`;
+  el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div></div>`;
+  document.getElementById("toastArea").appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+document.getElementById("btnLogout")?.addEventListener("click", async () => {
+  try { await signOut(auth); location.href = "login.html"; }
+  catch (e) { alert("Não foi possível sair: " + e.message); }
+});
+
+/* ============================ Planos (lista editável) ============================ */
+let plans = [];
+function renderPlans() {
+  const wrap = document.getElementById("plansList");
+  wrap.innerHTML = plans.map((p, i) => `
+    <div class="plan-row" data-idx="${i}">
+      <input class="form-control form-control-sm plan-label" placeholder="Nome (ex: Mensal)" value="${p.label || ""}">
+      <input class="form-control form-control-sm plan-id" placeholder="id (ex: mensal)" value="${p.id || ""}">
+      <select class="form-select form-select-sm plan-cycle">
+        <option value="MONTHLY" ${p.cycle === "MONTHLY" ? "selected" : ""}>Mensal</option>
+        <option value="QUARTERLY" ${p.cycle === "QUARTERLY" ? "selected" : ""}>Trimestral</option>
+        <option value="SEMIANNUALLY" ${p.cycle === "SEMIANNUALLY" ? "selected" : ""}>Semestral</option>
+        <option value="YEARLY" ${p.cycle === "YEARLY" ? "selected" : ""}>Anual</option>
+      </select>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text">R$</span>
+        <input class="form-control plan-price" type="number" min="0" step="0.01" value="${p.price ?? ""}">
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger btn-remove-plan" title="Remover"><i class="bi bi-trash"></i></button>
+    </div>
+  `).join("") || '<p class="text-muted small mb-2">Nenhum plano configurado — adicione ao menos um.</p>';
+
+  wrap.querySelectorAll(".btn-remove-plan").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.closest(".plan-row").dataset.idx);
+      plans.splice(idx, 1);
+      renderPlans();
+    });
+  });
+}
+document.getElementById("btnAddPlan").addEventListener("click", () => {
+  plans.push({ id: "", label: "", cycle: "MONTHLY", price: 0 });
+  renderPlans();
+});
+function collectPlansFromForm() {
+  const rows = [...document.querySelectorAll("#plansList .plan-row")];
+  return rows.map((row) => ({
+    id: row.querySelector(".plan-id").value.trim().toLowerCase().replace(/\s+/g, "_"),
+    label: row.querySelector(".plan-label").value.trim(),
+    cycle: row.querySelector(".plan-cycle").value,
+    price: Number(row.querySelector(".plan-price").value) || 0,
+  })).filter((p) => p.id && p.label);
+}
+
+/* ============================ Carregar ============================ */
+async function loadConfig() {
+  const snap = await getDoc(doc(db, "organizations", currentOrgId));
+  orgData = snap.exists() ? snap.data() : {};
+
+  document.getElementById("cfgTelefone").value = orgData.telefone || "";
+  document.getElementById("cfgWhatsapp").value = orgData.whatsapp || "";
+  document.getElementById("cfgInstagram").value = orgData.portal?.redesSociais?.instagram || "";
+  document.getElementById("cfgFacebook").value = orgData.portal?.redesSociais?.facebook || "";
+
+  plans = Array.isArray(orgData.billing?.plans) ? orgData.billing.plans.map((p) => ({ ...p })) : [];
+  renderPlans();
+  const mirimRatio = typeof orgData.billing?.mirimDiscountRatio === "number" ? orgData.billing.mirimDiscountRatio : 1;
+  document.getElementById("cfgMirimDiscountPct").value = Math.round(mirimRatio * 100);
+  document.getElementById("cfgRenewSoonDays").value = orgData.business?.membership?.renewSoonDays ?? 5;
+  document.getElementById("cfgGraceOverdueDays").value = orgData.business?.membership?.graceOverdueDays ?? 5;
+
+  const interestRate = typeof orgData.billing?.lateInterestRate === "number" ? orgData.billing.lateInterestRate : 0;
+  document.getElementById("cfgLateInterestRate").value = Math.round(interestRate * 1000) / 10;
+  document.getElementById("cfgNotificationEmails").value = Array.isArray(orgData.notificationEmails) ? orgData.notificationEmails.join(", ") : "";
+
+  document.getElementById("cfgClsPricePerDay").value = orgData.business?.classifieds?.pricePerDay ?? 0;
+  document.getElementById("cfgClsMinimumDays").value = orgData.business?.classifieds?.minimumDays ?? 1;
+
+  const incPct = typeof orgData.business?.auction?.minBidIncrementPct === "number" ? orgData.business.auction.minBidIncrementPct : 0;
+  document.getElementById("cfgAuctionIncrementPct").value = Math.round(incPct * 1000) / 10;
+  document.getElementById("cfgAuctionAntiSniperMin").value = (orgData.business?.auction?.antiSniperExtensionMs || 0) / 60000;
+  const comClube = typeof orgData.business?.auction?.commissionClubePct === "number" ? orgData.business.auction.commissionClubePct : 0;
+  document.getElementById("cfgAuctionCommissionClube").value = Math.round(comClube * 1000) / 10;
+
+  // Módulos desabilitados escondem as seções que não se aplicam — evita
+  // configurar preço de classificados/leilão pra uma organização que não
+  // tem esses módulos contratados.
+  const [classificadosOk, leiloesOk] = await Promise.all([
+    checkModuleEnabled("classificados"),
+    checkModuleEnabled("leiloes"),
+  ]);
+  if (!classificadosOk) document.getElementById("cardClassificados").classList.add("d-none");
+  if (!leiloesOk) document.getElementById("cardLeiloes").classList.add("d-none");
+
+  document.getElementById("loadingMsg").classList.add("d-none");
+  document.getElementById("cfgForm").classList.remove("d-none");
+}
+
+/* ============================ Salvar (uma seção por vez, mesmo padrão de organization-detail.html) ============================ */
+async function saveFields(payload, actionName, successMsg) {
+  try {
+    await updateDoc(doc(db, "organizations", currentOrgId), { ...payload, updatedAt: serverTimestamp() });
+    await logAction(actionName, {});
+    toast(successMsg);
+  } catch (e) {
+    toast("Erro ao salvar: " + e.message, "danger");
+  }
+}
+
+document.getElementById("btnSalvarContato").addEventListener("click", () => saveFields({
+  telefone: document.getElementById("cfgTelefone").value.trim(),
+  whatsapp: document.getElementById("cfgWhatsapp").value.trim().replace(/\D/g, ""),
+  portal: {
+    ...(orgData.portal || {}),
+    redesSociais: {
+      ...(orgData.portal?.redesSociais || {}),
+      instagram: document.getElementById("cfgInstagram").value.trim(),
+      facebook: document.getElementById("cfgFacebook").value.trim(),
+    },
+  },
+}, "org_config_contato_atualizada", "Contato salvo."));
+
+document.getElementById("btnSalvarAssociados").addEventListener("click", () => {
+  const newPlans = collectPlansFromForm();
+  if (!newPlans.length) { toast("Configure ao menos um plano antes de salvar.", "danger"); return; }
+  saveFields({
+    billing: {
+      ...(orgData.billing || {}),
+      plans: newPlans,
+      mirimDiscountRatio: Math.max(0, Math.min(100, Number(document.getElementById("cfgMirimDiscountPct").value) || 0)) / 100,
+    },
+    business: {
+      ...(orgData.business || {}),
+      membership: {
+        renewSoonDays: Number(document.getElementById("cfgRenewSoonDays").value) || 0,
+        graceOverdueDays: Number(document.getElementById("cfgGraceOverdueDays").value) || 0,
+      },
+    },
+  }, "org_config_associados_atualizada", "Configurações de associados salvas.");
+});
+
+document.getElementById("btnSalvarFinanceiro").addEventListener("click", () => saveFields({
+  billing: {
+    ...(orgData.billing || {}),
+    lateInterestRate: Math.max(0, Number(document.getElementById("cfgLateInterestRate").value) || 0) / 100,
+  },
+  notificationEmails: document.getElementById("cfgNotificationEmails").value
+    .split(",").map((s) => s.trim()).filter(Boolean),
+}, "org_config_financeiro_associacao_atualizada", "Configurações financeiras salvas."));
+
+document.getElementById("btnSalvarClassificados").addEventListener("click", () => saveFields({
+  business: {
+    ...(orgData.business || {}),
+    classifieds: {
+      pricePerDay: Math.max(0, Number(document.getElementById("cfgClsPricePerDay").value) || 0),
+      minimumDays: Math.max(1, Number(document.getElementById("cfgClsMinimumDays").value) || 1),
+    },
+  },
+}, "org_config_classificados_atualizada", "Configurações de classificados salvas."));
+
+document.getElementById("btnSalvarLeiloes").addEventListener("click", () => saveFields({
+  business: {
+    ...(orgData.business || {}),
+    auction: {
+      ...(orgData.business?.auction || {}),
+      minBidIncrementPct: Math.max(0, Number(document.getElementById("cfgAuctionIncrementPct").value) || 0) / 100,
+      antiSniperExtensionMs: Math.max(0, Number(document.getElementById("cfgAuctionAntiSniperMin").value) || 0) * 60000,
+      commissionClubePct: Math.max(0, Number(document.getElementById("cfgAuctionCommissionClube").value) || 0) / 100,
+      // commissionSistemaPct nunca é enviado por esta tela — Firestore Rules
+      // (isOrgMasterSelfService) rejeitariam a escrita inteira se o valor
+      // mudasse, mas nem chega a ser um risco: o campo simplesmente não
+      // existe no payload, o merge do updateDoc preserva o valor atual.
+    },
+  },
+}, "org_config_leiloes_atualizada", "Configurações de leilões salvas."));
+
+/* ============================ Boot ============================ */
+auth.onAuthStateChanged(async (user) => {
+  if (!user) return;
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById("opName").textContent = d.nome || "Operador(a)";
+    currentRole = String(d.role || "").trim().toLowerCase();
+    const roleEl = document.getElementById("opRole");
+    roleEl.textContent = currentRole || "admin";
+    roleEl.classList.remove("d-none");
+    if (currentRole !== "master") document.body.classList.add("viewer-mode");
+  } catch { /* segue com o form em modo leitura por segurança */ document.body.classList.add("viewer-mode"); }
+  loadConfig();
+});
+</script>
+</body>
+</html>

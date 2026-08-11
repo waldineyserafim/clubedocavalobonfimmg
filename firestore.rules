@@ -65,6 +65,35 @@ service cloud.firestore {
     function isOrgAdmin(orgId)  { return isLoggedIn() && roleLower() == "admin"  && userOrgId() == orgId; }
     function isOrgViewer(orgId) { return isLoggedIn() && roleLower() == "admin view" && userOrgId() == orgId; }
 
+    // Evolução Multi-Tenant (Fase 4): Organization Master pode editar as
+    // PRÓPRIAS configurações de identidade/branding/negócio direto do Portal
+    // da Associação (admin_configuracoes.html) — só os campos abaixo, nunca
+    // infraestrutura/provider de billing/módulos contratados/status da
+    // assinatura SaaS/domínio (isso continua exclusivo de
+    // isPlatformAdministrator(), mesma trilha do Painel Master de sempre).
+    function orgSelfServiceFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'nome', 'nomeCurto', 'descricao', 'cnpj', 'email', 'site', 'telefone',
+        'whatsapp', 'cidade', 'estado', 'cep', 'pais', 'endereco',
+        'config', 'portal', 'billing', 'business', 'notificationEmails',
+        'updatedAt'
+      ]);
+    }
+    // business.auction.commissionSistemaPct é a comissão da PLATAFORMA, não
+    // da associação — a única sub-chave que a organização nunca pode alterar,
+    // mesmo escrevendo o resto de `business` livremente (ver CLAUDE.md,
+    // "Evolução Multi-Tenant", seção Leilões). Comparação de valor (não de
+    // affectedKeys, que só enxerga a chave de topo `business`) é o único jeito
+    // de proteger um campo aninhado específico sem duplicar `business` inteiro
+    // em dois campos separados.
+    function orgSelfServiceCommissionUnchanged() {
+      return request.resource.data.get(['business', 'auction', 'commissionSistemaPct'], null)
+          == resource.data.get(['business', 'auction', 'commissionSistemaPct'], null);
+    }
+    function isOrgMasterSelfService(orgId) {
+      return isOrgMaster(orgId) && orgSelfServiceFieldsOnly() && orgSelfServiceCommissionUnchanged();
+    }
+
     // >>> G3 (docs/SAAS_MULTITENANT.md): isolamento por organização.
     // Nunca checar só PAPEL (admin/master) sem organização — um admin de
     // qualquer org podia ler/escrever dados de qualquer outra org com só
@@ -525,9 +554,13 @@ service cloud.firestore {
       // (Cloud Function via Admin SDK, que ignora Rules) — nenhuma organização
       // deve nascer de um write direto do cliente daqui pra frente. update
       // continua permitido (é o que as abas Módulos/Assinatura/Configurações
-      // do Painel Master usam pra editar uma organização que já existe).
+      // do Painel Master usam pra editar uma organização que já existe) — e,
+      // desde a Evolução Multi-Tenant (Fase 4), também o que
+      // admin_configuracoes.html (Portal da Associação, Organization Master)
+      // usa pra editar SÓ os campos de identidade/branding/negócio da própria
+      // organização (ver isOrgMasterSelfService acima).
       allow create: if false;
-      allow update: if isPlatformAdministrator();
+      allow update: if isPlatformAdministrator() || isOrgMasterSelfService(orgId);
       // delete: nenhuma regra = negado por padrão — organização nunca é
       // apagada de verdade, só suspensa (ativo:false), mesmo padrão do
       // resto da plataforma. Confirmado: nenhuma tela chama deleteDoc aqui.
@@ -570,6 +603,22 @@ service cloud.firestore {
     match /featureFlags/{flagKey} {
       allow read: if isPlatformStaff();
       allow write: if false;
+    }
+
+    // Release 2 — Leads: agenda comercial do núcleo da plataforma, 100%
+    // independente de organizations/tenants. Leitura restrita a
+    // administrator/owner (mais estrita que platformAdmins/featureFlags
+    // acima, que também liberam operator — aqui operator não deve nem ver a
+    // lista). Escrita sempre via Cloud Function (mesma garantia estrutural
+    // de platformAdmins/featureFlags, auditoria em systemLogs por construção).
+    match /leads/{leadId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+
+      match /history/{historyId} {
+        allow read: if isPlatformAdministrator();
+        allow write: if false;
+      }
     }
 
     match /systemPlans/{planId} {

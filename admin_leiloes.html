@@ -311,7 +311,7 @@
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-import { requireAuth, doLogout, currentOrgId, checkModuleEnabled, logAction, applyModuleVisibility } from "./firebase.js";
+import { requireAuth, doLogout, currentOrgId, checkModuleEnabled, logAction, applyModuleVisibility, getOrgBranding } from "./firebase.js";
 import { getFirestore, collection, query, where, orderBy, onSnapshot,
          doc, updateDoc, getDocs, serverTimestamp, getDoc }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -322,6 +322,11 @@ import { getFunctions, httpsCallable }
 
 const db        = getFirestore(getApp());
 const auth      = getAuth(getApp());
+
+// Evolução Multi-Tenant (Fase 4): incremento mínimo deixa de ser 1.02 fixo
+// (regra do CCBMG) e passa a ler organizations/{orgId}/public/branding.business.auction.
+const _auctionCfg = (await getOrgBranding())?.business?.auction || {};
+const MIN_BID_MULTIPLIER = 1 + (typeof _auctionCfg.minBidIncrementPct === "number" ? _auctionCfg.minBidIncrementPct : 0);
 const functions = getFunctions(getApp(), "us-central1");
 
 requireAuth({ requiredRole: ["admin", "master", "Admin View", "adminView"] });
@@ -462,7 +467,7 @@ function renderAnalise() {
           </div>
           <div class="col-md-4">
             <div><strong>Valor inicial:</strong> ${fmtBRL(lot.initialBid)}</div>
-            <div><strong>Lance mínimo 1º:</strong> ${fmtBRL(lot.initialBid * 1.02)}</div>
+            <div><strong>Lance mínimo 1º:</strong> ${fmtBRL(lot.initialBid * MIN_BID_MULTIPLIER)}</div>
             <div><strong>Local:</strong> ${escHtml(lot.cidade||"")}/${escHtml(lot.estado||"")}</div>
           </div>
           ${lot.imageUrls?.length ? `

@@ -108,16 +108,14 @@
       <div class="table-responsive plan-preview">
         <table class="table table-bordered align-middle text-center table-sm mb-1">
           <thead class="table-light">
-            <tr><th>Plano</th><th>Valor</th><th>Desconto</th><th>Vantagem</th></tr>
+            <tr><th>Plano</th><th>Valor</th><th>Vantagem</th></tr>
           </thead>
-          <tbody>
-            <tr><td><strong>Mensal</strong></td><td>R$ 30,00</td><td>-</td><td>Ideal para começar</td></tr>
-            <tr><td><strong>Trimestral</strong></td><td>R$ 85,00</td><td>4%</td><td>Economia em relação ao mensal</td></tr>
-            <tr><td><strong>Semestral</strong></td><td>R$ 170,00</td><td>8%</td><td>Mais economia e comodidade</td></tr>
+          <tbody id="planosPreviewBody">
+            <tr><td colspan="3" class="text-muted small">Carregando planos da associação…</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="plan-note">Valores definidos pelo sistema de pagamentos (Asaas). Para alterar, contate o suporte.</p>
+      <p class="plan-note">Valores definidos em Configurações → Associados (Portal da Associação). Esta tabela é só um preview de como aparece em "Sobre" — a edição fica lá, não aqui.</p>
       <label class="form-label small fw-semibold">Nota abaixo da tabela</label>
       <textarea class="form-control" id="planosNota" rows="2" placeholder="Quer plano anual ou outras condições? Entre em contato com a Diretoria…"></textarea>
     </div>
@@ -226,8 +224,29 @@
     "cnpj", "registroCartorio", "sede", "emailOficial"
   ];
 
+  // Evolução Multi-Tenant (Fase 4): preview da tabela de planos deixa de ser
+  // texto estático (preços do CCBMG) e passa a ler organizations/{orgId}.billing.plans
+  // — a MESMA fonte que sobre.html (pública) usa, só que lida direto do
+  // documento (esta página já é autenticada, mesma organização).
+  async function loadPlanosPreview() {
+    const tbody = document.getElementById("planosPreviewBody");
+    if (!tbody) return;
+    try {
+      const orgSnap = await getDoc(doc(db, "organizations", currentOrgId));
+      const plans = orgSnap.exists() ? (orgSnap.data().billing?.plans || []) : [];
+      if (!plans.length) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-muted small">Nenhum plano configurado ainda — configure em Configurações → Associados.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = plans.map(p => `<tr><td><strong>${p.label || p.id}</strong></td><td>R$ ${Number(p.price).toFixed(2).replace(".", ",")}</td><td>${p.cycle || "-"}</td></tr>`).join("");
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-muted small">Não foi possível carregar os planos.</td></tr>';
+    }
+  }
+
   async function loadContent() {
     try {
+      loadPlanosPreview();
       const snap = await getDoc(doc(db, "cms_about", currentOrgId));
       if (snap.exists()) {
         const d = snap.data();

@@ -245,7 +245,7 @@
 
       <div class="modal-body">
         <div class="alert alert-warning">
-          <strong>Atenção:</strong> o anúncio tem custo de <strong>R$ 1,00 por dia</strong>, com <strong>mínimo de 30 dias</strong>. Ele ficará <strong>ativo por 30 dias após a confirmação do pagamento</strong>.
+          <strong>Atenção:</strong> o anúncio tem custo de <strong id="clsPricePerDay">R$ 1,00 por dia</strong>, com <strong id="clsMinDays">mínimo de 30 dias</strong>. Ele ficará <strong id="clsActiveDays">ativo por 30 dias após a confirmação do pagamento</strong>.
         </div>
 
         <div id="clsFeedback" class="d-none"></div>
@@ -332,6 +332,24 @@
 
   const _orgBrandingForText = await getOrgBranding();
   const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
+
+  // Evolução Multi-Tenant (Fase 4): preço/prazo mínimo do classificado deixam
+  // de ser texto estático (R$1,00/dia, 30 dias — regra do CCBMG) e passam a
+  // ler organizations/{orgId}/public/branding.business.classifieds. Sem essa
+  // configuração, mantém o texto estático de exemplo (fail-safe).
+  (() => {
+    const cls = _orgBrandingForText?.business?.classifieds;
+    if (!cls || !cls.pricePerDay || !cls.minimumDays) return;
+    const price = `R$ ${Number(cls.pricePerDay).toFixed(2).replace('.', ',')} por dia`;
+    const minDays = `mínimo de ${cls.minimumDays} dias`;
+    const activeDays = `ativo por ${cls.minimumDays} dias após a confirmação do pagamento`;
+    const priceEl = document.getElementById('clsPricePerDay');
+    const minDaysEl = document.getElementById('clsMinDays');
+    const activeDaysEl = document.getElementById('clsActiveDays');
+    if (priceEl) priceEl.textContent = price;
+    if (minDaysEl) minDaysEl.textContent = minDays;
+    if (activeDaysEl) activeDaysEl.textContent = activeDays;
+  })();
 
   setupAdminButton("#adminBtn", { href: "admin.html", label: "Painel Admin" });
   applyModuleVisibility();

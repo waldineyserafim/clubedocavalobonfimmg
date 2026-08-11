@@ -46,4 +46,28 @@ async function seedPlatformAdmin(db, authInstance, { uid, email, role, nome, ati
   return uid;
 }
 
-module.exports = { getApp, seedOrganization, seedUser, seedPlatformAdmin };
+// Release 2 — Leads (núcleo da plataforma, não tem orgId). overrides permite
+// sobrescrever qualquer campo do doc (ex.: status/archived/proximaAcao) pra
+// montar cenários de teste específicos sem passar pela Cloud Function.
+async function seedLead(db, { id, organizacaoNome, ownerUid, responsavelUid, ...overrides } = {}) {
+  await db.collection('leads').doc(id).set({
+    organizacaoNome: organizacaoNome || 'Organização de Teste',
+    segmento: null, cidade: '', estado: '',
+    contatoNome: '', contatoCargo: '', contatoWhatsapp: '', contatoEmail: '',
+    status: 'novo', origem: null,
+    responsavelUid: responsavelUid || ownerUid || 'test-owner',
+    prioridade: 'media',
+    dores: '', necessidades: '', observacoes: '',
+    sistemaAtual: 'nenhum', sistemaAtualNome: '',
+    associadosEstimados: null,
+    proximaAcao: { tipo: null, data: null, descricao: '', concluida: false },
+    ownerUid: ownerUid || 'test-owner',
+    archived: false,
+    ultimaInteracao: null,
+    createdAt: new Date(), updatedAt: new Date(),
+    ...overrides,
+  });
+  return id;
+}
+
+module.exports = { getApp, seedOrganization, seedUser, seedPlatformAdmin, seedLead };

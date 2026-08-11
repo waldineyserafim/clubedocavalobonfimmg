@@ -735,6 +735,53 @@ Pedido do operador: reduzir de 2 contas `Admin` pra 1 só, com nome/apelido/tele
 
 ---
 
+## Fase 4 — Evolução Multi-Tenant: Configurações Personalizáveis por Tenant ✅
+
+Baseline: auditoria de hard-codes de negócio (`portal-associativo/docs/roadmap/TENANT_HARDCODE_AUDIT_REPORT.md`) encontrou o motor de cobrança inteiro (preços/ciclos/desconto Mirim/juros), regras de leilão/classificados/carência, e vários pontos de contato (WhatsApp/Instagram/endereço) ainda como constante de módulo compartilhada por toda a plataforma, em vez de configuração por organização. Esta fase resolveu isso — relatório completo em `portal-associativo/docs/roadmap/EVOLUCAO_MULTITENANT_FASE4_REPORT.md`.
+
+### Schema novo — `organizations/{orgId}`
+
+```
+billing.plans[]                        — [{id,label,cycle,price}], substitui PLAN_CYCLE/PLAN_VALUE/PLAN_LABEL
+billing.mirimDiscountRatio             — fração do preço que Mirim paga (0.5 = metade); ausente = 1 (sem desconto)
+billing.lateInterestRate               — juros de atraso repassado ao Asaas; ausente = 0
+
+business.membership.renewSoonDays      — dias antes do vencimento pra avisar renovação
+business.membership.graceOverdueDays   — dias de carência antes de bloquear o portal
+
+business.classifieds.pricePerDay       — preço/dia de anúncio em Classificados
+business.classifieds.minimumDays       — prazo mínimo/duração do anúncio
+
+business.auction.minBidIncrementPct    — incremento mínimo entre lances
+business.auction.antiSniperExtensionMs — extensão quando um lance chega perto do fim
+business.auction.commissionClubePct    — comissão da ASSOCIAÇÃO, editável pelo próprio Master
+business.auction.commissionSistemaPct  — comissão da PLATAFORMA — só Platform Administrator escreve,
+                                          bloqueado nas Firestore Rules mesmo dentro do mesmo documento
+                                          que o Master já pode editar (comparação de valor, não de chave)
+```
+
+`whatsapp` (já existia desde a Fase 3.4) e `portal.redesSociais` (idem) passaram a ter consumidor de verdade: `organizationPublicSync.js` os inclui na projeção pública (`organizations/{orgId}/public/branding`), e `shared/core/tenant/branding.js` aplica via `[data-tenant-whatsapp]`/`[data-tenant-whatsapp-label]`/`[data-tenant-social="facebook|instagram|youtube"]`. `notificationEmails` (já lido pelo backend desde a Fase 3.6) passou a ser **obrigatório desde o provisionamento** — o fallback pra e-mail pessoal hardcoded (`waldiney.serafim@gmail.com`/`mpmarquesnutri@gmail.com`) foi removido do código; organização sem o campo configurado simplesmente não envia, nunca vaza PII pra terceiros.
+
+### Autoatendimento — `admin_configuracoes.html` (novo, Portal da Associação)
+
+Primeira tela onde o **Organization Master** administra a própria organização sem depender do Painel Master (equipe da plataforma). `firestore.rules` ganhou `isOrgMasterSelfService(orgId)` — `allow update` em `organizations/{orgId}` passou de `isPlatformAdministrator()` sozinho para `isPlatformAdministrator() || isOrgMasterSelfService(orgId)`, com um allowlist de campos de topo (`nome, nomeCurto, descricao, cnpj, email, site, telefone, whatsapp, cidade, estado, cep, pais, endereco, config, portal, billing, business, notificationEmails, updatedAt` — nunca `billingProvider/billingConfig/modules/ativo/plan/dominio`, que continuam exclusivos do Núcleo) mais uma comparação de valor dedicada que impede a organização de tocar `business.auction.commissionSistemaPct` mesmo escrevendo o resto de `business` livremente. Organization Admin acessa a mesma tela em modo só-leitura (a Rule já bloquearia a escrita; o modo leitura é só UX).
+
+`admin/organization-detail.html`/`organizations.html`/`admin/index.html`/`subscriptions.html` (Painel Master) tinham uma lista fixa de planos SaaS (`starter/professional/enterprise/custom`) mesmo já existindo um editor genérico (`admin/plans.html`, `systemPlans`) desde a Fase 3.1 — as 4 telas passaram a consultar `systemPlans` em runtime.
+
+### Migração dos tenants existentes
+
+`functions/scripts/migrateBusinessConfig.js` (`--dry-run`/`--apply`, mesmo padrão REST+`gcloud auth print-access-token` de `seedSandboxTenant.js`) populou `org_bonfim` e `org_teste_etapa10` com os valores que o código hardcoded já usava (nenhum valor comercial mudou, só passou a ser dado da organização). Achado durante a migração: **`notificationEmails` não existia de verdade em produção** pra nenhum dos dois tenants (confirmado por leitura direta do Firestore) — ao contrário do que a Fase 3.11 registrava. Corrigido na própria migração, preservando os destinatários reais do CCBMG.
+
+### Testes
+
+219 → **239 verificações, 0 falhas** (178 unidade/integração + 46 Rules, incluindo 8 novas provando a fronteira do self-service — Master edita a própria org, Admin não pode, Master de outra org não pode, campos fora do allowlist são rejeitados, `commissionSistemaPct` é intocável mesmo dentro do próprio payload de `business.auction` — + 15 Storage Rules).
+
+### Pendências (fora do escopo desta fase, não lacunas novas)
+
+Conta Asaas/SMTP compartilhada, `billingProvider` fixo no provisionamento, reCAPTCHA site key de um domínio só, timezone fixo em crons, Cloudflare Worker de origem única — todos já eram dívida técnica documentada em fases anteriores (G7, RC1-03/04/05/08) e ficaram deliberadamente fora do escopo desta fase (que tratou só de configuração de negócio, não de infraestrutura/secrets). Identidade visual e localização continuam só no Painel Master — não foram estendidas ao autoatendimento por não terem sido flagadas como hardcoded pela auditoria (já eram 100% dinâmicas desde a Fase 3.4/3.5).
+
+---
+
 ## Integração Asaas ✅ (Fase 2 — LIVE)
 
 **API:** `https://api.asaas.com/v3`

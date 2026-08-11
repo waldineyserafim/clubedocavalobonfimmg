@@ -415,6 +415,28 @@
   const _orgBrandingForText = await getOrgBranding();
   const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
 
+  // Evolução Multi-Tenant (Fase 4): tabela de planos/preços/desconto Mirim
+  // deixa de ser constante hardcoded (preços do CCBMG) e passa a ler
+  // organizations/{orgId}.billing — a MESMA fonte de verdade que o backend
+  // (functions/index.js, resolvePlanValue/resolvePlanLabel) usa pra cobrar de
+  // verdade, nunca uma cópia local que pode divergir. Página já autenticada,
+  // mesma organização — lê o documento completo (não a projeção pública, que
+  // nunca inclui mirimDiscountRatio, só usado aqui internamente).
+  // Lido dentro de try/catch porque, pra um visitante não-autenticado que
+  // caiu direto nesta URL, o requireAuth() abaixo só redireciona
+  // assincronamente (via onAuthStateChanged) — este fetch roda ANTES disso
+  // resolver, e organizations/{orgId} exige login nas Firestore Rules
+  // (diferente de getOrgBranding() acima, que é a projeção pública). Falha
+  // aqui nunca deve impedir requireAuth() de rodar e redirecionar.
+  const _CYCLE_MONTHS = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUALLY: 6, YEARLY: 12 };
+  let _orgDocForPlans = {};
+  try { _orgDocForPlans = (await getDoc(doc(db, "organizations", currentOrgId))).data() || {}; } catch { /* não-autenticado — requireAuth() cuida do redirect */ }
+  const _orgPlans = Array.isArray(_orgDocForPlans.billing?.plans) ? _orgDocForPlans.billing.plans : [];
+  const _mirimRatio = typeof _orgDocForPlans.billing?.mirimDiscountRatio === "number" ? _orgDocForPlans.billing.mirimDiscountRatio : 1;
+  const PLAN_MONTHS = Object.fromEntries(_orgPlans.map(p => [p.id, _CYCLE_MONTHS[p.cycle] || 1]));
+  const PLAN_LABEL = Object.fromEntries(_orgPlans.map(p => [p.id, p.label || p.id]));
+  const PLAN_PRICE_TABLE = Object.fromEntries(_orgPlans.map(p => [p.id, p.price]));
+
   // Causa raiz do bug de scroll da página: cada modal era descartado com `div.remove()` direto,
   // sem passar pelo `.hide()` do Bootstrap. Se o elemento ainda estava visível (ex.: reabrir o
   // mesmo modal rapidamente, ou abrir um novo antes do anterior terminar de fechar), o Bootstrap
@@ -476,8 +498,8 @@
     catch(e){ alert("Não foi possível sair: " + e.message); }
   });
 
-  const PLAN_MONTHS = { mensal:1, trimestral:3, semestral:6, anual:12 };
-  const PLAN_LABEL  = { mensal:"Mensal", trimestral:"Trimestral", semestral:"Semestral", anual:"Anual", custom:"Personalizado" };
+  // PLAN_MONTHS/PLAN_LABEL: ver declaração dinâmica logo após ORG_NOME, no
+  // topo do módulo (lê organizations/{orgId}.billing.plans).
 
   // Nomes de mês para trocar referências relativas ("há 2 anos", "recentemente") por absolutas
   // (mês/ano ou data completa) — pedido explícito de clareza: nada de informação ambígua.
@@ -622,9 +644,9 @@
     return `${fmtDateCell(inv.dueDate)} · ${fmtBRL(inv.amount)} · ${typeLabel}`;
   }
 
-  // Tabela de preços oficial (ver CLAUDE.md "Planos e valores") — usada só como valor de
-  // referência quando ainda não existe nenhuma fatura para mostrar o valor real cobrado.
-  const PLAN_PRICE_TABLE = { mensal:30, trimestral:85, semestral:170 };
+  // PLAN_PRICE_TABLE: ver declaração dinâmica logo após ORG_NOME (lê
+  // organizations/{orgId}.billing.plans) — usada só como valor de referência
+  // quando ainda não existe nenhuma fatura para mostrar o valor real cobrado.
 
   // Escolhe A fatura que representa o ciclo vigente — a MESMA fonte para Plano, Vigência e
   // Cobrança, para nunca mostrar uma cobrança de um ciclo diferente do período exibido (pedido
@@ -1201,7 +1223,10 @@
     }
 
     if (action === "create-payment") {
-      const valueStr = prompt("Valor da nova cobrança (R$):", "30");
+      // Default = 1º plano configurado da PRÓPRIA organização (nunca mais a
+      // mensalidade do CCBMG hardcoded) — só um valor inicial editável, o
+      // admin escolhe o valor real da cobrança avulsa.
+      const valueStr = prompt("Valor da nova cobrança (R$):", _orgPlans[0]?.price != null ? String(_orgPlans[0].price) : "");
       if (!valueStr) return;
       const value = Number(valueStr.replace(",", "."));
       if (!value || value <= 0) { alert("Valor inválido."); return; }
@@ -1315,7 +1340,7 @@
     const planValueRaw = cycleInvoice?.amount ?? null;
     const planPriceEstimateBase = planType && PLAN_PRICE_TABLE[planType] != null ? PLAN_PRICE_TABLE[planType] : null;
     const planPriceEstimate = planPriceEstimateBase != null && userData.categoriaAssociado === 'mirim'
-      ? planPriceEstimateBase / 2
+      ? planPriceEstimateBase * _mirimRatio
       : planPriceEstimateBase;
     const planValue = planValueRaw ?? planPriceEstimate;
     const planValueIsEstimate = planValueRaw == null && planValue != null;

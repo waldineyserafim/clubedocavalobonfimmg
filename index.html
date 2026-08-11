@@ -203,7 +203,7 @@
 </section>
 
 <!-- PARCEIROS -->
-<section class="bg-body-secondary py-5">
+<section class="bg-body-secondary py-5" id="homePartnersSection">
   <div class="container">
     <h2 class="h4 mb-4">Parceiros</h2>
     <div class="row g-4 align-items-center" id="homePartnersRow">
@@ -242,7 +242,7 @@
           <ul class="list-unstyled mb-0">
             <li class="mb-3 d-flex align-items-center gap-2">
               <i class="bi bi-instagram text-danger"></i>
-              <a href="https://www.instagram.com/clube_do_cavalo_de_bonfim_mg/" target="_blank" rel="noopener">@clube_do_cavalo_de_bonfim_mg</a>
+              <a href="https://www.instagram.com/clube_do_cavalo_de_bonfim_mg/" target="_blank" rel="noopener" data-tenant-social="instagram">@clube_do_cavalo_de_bonfim_mg</a>
             </li>
             <li class="mb-3 d-flex align-items-center gap-2">
               <i class="bi bi-envelope" style="color:var(--brand);"></i>
@@ -250,30 +250,24 @@
             </li>
             <li class="d-flex align-items-center gap-2">
               <i class="bi bi-whatsapp text-success"></i>
-              <a href="https://wa.me/5531986685028" target="_blank" rel="noopener">+55 (31) 98668-5028</a>
+              <a href="https://wa.me/5531986685028" target="_blank" rel="noopener" data-tenant-whatsapp data-tenant-whatsapp-label>+55 (31) 98668-5028</a>
             </li>
           </ul>
         </div>
       </div>
 
       <div class="col-lg-6">
-        <div class="p-4 border rounded-3 h-100 ds-card" data-hide-if-sandbox>
+        <div class="p-4 border rounded-3 h-100 ds-card" data-tenant-address-card>
           <h3 class="h6 fw-bold mb-3 d-flex align-items-center gap-2">
             <i class="bi bi-geo-alt" style="color:var(--brand);"></i> Onde Estamos
           </h3>
-          <p class="fw-semibold mb-1" style="font-size:var(--text-sm);">Antiga Escola Melo Viana</p>
-          <p class="text-muted mb-1" style="font-size:var(--text-sm);">Rua Doutor Melo Viana, 183 — Sala 08</p>
-          <p class="text-muted mb-3" style="font-size:var(--text-sm);">Centro, Bonfim — CEP 35480-000</p>
-          <div class="ratio ratio-16x9">
-            <img src="assets/img/meloviana.png?v=ccbmg-2025-09-10d" alt="Mapa de Bonfim MG"
-                 class="w-100 h-100" style="object-fit:cover; border-radius:var(--radius-md);" loading="lazy">
-          </div>
+          <p class="text-muted mb-0" style="font-size:var(--text-sm);" data-tenant-address>Antiga Escola Melo Viana — Rua Doutor Melo Viana, 183, Sala 08 — Centro, Bonfim MG — CEP 35480-000</p>
         </div>
-        <div class="p-4 border rounded-3 h-100 ds-card d-none" data-hide-if-sandbox-fallback>
+        <div class="p-4 border rounded-3 h-100 ds-card d-none" data-tenant-address-empty>
           <h3 class="h6 fw-bold mb-3 d-flex align-items-center gap-2">
             <i class="bi bi-geo-alt" style="color:var(--brand);"></i> Onde Estamos
           </h3>
-          <p class="text-muted mb-0" style="font-size:var(--text-sm);">Ambiente de demonstração — sem endereço físico associado.</p>
+          <p class="text-muted mb-0" style="font-size:var(--text-sm);">Endereço não configurado.</p>
         </div>
       </div>
     </div>
@@ -377,7 +371,15 @@
       const banners = snap.docs.map(d=>d.data())
         .filter(b=>b.ativo&&!b.deleted)
         .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
-      if (!banners.length) return;
+      // Evolução Multi-Tenant (Fase 4): organização sem nenhum banner próprio
+      // ESCONDE o carrossel inteiro, em vez de deixar o conteúdo estático do
+      // CCBMG (banner4.png etc.) visível por engano — achado #31/#32 da
+      // auditoria (bug de "estado vazio" que vazava conteúdo do CCBMG pra
+      // qualquer tenant novo sem CMS ainda populado).
+      if (!banners.length) {
+        document.getElementById("bannerCarousel")?.classList.add("d-none");
+        return;
+      }
       const inner = document.getElementById("carouselInner");
       const indicators = document.getElementById("carouselIndicators");
       if (!inner) return;
@@ -404,7 +406,13 @@
       const parceiros = snap.docs.map(d=>d.data())
         .filter(p=>p.ativo&&!p.deleted)
         .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
-      if (!parceiros.length) return;
+      // Evolução Multi-Tenant (Fase 4): organização sem parceiro próprio
+      // ESCONDE a seção inteira (achado #32 da auditoria — antes, os 6
+      // parceiros reais do CCBMG continuavam visíveis pra qualquer tenant novo).
+      if (!parceiros.length) {
+        document.getElementById("homePartnersSection")?.classList.add("d-none");
+        return;
+      }
       const row = document.getElementById("homePartnersRow");
       if (!row) return;
       row.innerHTML = parceiros.map(p => `

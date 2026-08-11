@@ -182,8 +182,8 @@
         <li>É responsável pela sanidade do animal (quando aplicável).</li>
         <li>É responsável pela entrega do lote ao comprador vencedor.</li>
         <li>Isenta a <span data-tenant-name>Clube do Cavalo</span> de responsabilidade sobre vícios ocultos.</li>
-        <li>Concorda com a comissão de 10% (5% clube + 5% sistema) descontada do valor arrematado.</li>
-        <li>Concorda com as regras do leilão, incluindo incremento mínimo de 2% por lance.</li>
+        <li id="commissionInfoText">Concorda com a comissão de 10% (5% clube + 5% sistema) descontada do valor arrematado.</li>
+        <li id="minIncrementInfoText">Concorda com as regras do leilão, incluindo incremento mínimo de 2% por lance.</li>
       </ol>
     </div>
     <div class="form-check">
@@ -217,7 +217,7 @@
 <script src="assets/js/bootstrap.bundle.min.js"></script>
 <script src="./tenant.config.js"></script>
 <script type="module">
-import { requireAuth, uploadImageFile, currentOrgId, checkModuleEnabled, applyModuleVisibility } from "./firebase.js";
+import { requireAuth, uploadImageFile, currentOrgId, checkModuleEnabled, applyModuleVisibility, getOrgBranding } from "./firebase.js";
 import { getFirestore, collection, doc, getDoc, addDoc, updateDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
@@ -225,6 +225,26 @@ import { getAuth }  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-aut
 
 const db   = getFirestore(getApp());
 const auth = getAuth(getApp());
+
+// Evolução Multi-Tenant (Fase 4): comissão/incremento mínimo deixam de ser
+// texto estático (10%/5%+5%/2% — regras do CCBMG) e passam a ler
+// organizations/{orgId}/public/branding.business.auction (getOrgBranding()
+// já é pública, sem risco de permission-denied antes do requireAuth() abaixo).
+(async () => {
+  const auctionCfg = (await getOrgBranding())?.business?.auction || {};
+  const clubePct = typeof auctionCfg.commissionClubePct === "number" ? auctionCfg.commissionClubePct : 0;
+  const sistemaPct = typeof auctionCfg.commissionSistemaPct === "number" ? auctionCfg.commissionSistemaPct : 0;
+  const incrementPct = typeof auctionCfg.minBidIncrementPct === "number" ? auctionCfg.minBidIncrementPct : 0;
+  const fmtPct = (v) => `${Math.round(v * 100)}%`;
+  if (clubePct + sistemaPct > 0) {
+    const el = document.getElementById("commissionInfoText");
+    if (el) el.textContent = `Concorda com a comissão de ${fmtPct(clubePct + sistemaPct)} (${fmtPct(clubePct)} clube + ${fmtPct(sistemaPct)} sistema) descontada do valor arrematado.`;
+  }
+  if (incrementPct > 0) {
+    const el = document.getElementById("minIncrementInfoText");
+    if (el) el.textContent = `Concorda com as regras do leilão, incluindo incremento mínimo de ${fmtPct(incrementPct)} por lance.`;
+  }
+})();
 
 requireAuth({ requiredRole: ["associado", "admin", "master"] });
 applyModuleVisibility();

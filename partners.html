@@ -143,9 +143,15 @@
       const parceiros = snap.docs.map(d=>d.data())
         .filter(p=>p.ativo&&!p.deleted)
         .sort((a,b)=>(a.ordem||0)-(b.ordem||0));
-      if (!parceiros.length) return;
       const row = document.getElementById("partnersRow");
       if (!row) return;
+      // Evolução Multi-Tenant (Fase 4): organização sem parceiro próprio
+      // mostra um estado vazio genérico, em vez dos 7 parceiros reais do
+      // CCBMG (achado #35 da auditoria).
+      if (!parceiros.length) {
+        row.innerHTML = '<div class="col-12"><p class="text-muted text-center py-4 mb-0">Nenhuma parceria publicada ainda.</p></div>';
+        return;
+      }
       row.innerHTML = parceiros.map(p => {
         const logo = p.logo
           ? `<img class="img-fluid partner-logo" src="${esc(p.logo)}" alt="${esc(p.nome)}" loading="lazy">`

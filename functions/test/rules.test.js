@@ -188,6 +188,65 @@ async function t(description, fn) {
     await assertFails(setDoc(doc(db, 'systemConfig/global'), { nomePlataforma: 'X' }, { merge: true }));
   });
 
+  console.log('\nrules.test.js — organizations/{orgId}: self-service do Organization Master (Evolucao Multi-Tenant, Fase 4)');
+
+  await t('organizations: Organization Master PODE alterar campos de negocio/identidade da PROPRIA organizacao', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertSucceeds(updateDoc(doc(db, 'organizations/rt_org_a'), {
+      telefone: '31900000000',
+      whatsapp: '5531900000000',
+      billing: { plans: [{ id: 'mensal', label: 'Mensal', cycle: 'MONTHLY', price: 42 }], mirimDiscountRatio: 0.6 },
+      business: { classifieds: { pricePerDay: 2, minimumDays: 15 } },
+      notificationEmails: ['financeiro@orga.exemplo'],
+    }));
+  });
+
+  await t('organizations: Organization Admin (nao-Master) NAO PODE usar o mecanismo de self-service', async () => {
+    const db = ctxFor('rt_admin_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_a'), { telefone: '31911111111' }));
+  });
+
+  await t('organizations: Organization Master de OUTRA organizacao NAO PODE alterar esta - isolamento entre tenants', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_b'), { telefone: '31922222222' }));
+  });
+
+  await t('organizations: Organization Master NAO PODE alterar campos fora do allowlist (billingProvider)', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_a'), { billingProvider: 'outro-provider' }));
+  });
+
+  await t('organizations: Organization Master NAO PODE alterar modulos contratados (plataforma controla)', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_a'), { modules: { leiloes: true } }));
+  });
+
+  await t('organizations: Organization Master NAO PODE se auto-ativar/desativar', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_a'), { ativo: false }));
+  });
+
+  await t('CRITICO: organizations: Organization Master NAO PODE alterar business.auction.commissionSistemaPct (comissao da PLATAFORMA)', async () => {
+    const db = ctxFor('rt_master_a');
+    await assertFails(updateDoc(doc(db, 'organizations/rt_org_a'), {
+      business: { auction: { commissionSistemaPct: 0.5, commissionClubePct: 0.05 } },
+    }));
+  });
+
+  await t('organizations: Organization Master PODE alterar business.auction.commissionClubePct mantendo commissionSistemaPct no valor ja gravado pela plataforma', async () => {
+    const platformDb = ctxFor('rt_platform_owner');
+    await assertSucceeds(updateDoc(doc(platformDb, 'organizations/rt_org_a'), {
+      business: { auction: { commissionSistemaPct: 0.05, commissionClubePct: 0.05, minBidIncrementPct: 0.02 } },
+    }));
+    const masterDb = ctxFor('rt_master_a');
+    await assertSucceeds(updateDoc(doc(masterDb, 'organizations/rt_org_a'), {
+      business: { auction: { commissionSistemaPct: 0.05, commissionClubePct: 0.08, minBidIncrementPct: 0.03 } },
+    }));
+    await assertFails(updateDoc(doc(masterDb, 'organizations/rt_org_a'), {
+      business: { auction: { commissionSistemaPct: 0.9, commissionClubePct: 0.08, minBidIncrementPct: 0.03 } },
+    }));
+  });
+
   console.log('\nrules.test.js — domains/{hostname} + organizations/{orgId}/public/branding (Fase 3.5)');
 
   await t('organizations/{orgId} completo: leitura anônima continua BLOQUEADA — a lacuna que a projeção pública resolve não pode ser reaberta por engano', async () => {

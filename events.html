@@ -236,9 +236,15 @@
       const eventos = snap.docs.map(d=>({id:d.id,...d.data()}))
         .filter(e=>e.ativo&&!e.deleted)
         .sort((a,b)=>{const ta=a.data?.toDate?.()?.getTime()||0,tb=b.data?.toDate?.()?.getTime()||0;return ta-tb;});
-      if (!eventos.length) return;
       const row = document.getElementById("eventsRow");
       if (!row) return;
+      // Evolução Multi-Tenant (Fase 4): organização sem evento próprio mostra
+      // um estado vazio genérico, em vez do card estático "Inauguração do
+      // Clube do Cavalo Bonfim-MG" (achado #33 da auditoria).
+      if (!eventos.length) {
+        row.innerHTML = '<div class="col-12"><p class="text-muted text-center py-4 mb-0">Nenhum evento no momento. Volte em breve!</p></div>';
+        return;
+      }
       row.innerHTML = eventos.map(ev => `
         <div class="col">
           <div class="card h-100 shadow-sm ds-card">

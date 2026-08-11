@@ -15,7 +15,7 @@
 const functions = require('firebase-functions');
 const logger = require('firebase-functions/logger');
 
-const PROVISIONING_STEPS = ['organization', 'masterAccount', 'modules', 'billing', 'branding', 'storage', 'cms'];
+const PROVISIONING_STEPS = ['organization', 'masterAccount', 'modules', 'billing', 'branding', 'businessDefaults', 'storage', 'cms'];
 
 /**
  * @param {object} opts
@@ -189,6 +189,51 @@ function createProvisioningService({ db, authAdmin, serverTimestamp } = {}) {
       // novo inventado sem consumidor (ver Contexto do plano).
       await orgRef.set({
         config: { idioma: 'pt-BR', timezone: 'America/Sao_Paulo', moeda: 'BRL' },
+      }, { merge: true });
+      return { skipped: false };
+    });
+
+    await step('businessDefaults', async () => {
+      // Evolução Multi-Tenant (Fase 4): toda organização nasce com valores
+      // PRÓPRIOS pros campos de negócio que antes eram constante de módulo
+      // compartilhada (billing.plans/mirimDiscountRatio/lateInterestRate,
+      // business.membership/classifieds/auction) — nunca fica dependendo de
+      // um fallback de código pra funcionar. Os números abaixo são um MODELO
+      // INICIAL genérico (mesmo padrão de plano-exemplo que qualquer SaaS
+      // novo recebe), imediatamente editável em admin_configuracoes.html
+      // (Portal da Associação → Configurações) pelo Organization Master —
+      // não é regra fixa de negócio, é só o ponto de partida. `notificationEmails`
+      // começa com o e-mail do próprio Master recém-criado (nunca um endereço
+      // pessoal de terceiros) — ver CLAUDE.md, "Fallbacks".
+      //
+      // commissionSistemaPct (comissão da PLATAFORMA) é a única sub-chave que,
+      // a partir daqui, a própria organização nunca mais consegue alterar
+      // (bloqueado em firestore.rules, isOrgMasterSelfService) — só a
+      // plataforma grava, mesmo sendo escrita aqui pela primeira vez.
+      if (orgAlreadyExisted && (await orgRef.get()).data()?.billing?.plans) {
+        return { skipped: true };
+      }
+      await orgRef.set({
+        billing: {
+          plans: [
+            { id: 'mensal', label: 'Mensal', cycle: 'MONTHLY', price: 30 },
+            { id: 'trimestral', label: 'Trimestral', cycle: 'QUARTERLY', price: 85 },
+            { id: 'semestral', label: 'Semestral', cycle: 'SEMIANNUALLY', price: 170 },
+          ],
+          mirimDiscountRatio: 0.5,
+          lateInterestRate: 0.01,
+        },
+        business: {
+          membership: { renewSoonDays: 5, graceOverdueDays: 5 },
+          classifieds: { pricePerDay: 1, minimumDays: 30 },
+          auction: {
+            minBidIncrementPct: 0.02,
+            antiSniperExtensionMs: 120000,
+            commissionClubePct: 0.05,
+            commissionSistemaPct: 0.05,
+          },
+        },
+        notificationEmails: [masterEmail],
       }, { merge: true });
       return { skipped: false };
     });

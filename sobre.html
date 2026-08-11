@@ -180,7 +180,7 @@
           <th>Vantagem</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="planosTableBody">
         <tr>
           <td><strong>Mensal</strong></td>
           <td>R$ 30,00</td>
@@ -203,7 +203,8 @@
     </table>
     <div class="alert alert-secondary mt-3 mb-0 small" id="planosNotaEl" role="note">
     <strong>Quer plano anual ou outras condições (ex.: familiar, infantil, etc)?</strong>
-    <a class="link-underline link-underline-opacity-0" href="https://wa.me/5531986685028?text=Olá!%20Gostaria%20de%20conversar%20sobre%20planos%20da%20associação%20do%20Clube%20do%20Cavalo." target="_blank" rel="noopener">
+    <a class="link-underline link-underline-opacity-0" href="https://wa.me/5531986685028?text=Olá!%20Gostaria%20de%20conversar%20sobre%20planos%20da%20associação." target="_blank" rel="noopener"
+       data-tenant-whatsapp data-wa-text="Olá! Gostaria de conversar sobre planos da associação.">
       Entre em contato com a Diretoria do Clube para combinar a melhor opção.
     </a>
   </div>  
@@ -280,6 +281,52 @@
 <script type="module">
   import { applyModuleVisibility } from "./firebase.js";
   applyModuleVisibility();
+</script>
+
+<!-- Evolução Multi-Tenant (Fase 4): tabela de planos deixa de ser texto
+     estático (preços do CCBMG hardcoded) e passa a ler
+     organizations/{orgId}/public/branding.billing.plans — mesma projeção
+     pública já usada pra nome/logo/cores/contato. "Desconto" é calculado em
+     runtime comparando o valor mensal-equivalente de cada plano contra o
+     plano de ciclo mais curto — nunca um percentual fixo hardcoded por
+     plano. Organização sem nenhum plano configurado mantém a tabela estática
+     de exemplo (fail-safe, mesmo padrão do resto do White Label). -->
+<script type="module">
+  import { getOrgBranding } from "./firebase.js";
+
+  const CYCLE_MONTHS = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUALLY: 6, YEARLY: 12 };
+  function fmtBRL(v) { return `R$ ${Number(v).toFixed(2).replace(".", ",")}`; }
+
+  (async () => {
+    try {
+      const branding = await getOrgBranding();
+      const plans = branding?.billing?.plans;
+      if (!Array.isArray(plans) || !plans.length) return;
+
+      const shortest = plans.reduce((min, p) => {
+        const months = CYCLE_MONTHS[p.cycle] || 1;
+        return (!min || months < min.months) ? { months, monthlyRate: p.price / months } : min;
+      }, null);
+
+      const tbody = document.getElementById("planosTableBody");
+      if (!tbody) return;
+      tbody.innerHTML = plans.map((p) => {
+        const months = CYCLE_MONTHS[p.cycle] || 1;
+        const equivalentIfMonthly = shortest.monthlyRate * months;
+        const discountPct = months > shortest.months && equivalentIfMonthly > 0
+          ? Math.round((1 - p.price / equivalentIfMonthly) * 100)
+          : 0;
+        return `<tr>
+          <td><strong>${p.label || p.id}</strong></td>
+          <td>${fmtBRL(p.price)}</td>
+          <td>${discountPct > 0 ? discountPct + '%' : '-'}</td>
+          <td>${months === shortest.months ? 'Ideal para começar' : 'Economia em relação ao plano mensal'}</td>
+        </tr>`;
+      }).join("");
+    } catch (e) {
+      console.warn("[sobre.html] falha ao carregar tabela de planos dinâmica (mantendo exemplo estático):", e);
+    }
+  })();
 </script>
 
 <!-- CMS: sobre o clube dinâmico -->

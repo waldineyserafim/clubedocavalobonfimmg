@@ -18,6 +18,18 @@ module.exports = async function run({ db, fns, t }) {
       modules: { associados: true, eventos: false },
       billingProvider: 'asaas',
       telefone: '5538988887777', email: 'contato@orgteste.demo', site: 'https://orgteste.demo', endereco: 'Rua Teste, 123',
+      whatsapp: '5538988880000',
+      portal: { redesSociais: { facebook: 'https://facebook.com/orgteste', instagram: 'https://instagram.com/orgteste', youtube: '' } },
+      billing: {
+        plans: [{ id: 'mensal', label: 'Mensal', cycle: 'MONTHLY', price: 42 }],
+        mirimDiscountRatio: 0.5,
+        lateInterestRate: 0.02,
+      },
+      business: {
+        membership: { renewSoonDays: 7, graceOverdueDays: 10 },
+        classifieds: { pricePerDay: 2, minimumDays: 15 },
+        auction: { commissionSistemaPct: 0.05, commissionClubePct: 0.05 },
+      },
       isSandbox: true,
       observações: 'cliente atrasado, negociar com cuidado',
       billingConfig: { publicParams: { walletId: 'abc' } },
@@ -36,6 +48,14 @@ module.exports = async function run({ db, fns, t }) {
     assert.strictEqual(projection.email, 'contato@orgteste.demo');
     assert.strictEqual(projection.site, 'https://orgteste.demo');
     assert.strictEqual(projection.endereco, 'Rua Teste, 123');
+    assert.strictEqual(projection.whatsapp, '5538988880000');
+    assert.deepStrictEqual(projection.redesSociais, { facebook: 'https://facebook.com/orgteste', instagram: 'https://instagram.com/orgteste', youtube: '' });
+    assert.deepStrictEqual(projection.billing, { plans: [{ id: 'mensal', label: 'Mensal', cycle: 'MONTHLY', price: 42 }] });
+    assert.deepStrictEqual(projection.business, {
+      membership: { renewSoonDays: 7, graceOverdueDays: 10 },
+      classifieds: { pricePerDay: 2, minimumDays: 15 },
+      auction: { minBidIncrementPct: 0, antiSniperExtensionMs: 0, commissionClubePct: 0.05, commissionSistemaPct: 0.05 },
+    });
     assert.strictEqual(projection.isSandbox, true);
     assert.strictEqual(projection.updatedAt, fakeTimestamp);
 
@@ -43,6 +63,8 @@ module.exports = async function run({ db, fns, t }) {
     assert.ok(!exposedKeys.includes('observações'), 'CRÍTICO: observações internas nunca podem entrar na projeção pública');
     assert.ok(!exposedKeys.includes('billingConfig'), 'CRÍTICO: billingConfig (mesmo publicParams) nunca deve entrar como está — só campos nomeados explicitamente');
     assert.ok(!exposedKeys.includes('integrations'), 'CRÍTICO: integrations nunca pode entrar na projeção pública');
+    assert.strictEqual(projection.billing.mirimDiscountRatio, undefined, 'CRÍTICO: mirimDiscountRatio não é pra aparecer em nenhuma página pública, não deve entrar na projeção');
+    assert.strictEqual(projection.billing.lateInterestRate, undefined, 'CRÍTICO: lateInterestRate não é pra aparecer em nenhuma página pública, não deve entrar na projeção');
   });
 
   await t('computePublicBrandingProjection: documento sem config/modules não quebra, retorna campos vazios', async () => {
@@ -52,6 +74,13 @@ module.exports = async function run({ db, fns, t }) {
     assert.strictEqual(projection.logoUrl, '');
     assert.strictEqual(projection.corPrimaria, '');
     assert.deepStrictEqual(projection.modules, {});
+    assert.deepStrictEqual(projection.redesSociais, { facebook: '', instagram: '', youtube: '' });
+    assert.deepStrictEqual(projection.billing, { plans: [] }, 'organização sem billing.plans configurado retorna array vazio, nunca um plano do CCBMG por acidente');
+    assert.deepStrictEqual(projection.business, {
+      membership: { renewSoonDays: 0, graceOverdueDays: 0 },
+      classifieds: { pricePerDay: 0, minimumDays: 0 },
+      auction: { minBidIncrementPct: 0, antiSniperExtensionMs: 0, commissionClubePct: 0, commissionSistemaPct: 0 },
+    });
     assert.strictEqual(projection.isSandbox, false, 'organização sem o campo nunca deve ser tratada como Sandbox por acidente');
   });
 

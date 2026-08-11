@@ -137,7 +137,7 @@
                 <ol>
                   <li>O lance é uma obrigação de compra. O não pagamento resultará em bloqueio do perfil.</li>
                   <li>O pagamento deverá ser realizado em até 5 dias corridos após o encerramento do lote.</li>
-                  <li>O clube cobrará comissão de 10% sobre o valor arrematado (5% clube + 5% sistema).</li>
+                  <li id="commissionInfoAccordion">O clube cobrará comissão de 10% sobre o valor arrematado (5% clube + 5% sistema).</li>
                   <li>O repasse ao vendedor será realizado após a confirmação do pagamento.</li>
                   <li>O animal/item deve ser retirado conforme combinado com o vendedor.</li>
                 </ol>
@@ -202,7 +202,7 @@
         <ol>
           <li>O <strong>lance é uma obrigação de compra</strong>. Ao arrematar, você se compromete a efetuar o pagamento dentro do prazo.</li>
           <li>O pagamento deverá ser realizado em até <strong>5 dias corridos</strong> após o encerramento do lote.</li>
-          <li>Será cobrada <strong>comissão de 10%</strong> sobre o valor arrematado (5% para o Clube + 5% para manutenção do sistema).</li>
+          <li id="commissionInfoModal">Será cobrada <strong>comissão de 10%</strong> sobre o valor arrematado (5% para o Clube + 5% para manutenção do sistema).</li>
           <li>O não pagamento dentro do prazo resultará em <strong>bloqueio do seu perfil</strong> para participar de leilões futuros.</li>
           <li>A <span data-tenant-name>Clube do Cavalo de Bonfim MG</span> não se responsabiliza pelas informações prestadas pelos vendedores sobre os lotes.</li>
           <li>Toda documentação referente ao animal/item é de responsabilidade do vendedor.</li>
@@ -246,6 +246,24 @@ import { setupAdminButton, checkModuleEnabled, applyModuleVisibility, getOrgBran
 
 const _orgBrandingForText = await getOrgBranding();
 const ORG_NOME = _orgBrandingForText?.nome || _orgBrandingForText?.nomeCurto || "sua organização";
+
+// Evolução Multi-Tenant (Fase 4): incremento mínimo/comissão deixam de ser
+// 1.02/5%+5% fixos (regras do CCBMG) e passam a ler
+// organizations/{orgId}/public/branding.business.auction — mesma projeção
+// pública já usada pra nome/logo/contato (esta página não exige login).
+const _auctionCfg = _orgBrandingForText?.business?.auction || {};
+const MIN_BID_MULTIPLIER = 1 + (typeof _auctionCfg.minBidIncrementPct === "number" ? _auctionCfg.minBidIncrementPct : 0);
+const _commissionClubePct = typeof _auctionCfg.commissionClubePct === "number" ? _auctionCfg.commissionClubePct : 0;
+const _commissionSistemaPct = typeof _auctionCfg.commissionSistemaPct === "number" ? _auctionCfg.commissionSistemaPct : 0;
+const _commissionTotalPct = _commissionClubePct + _commissionSistemaPct;
+const _fmtPct = (v) => `${Math.round(v * 100)}%`;
+
+if (_commissionTotalPct > 0) {
+  const accordionEl = document.getElementById("commissionInfoAccordion");
+  if (accordionEl) accordionEl.textContent = `O clube cobrará comissão de ${_fmtPct(_commissionTotalPct)} sobre o valor arrematado (${_fmtPct(_commissionClubePct)} clube + ${_fmtPct(_commissionSistemaPct)} sistema).`;
+  const modalEl = document.getElementById("commissionInfoModal");
+  if (modalEl) modalEl.innerHTML = `Será cobrada <strong>comissão de ${_fmtPct(_commissionTotalPct)}</strong> sobre o valor arrematado (${_fmtPct(_commissionClubePct)} para o Clube + ${_fmtPct(_commissionSistemaPct)} para manutenção do sistema).`;
+}
 
 const db        = getFirestore(getApp());
 const auth      = getAuth(getApp());
@@ -397,8 +415,8 @@ function renderLot(lot) {
   document.getElementById("bidCount").textContent  = `${lot.bidCount||0} lance${lot.bidCount!==1?"s":""}`;
 
   const minNext = hasLastBid
-    ? Math.ceil(lot.lastBid * 1.02 * 100) / 100
-    : Math.ceil(lot.initialBid * 1.02 * 100) / 100;
+    ? Math.ceil(lot.lastBid * MIN_BID_MULTIPLIER * 100) / 100
+    : Math.ceil(lot.initialBid * MIN_BID_MULTIPLIER * 100) / 100;
   document.getElementById("minBidInfo").textContent =
     `Próximo lance mínimo: ${fmtBRL(minNext)}`;
 
@@ -500,8 +518,8 @@ function renderBidForm() {
 
   // Verificar inadimplência via sessionStorage/token (a Cloud Function re-verifica de forma segura)
   const minBid = (lot.lastBid||0) > 0
-    ? Math.ceil(lot.lastBid * 1.02 * 100) / 100
-    : Math.ceil(lot.initialBid * 1.02 * 100) / 100;
+    ? Math.ceil(lot.lastBid * MIN_BID_MULTIPLIER * 100) / 100
+    : Math.ceil(lot.initialBid * MIN_BID_MULTIPLIER * 100) / 100;
 
   area.innerHTML = `
     <div>

@@ -314,6 +314,14 @@
         { "fieldPath": "dueDate", "order": "ASCENDING" },
         { "fieldPath": "status",  "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "leads",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "archived",          "order": "ASCENDING" },
+        { "fieldPath": "proximaAcao.data",  "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

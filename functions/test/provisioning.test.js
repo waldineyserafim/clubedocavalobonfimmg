@@ -68,14 +68,14 @@ module.exports = async function run({ db, authInstance, fns, t }) {
      ======================================================================= */
 
   let happyResult;
-  await t('provisionOrganization: caminho feliz — todos os 7 passos concluídos', async () => {
+  await t('provisionOrganization: caminho feliz — todos os 8 passos concluídos', async () => {
     happyResult = await fns.provisionOrganization.run({
       orgId: 'prov_org_happy', nome: 'Org Feliz', planId: 'prov_plan_starter',
       master: { email: 'master.feliz@teste.local', nome: 'Master Feliz' },
     }, ctx('prov_owner'));
 
     assert.strictEqual(happyResult.status, 'completed');
-    assert.strictEqual(happyResult.steps.length, 7);
+    assert.strictEqual(happyResult.steps.length, 8);
     assert.ok(happyResult.steps.every((s) => s.status === 'ok' || s.status === 'skipped'), 'nenhum passo deveria ter falhado');
     assert.strictEqual(happyResult.readyForInvite, true);
   });
@@ -92,6 +92,18 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     assert.strictEqual(org.config?.idioma, 'pt-BR');
     assert.strictEqual(org.config?.timezone, 'America/Sao_Paulo');
     assert.strictEqual(org.config?.moeda, 'BRL');
+  });
+
+  await t('provisionOrganization (Fase 4): organização nasce com valores próprios de billing/business, nunca dependendo de constante de código', async () => {
+    const org = (await db.collection('organizations').doc('prov_org_happy').get()).data();
+    assert.ok(Array.isArray(org.billing?.plans) && org.billing.plans.length > 0, 'deveria nascer com ao menos um plano configurado');
+    assert.strictEqual(typeof org.billing?.mirimDiscountRatio, 'number');
+    assert.strictEqual(typeof org.billing?.lateInterestRate, 'number');
+    assert.strictEqual(typeof org.business?.membership?.renewSoonDays, 'number');
+    assert.strictEqual(typeof org.business?.membership?.graceOverdueDays, 'number');
+    assert.strictEqual(typeof org.business?.classifieds?.pricePerDay, 'number');
+    assert.strictEqual(typeof org.business?.auction?.commissionSistemaPct, 'number');
+    assert.deepStrictEqual(org.notificationEmails, ['master.feliz@teste.local'], 'nunca um e-mail pessoal fixo — começa com o e-mail do próprio Master recém-criado');
   });
 
   await t('provisionOrganization: primeiro Organization Master foi criado de verdade', async () => {
@@ -113,7 +125,7 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     assert.strictEqual(aboutSnap.data().orgId, 'prov_org_happy');
   });
 
-  await t('provisionOrganization: provisioningRuns tem um registro completo com os 7 passos', async () => {
+  await t('provisionOrganization: provisioningRuns tem um registro completo com os 8 passos', async () => {
     const runsSnap = await db.collection('provisioningRuns').where('orgId', '==', 'prov_org_happy').get();
     assert.strictEqual(runsSnap.size, 1);
     const run = runsSnap.docs[0].data();
@@ -121,7 +133,7 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     assert.strictEqual(run.planId, 'prov_plan_starter');
     assert.strictEqual(run.requestedBy, 'prov_owner');
     const stepNames = run.steps.map((s) => s.name);
-    assert.deepStrictEqual(stepNames, ['organization', 'masterAccount', 'modules', 'billing', 'branding', 'storage', 'cms']);
+    assert.deepStrictEqual(stepNames, ['organization', 'masterAccount', 'modules', 'billing', 'branding', 'businessDefaults', 'storage', 'cms']);
     const storageStep = run.steps.find((s) => s.name === 'storage');
     assert.strictEqual(storageStep.status, 'skipped', 'storage é não-op deliberado');
   });
@@ -156,7 +168,12 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     // "branding" são escritas de campo idempotentes que sempre reexecutam
     // (sempre "ok", nunca precisam de um check-then-skip — reescrever o mesmo
     // valor não tem custo nem risco, ver seção 1 do plano da Fase 3.3).
-    const SKIP_CHECKED_STEPS = ['organization', 'masterAccount', 'storage', 'cms'];
+    // "businessDefaults" (Fase 4) também faz checagem de existência — ao
+    // contrário de modules/billing/branding, reescrever incondicionalmente
+    // apagaria customizações que a própria organização já tenha feito via
+    // admin_configuracoes.html entre o provisionamento original e o
+    // reprocessamento (ver comentário em provisioning.js).
+    const SKIP_CHECKED_STEPS = ['organization', 'masterAccount', 'storage', 'cms', 'businessDefaults'];
     result.steps.forEach((s) => {
       if (SKIP_CHECKED_STEPS.includes(s.name)) {
         assert.strictEqual(s.status, 'skipped', `${s.name} deveria ter sido pulado num reprocessamento completo`);

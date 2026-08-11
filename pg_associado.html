@@ -369,8 +369,13 @@
     } catch(_) {}
   }
 
-  const RENEW_SOON_DAYS = 5;
-  const GRACE_OVERDUE_DAYS = 5;
+  // Evolução Multi-Tenant (Fase 4): prazo de aviso de renovação/carência de
+  // inadimplência deixam de ser 5/5 fixos (regra do CCBMG) e passam a ler
+  // organizations/{orgId}/public/branding.business.membership — mesma
+  // chamada getOrgBranding() já feita acima pro nome da organização.
+  const _membershipCfg = _orgBrandingForText?.business?.membership || {};
+  const RENEW_SOON_DAYS = typeof _membershipCfg.renewSoonDays === "number" ? _membershipCfg.renewSoonDays : 5;
+  const GRACE_OVERDUE_DAYS = typeof _membershipCfg.graceOverdueDays === "number" ? _membershipCfg.graceOverdueDays : 5;
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   function toDateMaybe(ts){

@@ -158,7 +158,14 @@
       const albumsRaw = snap.docs.map(d=>({id:d.id,...d.data()}))
         .filter(a=>a.ativo&&!a.deleted)
         .sort((a,b)=>{const ta=a.updatedAt?.toDate?.()?.getTime()||0,tb=b.updatedAt?.toDate?.()?.getTime()||0;return tb-ta;});
-      if (!albumsRaw.length) return;
+      // Evolução Multi-Tenant (Fase 4): organização sem álbum próprio mostra
+      // um estado vazio genérico, em vez das 4 fotos históricas reais do
+      // CCBMG (achado #34 da auditoria).
+      if (!albumsRaw.length) {
+        const row = document.getElementById("galleryRow");
+        if (row) row.innerHTML = '<div class="col-12"><p class="text-muted text-center py-4 mb-0">Nenhuma foto publicada ainda.</p></div>';
+        return;
+      }
 
       // Load photos for each album
       const albumPhotos = {};

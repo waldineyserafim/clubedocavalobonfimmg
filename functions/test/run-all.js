@@ -34,6 +34,7 @@ const TEST_FILES = [
   'fase36-multitenant-validation.test.js',
   'auth-backup.test.js',
   'features.test.js',
+  'leads.test.js',
 ];
 
 let passed = 0;
