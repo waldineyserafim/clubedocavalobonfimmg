@@ -691,7 +691,38 @@ Conteúdo que é *de verdade* do CCBMG (fotos reais de diretoria pré-Fase-3.11 
 ### Pendências (decisão de negócio, não técnica)
 
 - `assets/img/logo_CCBMG.png` continua sendo o favicon/logo **estático de fallback** em todo HTML (só é sobrescrito em runtime se `logoUrl` da organização existir) — funcionalmente correto, mas o nome do arquivo em si é CCBMG-específico. Renomear é cosmético (não afeta comportamento), fora do escopo desta auditoria.
-- Meta `<meta name="description">`/Open Graph (`og:image`) continuam estáticos — sem efeito visível durante uma demonstração ao vivo (só aparecem em preview de busca/redes sociais), priorizado como Categoria 1 pendente de uma fase futura se a plataforma precisar de SEO por organização.
+- ~~Meta `<meta name="description">`/Open Graph (`og:image`) continuam estáticos~~ — **resolvido num follow-up da mesma fase**: `branding.js` ganhou `meta[property="og:image"]` (sobrescrito sempre que `logoUrl` existe) e `meta[name="description"]` (via `data-desc-template` em `<body>`, mesmo padrão de `data-page-title`, placeholder `{org}`) — 11 páginas públicas migradas.
+
+---
+
+## Fase 3.12 — `login_master.html`/`admin_master*.html`: mecanismo legado, não uma segunda tela de admin ✅
+
+Investigação disparada por um relato real: as contas Master/Admin do Sandbox (`sandbox_master_01`/`sandbox_admin_01`, Fase 3.7) foram documentadas desde a criação como "login por `login_master.html`, e-mail, não CPF" — mas isso nunca funcionou de verdade pra Admin, só coincidentemente pareceria funcionar pra Master.
+
+### O que `login_master.html`/`admin_master.html` realmente são
+
+Não é uma segunda forma legítima de logar como admin de organização — é um mecanismo **anterior à existência do Painel Master** (o Portal Associativo, repositório separado, Fase 3.1/3.2). Evidência direta no código:
+- `login_master.html` lê `users/{uid}.role` e só aceita **`"master"` exato** (`role !== "master"` bloqueia até um `"Admin"` legítimo) — nunca reconheceu `admin`/`operador`/`Admin View`.
+- Redireciona pra `admin_master.html`, que consulta `organizations` **sem filtro de orgId** — um dashboard cross-tenant, não o painel de conteúdo de uma organização específica.
+- A mesma família (`admin_master_associacoes.html`, `admin_master_configuracoes.html`, `admin_master_faturamento.html`) segue o mesmo padrão: `requiredRole:"master"` exato + consulta `organizations` inteira.
+
+Ou seja: é a versão **pré-multi-tenant** do que a Fase 3.1/3.2 reconstruiu do zero como o Painel Master (`portal-associativo/admin/*.html`, autorização via `platformAdmins`) — nunca foi atualizado nem removido quando o Painel Master de verdade nasceu num repositório separado. Consequência prática hoje: como `migratePlatformAdmins` (Fase 3.2) neutralizou toda conta `role==="master"` legada em `users/{uid}` (virou `"migrado_para_platform_admins"`, nunca apagada — ver Fase 3.2), **nenhuma organização real tem hoje um usuário que passe nesse gate** — inclusive o próprio CCBMG. É código morto, não uma segunda tela concorrente à `admin.html`.
+
+### O mecanismo correto (sempre foi este, documentado desde o início do arquivo)
+
+Master/Admin de uma organização são só usuários normais de `users/{uid}` com `role` elevado — logam pela **mesma** `login.html` (CPF) que qualquer associado. `setupAdminButton()` (`firebase.js`) mostra o botão "Administração" pra quem tem `role` em `["Admin","Master","admin","master","Admin View","adminView"]` (mesma lista que `admin.html` aceita em `requireAuth`), levando pra `admin.html` — o painel real de conteúdo (associados, eventos, galeria, diretoria, produtos, serviços, classificados), sempre escopado pela própria organização via `currentOrgId`.
+
+### Correção aplicada — contas do Sandbox
+
+`sandbox_master_01`/`sandbox_admin_01` foram criadas na Fase 3.7 com e-mail `@sandbox.invalid` (deliberado, pra não disparar `onNewAssociadoCriado` — ver Fase 3.7) e nunca tiveram CPF. Corrigido pra usar o mecanismo real:
+- `users/sandbox_admin_01.cpf` = `11122233043`, `users/sandbox_master_01.cpf` = `22233344073` (checksum válido, nunca colide com os 35 CPFs de associados já seedados).
+- E-mail da conta no Firebase Auth (não o `users/{uid}.email`, o e-mail de login de verdade) atualizado pra `{cpf}@cpf.local`, mesma convenção de qualquer associado — sem isso, o `cpf` no Firestore sozinho não teria efeito nenhum (`login.html` monta o e-mail de login a partir do CPF digitado; precisa bater com o e-mail real da conta).
+- **Sem efeito colateral no Asaas**: confirmado antes de aplicar — `onNewAssociadoCriado` só dispara em `onCreate` (contas já existem, não refaz); `onAssociadoAtualizado` (`onUpdate`) sai no primeiro `if (!after.asaasId) return null;` — nenhuma das duas contas tem `asaasId`, então a mudança de `cpf` via `update` não aciona sincronização nenhuma com o Asaas.
+- Validado ponta a ponta: login via `login.html` com o CPF novo → botão "Administração" aparece → `admin.html` carrega normalmente, escopado a "Clube dos Associados".
+
+### Pendência (decisão de negócio, não técnica)
+
+`login_master.html`/`admin_master.html`/`admin_master_associacoes.html`/`admin_master_configuracoes.html`/`admin_master_faturamento.html` são candidatos a remoção (código morto — nenhuma organização real consegue mais passar pelo gate `role==="master"` exato desde a Fase 3.2). Não removidos nesta fase: há referências em `docs/DEMO.md` (corrigida aqui), em `tests/e2e/*.spec.js` (múltiplos arquivos) e em `functions/scripts/seedSandboxTenant.js` — remover exige atualizar/remover os testes e2e correspondentes também, decisão maior o suficiente pra ficar de fora de uma correção pontual.
 
 ---
 
