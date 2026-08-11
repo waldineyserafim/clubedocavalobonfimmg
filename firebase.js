@@ -15,7 +15,7 @@ import { createRoleResolver } from "https://portalassociativo.com.br/shared/core
 import { createAuthSession } from "https://portalassociativo.com.br/shared/core/auth/session.js?v=2026.08.7";
 import { getTenant, TenantNotFoundError, renderTenantNotFoundPage } from "https://portalassociativo.com.br/shared/core/tenant/tenant-context.js?v=2026.08.9";
 import { createModuleGate } from "https://portalassociativo.com.br/shared/core/tenant/modules.js?v=2026.08.7";
-import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.7";
+import { createBrandingResolver } from "https://portalassociativo.com.br/shared/core/tenant/branding.js?v=2026.08.10";
 import { createAuditLogger } from "https://portalassociativo.com.br/shared/core/tenant/audit.js?v=2026.08.7";
 import { compressImage, createImageUploader } from "https://portalassociativo.com.br/shared/utils/images.js?v=2026.08.7";
 
