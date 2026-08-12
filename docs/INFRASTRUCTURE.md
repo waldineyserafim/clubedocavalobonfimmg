@@ -1,5 +1,7 @@
 # Infraestrutura
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21, anterior à resolução de tenant por hostname (Fase 3.9/3.10 — o CCBMG hoje serve mais de uma organização a partir do mesmo deployment, com um segundo hostname atendido via Cloudflare Worker de proxy em `portal-associativo/cloudflare-worker-demo-proxy/`), ao Firestore Point-in-Time Recovery habilitado (Fase 3.6) e ao backup semanal do Firebase Auth (Deploy Controlado, ver `CLAUDE.md`).
+
 ## Hospedagem
 
 - **Frontend**: GitHub Pages, servindo os arquivos estáticos diretamente da raiz do repositório `waldineyserafim/clubedocavalobonfimmg`. Existe um arquivo `CNAME` na raiz (domínio customizado) e um commit dedicado (`7f4dc472 "Add .nojekyll to disable Jekyll processing"`) que desativa o processamento Jekyll padrão do GitHub Pages — necessário porque nomes de arquivo/pastas começados com `_` (nenhum caso aqui) ou certas convenções seriam ignorados pelo Jekyll por padrão; o `.nojekyll` garante que todos os arquivos (inclusive os que começam com `_`/`.`) sejam servidos como estão.

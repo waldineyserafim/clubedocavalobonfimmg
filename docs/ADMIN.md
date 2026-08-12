@@ -1,5 +1,7 @@
 # Área Administrativa e Painel Master
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21 — cobre só `admin.html`/`admin_*.html` deste repositório (painel de **organização**). Não cobre `admin_configuracoes.html` (autoatendimento do Organization Master, Fase 4) nem o Painel Master real de **plataforma** (`portal-associativo/admin/*.html`, cross-tenant, Fase 3.1+). Onde este documento menciona um "painel master" embutido neste repositório (`admin_master*.html`/`login_master.html`), isso hoje é mecanismo legado/código morto — ver `CLAUDE.md`, Fase 3.12.
+
 ## Convenções transversais de todas as telas admin
 
 - Guarda de rota: `requireAuth({requiredRole:["Admin","Master","admin","master","Admin View","adminView"]})`, normalizado por `mapRole()`.

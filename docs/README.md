@@ -27,9 +27,9 @@ Esta documentação foi gerada a partir de leitura integral do código-fonte (HT
 | [PERFORMANCE.md](PERFORMANCE.md) | Consultas, índices, custos, cache |
 | [MAINTENANCE.md](MAINTENANCE.md) | Como estender o sistema (nova página, módulo, coleção, integração) |
 | [TECH_DEBT.md](TECH_DEBT.md) | Dívida técnica e divergências código×documentação |
-| [SAAS_MULTITENANT.md](SAAS_MULTITENANT.md) | Diagnóstico, gap analysis e roadmap para SaaS multi-tenant real (resolução por domínio, isolamento de dados, N clientes simultâneos) |
-| [GLOSSARY.md](GLOSSARY.md) | Termos técnicos e de negócio |
+| [GLOSSARY.md](GLOSSARY.md) | Termos técnicos e de negócio **do tenant** — termos de plataforma em `portal-associativo/docs/glossary/README.md` |
 | [diagrams/](diagrams/) | Diagramas Mermaid isolados, reutilizáveis |
+| [archive/](archive/) | Documentos históricos, incluindo `SAAS_MULTITENANT.md` (gap analysis original — a maior parte já resolvida, ver banner no topo de cada arquivo arquivado) |
 
 ## Visão geral do projeto
 
@@ -78,18 +78,18 @@ Arquitetura **serverless, sem build step**: HTML estático servido diretamente p
 
 Ver tabela completa em [ARCHITECTURE.md](ARCHITECTURE.md)/[INFRASTRUCTURE.md](INFRASTRUCTURE.md). Resumo: HTML5 + Bootstrap 5.3.3 + Bootstrap Icons + JavaScript ES Modules; Firebase (Auth, Firestore, Storage, Cloud Functions, Hosting-config presente mas hospedagem real é GitHub Pages); Asaas (gateway de pagamento); Nodemailer/Gmail (e-mail); Google Secret Manager; QRCode.js e jsPDF/autoTable (bibliotecas client-side); Playwright (testes e2e).
 
-### Princípios arquiteturais observados no código
+### Princípios arquiteturais observados no código (em 2026-07-21 — ver ressalva no topo desta página)
 
 - Sem framework de frontend, sem bundler/build step — compatibilidade total com GitHub Pages estático.
 - Toda a lógica de negócio sensível (dinheiro, exclusão de conta, troca de senha, lances) vive em Cloud Functions, nunca só no cliente.
 - Padrão consistente de "dado estático de fallback + sobrescrita dinâmica via CMS" nas páginas institucionais.
 - Idempotência é tratada de forma explícita e repetida no backend financeiro (`asaasPaymentId` como chave de deduplicação).
 - Separação deliberada entre "desativação administrativa" (`ativo:false`, bloqueia login imediatamente) e "autocancelamento" (`assinaturaCanceladaPeloAssociado:true`, mantém acesso até o fim da vigência paga) — documentada em comentários no próprio código.
-- Multi-tenant "opt-in": todas as queries do site já filtram por `orgId`, preparando terreno para múltiplos clubes, mas `currentOrgId` é uma constante fixa (`"org_bonfim"`) em `firebase.js:56` — não há resolução dinâmica por domínio ainda.
+- Multi-tenant "opt-in": todas as queries do site já filtram por `orgId`, preparando terreno para múltiplos clubes, mas `currentOrgId` é uma constante fixa (`"org_bonfim"`) em `firebase.js:56` — não há resolução dinâmica por domínio ainda. **Isso mudou**: desde a Fase 3.9/3.10 (ver `CLAUDE.md`), `currentOrgId` é resolvido em runtime pelo Tenant Resolver a partir do hostname — não é mais uma constante fixa.
 
-### Limitações atuais (confirmadas no código)
+### Limitações identificadas em 2026-07-21 (a maioria já resolvida — ver `CLAUDE.md` para o estado atual)
 
-- **Multi-tenant incompleto**: painel master permite cadastrar organizações, mas nenhuma página do site deriva o tenant do domínio/subdomínio — está hardcoded. Duas Cloud Functions chamadas pela UI (`seedMultiTenantData`, `migrateToMultiTenant`) **não existem** em `functions/index.js` (falharão em produção). Ver [TECH_DEBT.md](TECH_DEBT.md).
+- **Multi-tenant incompleto**: painel master permite cadastrar organizações, mas nenhuma página do site deriva o tenant do domínio/subdomínio — está hardcoded. Duas Cloud Functions chamadas pela UI (`seedMultiTenantData`, `migrateToMultiTenant`) **não existem** em `functions/index.js` (falharão em produção). Ver [TECH_DEBT.md](TECH_DEBT.md). **Resolvido**: resolução por domínio existe desde a Fase 3.9/3.10; os dois botões citados foram removidos como código morto na Fase 3.6.
 - **`systemPlans`** existe só nas regras/testes, sem UI de gestão real — planos são hardcoded em 3 arquivos admin diferentes.
 - **`gerarCobrancaLeilao`** (gerar cobrança do lote arrematado) não tem nenhum botão de UI que a acione.
 - Nenhuma página usa o guard oficial `requireAuth()` de forma 100% consistente — algumas reimplementam a checagem inline (ex. `login.html`, `pay.html`).

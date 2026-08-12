@@ -1,5 +1,7 @@
 # Arquitetura
 
+> **Nota de escopo (agosto de 2026)**: este documento é do levantamento de 2026-07-21 (ver `docs/README.md`) — não cobre o Painel Master (`portal-associativo/admin/`), `platformAdmins`, provisionamento automático, Tenant Resolver por hostname nem Feature Flags (Fases 3.1–3.12). A contagem de Cloud Functions/coleções abaixo também está desatualizada (hoje são 44 Cloud Functions). Para o estado atual, ver `CLAUDE.md` (raiz deste repositório) e `portal-associativo/CLAUDE.md`.
+
 ## 1. Arquitetura geral
 
 ```mermaid

@@ -1,6 +1,8 @@
 # Firebase Storage — Regras e Convenções de Upload
 
-Arquivo: `storage.rules` (58 linhas, `rules_version = '2'`).
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21, anterior às correções de isolamento por organização em `tenants/{orgId}/cms/...`/`tenants/{orgId}/branding/...` (Fase 3.4/3.6) e ao dono via `customMetadata.uid` em `uploads/{category}` (Fase 3.6) — o texto abaixo pode descrever um estado de regra já corrigido. Ver `storage.rules` para o texto vigente.
+
+Arquivo: `storage.rules` (58 linhas na época deste levantamento, `rules_version = '2'`).
 
 ## Helpers
 - `isSignedIn()` — `request.auth != null`.

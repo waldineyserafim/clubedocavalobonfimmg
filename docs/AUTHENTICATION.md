@@ -1,5 +1,7 @@
 # Firebase Authentication
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21. O item 3 abaixo ("Master... autenticado em `login_master.html`") descreve o mecanismo **pré-Painel Master**, hoje confirmado como legado/código morto — nenhuma organização real passa mais por esse gate desde a Fase 3.2 (ver `CLAUDE.md`, Fase 3.12). O plano de identidade real da equipe da plataforma hoje é `platformAdmins/{uid}` (Owner/Administrator/Operator), autenticado em `portal-associativo/admin/login.html` — modelo completo em `portal-associativo/CLAUDE.md`.
+
 ## Modelo de identidade
 
 O sistema usa **três padrões de identidade** sobre o mesmo projeto Firebase Auth:

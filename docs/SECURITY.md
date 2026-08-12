@@ -1,5 +1,7 @@
 # Auditoria de Segurança
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21, anterior à auditoria de hardening da Fase 3.6 e à Auditoria Final RC1 (`portal-associativo/docs/roadmap/AUDITORIA_FINAL_RC1_REPORT.md`), que reverificaram boa parte da superfície coberta aqui contra produção real. Alguns achados abaixo (ex.: `confirmEventCheckin` sem checagem de role) já constam como corrigidos no `CLAUDE.md` (Fase 3.6) — não assuma que um item aqui ainda está aberto sem checar lá primeiro.
+
 Metodologia: leitura integral de `firebase.js`, `functions/index.js`, `firestore.rules`, `storage.rules` e das ~30 páginas HTML, com foco em autenticação, autorização, validação de entrada, exposição de dados e tratamento de segredos. Achados ordenados por prioridade.
 
 ## Tabela consolidada de achados

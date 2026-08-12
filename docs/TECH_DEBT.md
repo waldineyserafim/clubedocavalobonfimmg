@@ -1,5 +1,7 @@
 # Dívida Técnica e Divergências Código × Documentação
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21 — vários itens abaixo já foram resolvidos em fases posteriores (ex.: item 1, `seedMultiTenantData`/`migrateToMultiTenant`, removidos como código morto na Fase 3.6). Antes de tratar qualquer item aqui como pendência real, confirmar contra `CLAUDE.md` (raiz deste repositório) e `portal-associativo/docs/roadmap/`. Achados novos de dívida técnica desta reorganização de documentação (agosto de 2026): inconsistência de UX em `admin/plans.html` (Painel Master, `portal-associativo`) sem gate de papel na UI, embora a escrita já seja bloqueada nas Firestore Rules — ver `portal-associativo/docs/architecture/PERMISSIONS.md`.
+
 Cada item: **Problema**, **Impacto**, **Prioridade**, **Esforço**, **Sugestão**. Só itens com dívida real observada no código (nada inventado).
 
 ## 1. Cloud Functions chamadas pela UI mas ausentes no backend

@@ -1,5 +1,7 @@
 # Funcionalidades — Catálogo Completo por Módulo
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21 — não cobre `admin_configuracoes.html` (autoatendimento de configuração de negócio pelo Organization Master, Fase 4), nem o mecanismo de Feature Flags (Fase 3.8, `portal-associativo/CLAUDE.md`). Módulos administrados pelo Painel Master de plataforma (planos, assinaturas, domínios) estão fora do escopo deste catálogo — ver `portal-associativo/CLAUDE.md`.
+
 Convenção usada em cada item: **Objetivo**, **Fluxo**, **Arquivos**, **Coleções**, **Regras/Permissões**, **Dependências**.
 
 ---

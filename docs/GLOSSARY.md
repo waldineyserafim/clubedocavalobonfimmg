@@ -1,5 +1,7 @@
 # Glossário
 
+> Este glossário cobre só termos de **negócio do tenant CCBMG** e de **implementação deste repositório**. Termos de arquitetura da plataforma (Tenant, Organização, Módulo, Papéis de plataforma, Tenant Resolver, White Label, Feature Flag, Painel Master) estão em `portal-associativo/docs/glossary/README.md` — não duplicados aqui.
+
 ## Termos de negócio
 
 | Termo | Significado |
@@ -21,16 +23,16 @@
 | **Sócio em dia** | Associado sem pendência financeira — condição exigida por alguns eventos para permitir inscrição |
 | **Gestão por exceção** | Filosofia da tela `admin_associados.html`: só destaca quem precisa de ação (pendentes), sem listar tudo por padrão |
 
+> "Organização/Tenant", "Módulo" e "Painel Master" são conceitos de plataforma — ver `portal-associativo/docs/glossary/README.md`.
+
 ## Termos técnicos
 
 | Termo | Significado |
 |---|---|
 | **CPF→email sintético** | Conversão de CPF em um e-mail fictício (`{cpf}@cpf.local`) para usar o Firebase Auth (que exige e-mail) sem expor e-mail real do associado |
-| **Role** | Papel de acesso do usuário: `master`, `admin`, `Admin View`/`adminView`, `operador`, `participanteLeilao`, `associado` |
-| **`mapRole`/`mapRoleServer`** | Funções (frontend/backend) que normalizam a string de role bruta do Firestore para um dos 6 valores canônicos |
-| **`requireAuth`** | Guarda de rota de `firebase.js` que redireciona usuários não autenticados/sem role adequada |
-| **`orgId`** | Identificador do tenant (organização) ao qual um documento pertence |
-| **`currentOrgId`** | Constante fixa (`"org_bonfim"`) que define o tenant ativo no frontend hoje |
+| **Role** | Papel de acesso do usuário neste tenant: `master`, `admin`, `Admin View`/`adminView`, `operador`, `participanteLeilao`, `associado`. Modelo completo de papéis (incluindo o plano de plataforma, separado) em `portal-associativo/docs/glossary/README.md` |
+| **`mapRole`/`mapRoleServer`** | Funções (frontend/backend, deste repositório) que normalizam a string de role bruta do Firestore para um dos 6 valores canônicos |
+| **`requireAuth`** | Guarda de rota de `firebase.js` (deste repositório) que redireciona usuários não autenticados/sem role adequada |
 | **`onSnapshot`** | Listener em tempo real do Firestore — atualiza a UI automaticamente quando os dados mudam no servidor |
 | **`httpsCallable`** | Mecanismo do SDK do Firebase para chamar uma Cloud Function a partir do cliente, com autenticação automática |
 | **Cloud Function `onCreate`/`onUpdate`** | Função disparada automaticamente quando um documento Firestore é criado/atualizado (trigger) |
@@ -44,7 +46,7 @@
 | **`externalReference`** | Campo do Asaas usado para vincular um recurso (cliente/assinatura/cobrança) ao `uid` (ou `saleId`) correspondente no Firebase |
 | **Anti-fraude (webhook)** | Prática de reconsultar a API de origem (Asaas) antes de confiar no payload recebido via webhook |
 | **`ds-*` (design system)** | Prefixo de classes CSS customizadas do design system do projeto (`ds-card`, `ds-badge`, `ds-pill`, etc.) |
-| **Admin View** | Papel de acesso somente-leitura (por convenção de UI, não imposto pelas regras) às telas administrativas |
+| **Admin View** | Rótulo usado neste tenant para o papel "Organization Viewer" (somente-leitura nas telas administrativas) — ver modelo de papéis em `portal-associativo/docs/glossary/README.md` |
 | **RecaptchaVerifier** | Componente do Firebase Auth necessário para disparar verificação por SMS (Phone Auth), usado no reset de senha |
 | **`viewToken`** | Token de posse usado para controlar acesso ao comprovante de inscrição em evento, sem exigir login |
 | **`token` (check-in)** | Token distinto do `viewToken`, embutido no QR Code, usado para confirmar presença no evento |

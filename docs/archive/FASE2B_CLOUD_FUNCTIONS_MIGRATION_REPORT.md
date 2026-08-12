@@ -1,5 +1,7 @@
 # Fase 2B — Infraestrutura e Migração das Cloud Functions: Relatório
 
+> **Arquivado (agosto de 2026).** Documento histórico da migração inicial para multi-tenant. O estado atual do backend está em `CLAUDE.md` (raiz do repositório); a evolução de plataforma que veio depois está em `portal-associativo/docs/roadmap/`. Mantido aqui como registro histórico, não como referência de estado atual.
+
 **Status:** Implementação e testes concluídos localmente. **Nenhum commit foi criado, nenhum push foi feito, nenhum deploy foi executado** — conforme restrição desta fase. Tudo abaixo está na árvore de trabalho, aguardando aprovação.
 
 ---

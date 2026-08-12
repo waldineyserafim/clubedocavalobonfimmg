@@ -1,6 +1,8 @@
 # Firestore Security Rules — Análise Completa
 
-Arquivo: `firestore.rules` (444 linhas, `rules_version = '2'`).
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21, anterior aos helpers `isPlatformStaff()`/`isPlatformAdministrator()`/`isPlatformOwner()`/`isOrgMaster()`/`isOrgAdmin()`/`isOrgViewer()` e às regras de `organizations`/`platformAdmins`/`domains`/`featureFlags`/`provisioningRuns` (Fases 3.2–3.10) e ao autoatendimento `isOrgMasterSelfService()` (Fase 4) — a contagem de linhas abaixo também mudou. Ver `CLAUDE.md` (raiz deste repositório) para o modelo atual, e `firestore.rules` para o texto vigente.
+
+Arquivo: `firestore.rules` (444 linhas na época deste levantamento, `rules_version = '2'`).
 
 ## Helpers (linhas 6-108)
 

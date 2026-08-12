@@ -1,5 +1,7 @@
 # Fase 2C — Finalização da Arquitetura SaaS Multi-Tenant: Relatório
 
+> **Arquivado (agosto de 2026).** Documento histórico — fechamento dos gaps do módulo de leilão e do Billing Provider extensível, anteriores à camada de plataforma (Painel Master, `platformAdmins`, provisionamento) construída a partir da Fase 3.1. Estado atual em `CLAUDE.md` (raiz do repositório) e `portal-associativo/docs/roadmap/`. Mantido aqui como registro histórico, não como referência de estado atual.
+
 **Status:** Implementação e testes concluídos localmente. **Nenhum commit foi criado, nenhum push foi feito, nenhum deploy foi executado.** Tudo abaixo está na árvore de trabalho (junto com a Fase 2B, que também nunca foi commitada), aguardando aprovação.
 
 ---

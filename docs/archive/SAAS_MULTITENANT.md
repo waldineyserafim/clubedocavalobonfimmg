@@ -1,8 +1,10 @@
 # SaaS Multi-Tenant — Diagnóstico, Gap Analysis e Plano de Evolução
 
-> **Status deste documento**: análise técnica preparatória. Nenhuma linha de código foi alterada para produzi-lo. Toda afirmação sobre "o que existe hoje" foi verificada diretamente no código-fonte (não em suposição), com citação de arquivo/linha. Toda afirmação sobre "o que precisa existir" é proposta de arquitetura para discussão — não implementada.
+> **Arquivado (agosto de 2026).** Gap-analysis original que motivou a evolução multi-tenant da plataforma. Praticamente todos os gaps identificados aqui (G1–G4 e outros) já foram resolvidos — em particular G4 (resolução de tenant por hostname) pelas Fases 3.9/3.10, documentadas em `portal-associativo/docs/roadmap/FASE3_9_TENANT_RESOLVER_HOSTNAME_REPORT.md` e `FASE3_10_TENANT_RESOLVER_SEM_FALLBACK_E_DOMINIOS_REPORT.md`. Para o estado atual do modelo multi-tenant, ver `portal-associativo/CLAUDE.md`. Mantido aqui como registro histórico do diagnóstico original, não como plano em aberto.
 >
-> Complementa (não substitui) [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE.md](DATABASE.md), [ADMIN.md](ADMIN.md), [FIRESTORE.md](FIRESTORE.md), [SECURITY.md](SECURITY.md) e [TECH_DEBT.md](TECH_DEBT.md), que já haviam identificado o multi-tenant como incompleto (ver `TECH_DEBT.md` item 3). Este documento aprofunda especificamente o que falta para o multi-tenant *real* (resolução por domínio, isolamento de dados, N clientes simultâneos) e organiza isso em gaps classificados e um roadmap faseado.
+> **Status original deste documento**: análise técnica preparatória. Nenhuma linha de código foi alterada para produzi-lo. Toda afirmação sobre "o que existe hoje" foi verificada diretamente no código-fonte (não em suposição), com citação de arquivo/linha. Toda afirmação sobre "o que precisa existir" é proposta de arquitetura para discussão — não implementada.
+>
+> Complementa (não substitui) [ARCHITECTURE.md](../ARCHITECTURE.md), [DATABASE.md](../DATABASE.md), [ADMIN.md](../ADMIN.md), [FIRESTORE.md](../FIRESTORE.md), [SECURITY.md](../SECURITY.md) e [TECH_DEBT.md](../TECH_DEBT.md), que já haviam identificado o multi-tenant como incompleto (ver `TECH_DEBT.md` item 3). Este documento aprofunda especificamente o que falta para o multi-tenant *real* (resolução por domínio, isolamento de dados, N clientes simultâneos) e organiza isso em gaps classificados e um roadmap faseado.
 
 ---
 
@@ -26,7 +28,7 @@ Este documento não propõe implementação — apenas diagnostica o estado atua
 | Peça | Onde está | Estado real |
 |---|---|---|
 | Coleção `organizations/{orgId}` | Firestore, gerida por `admin_master_associacoes.html` | CRUD completo funcional: nome, slug, CNPJ, domínio (texto livre), contato, endereço, plano, módulos, observações, `ativo` (`admin_master_associacoes.html:253-330`) |
-| Campo `orgId` em coleções de negócio | `users`, `memberProducts`, `memberServices`, `memberClassifieds`, `classificados`, `auctionLots`, `auctionSales`, `auctionPayments`, `auctionNotifications`, `cms_banners`, `cms_events`, `cms_partners`, `cms_board`, `cms_gallery`, `cms_about`, `eventRegistrations`, `systemLogs` | Gravado consistentemente em **todas** as escritas feitas pelo frontend (`firebase.js` e cada tela admin sempre inclui `orgId: currentOrgId`) — ver [DATABASE.md](DATABASE.md) |
+| Campo `orgId` em coleções de negócio | `users`, `memberProducts`, `memberServices`, `memberClassifieds`, `classificados`, `auctionLots`, `auctionSales`, `auctionPayments`, `auctionNotifications`, `cms_banners`, `cms_events`, `cms_partners`, `cms_board`, `cms_gallery`, `cms_about`, `eventRegistrations`, `systemLogs` | Gravado consistentemente em **todas** as escritas feitas pelo frontend (`firebase.js` e cada tela admin sempre inclui `orgId: currentOrgId`) — ver [DATABASE.md](../DATABASE.md) |
 | Filtro por `orgId` nas leituras | Praticamente todas as queries de listagem no frontend | `where("orgId","==",currentOrgId)` é o padrão em todas as páginas públicas/admin lidas |
 | Módulos habilitáveis por organização | `organizations/{orgId}.modules` (mapa de booleans) + `checkModuleEnabled()`/`applyModuleVisibility()` (`firebase.js:369-402`) | Funcional: esconde elementos `data-module="X"` quando o módulo está desabilitado; cache de 10 min em `sessionStorage` |
 | Painel de gestão de organizações | `admin_master.html`, `admin_master_associacoes.html`, `admin_master_configuracoes.html`, `admin_master_faturamento.html` (4 páginas) | Existem e funcionam para CRUD/visualização — mas operam sobre dados que nenhuma outra parte do sistema usa para *rotear* usuários (ver 1.2) |
@@ -57,7 +59,7 @@ Multi-tenant tem duas exigências independentes: **(a) segregação de dados** (
 | Produtos/Serviços | ✅ | ✅ | N/A | ❌ | ❌ |
 | Leilões | ✅ | ✅ | ❌ | ❌ | ❌ |
 | CMS (banners/diretoria/parceiros/galeria/sobre) | ✅ | ✅ | N/A | ❌ | ❌ |
-| Painel Master | ✅ (na própria `organizations`) | ⚠️ parcial (KPIs de `admin_master.html` **não filtram** `orgId`, ver [ADMIN.md](ADMIN.md) item 4) | — | ❌ | N/A (o master é, por definição, cross-tenant) |
+| Painel Master | ✅ (na própria `organizations`) | ⚠️ parcial (KPIs de `admin_master.html` **não filtram** `orgId`, ver [ADMIN.md](../ADMIN.md) item 4) | — | ❌ | N/A (o master é, por definição, cross-tenant) |
 
 **Leitura do quadro**: todo módulo tem a coluna de dados (✅) resolvida. Nenhum módulo tem as colunas de aplicação (backend/regras/resolução) resolvidas. Ou seja, hoje o sistema é multi-tenant **apenas no schema**, não em nenhuma camada de execução ou segurança.
 
@@ -92,7 +94,7 @@ Cada item abaixo foi observado diretamente no código (arquivo/linha citados). O
 - **Impacto**: com dois tenants reais, **qualquer admin de qualquer organização** que dispare uma dessas ações (todas acessíveis por botão em `admin.html`/`admin_associados.html`, protegidas apenas por `role in [admin, master]` — não por organização) processaria/auditaria/sincronizaria os associados de **todas** as outras organizações também. `sendDailyPaymentReport` é ainda mais grave: é um cron automático (não depende de nenhum clique), então a partir do segundo tenant o relatório diário passaria a misturar vencimentos de clubes diferentes no mesmo e-mail, enviado hoje para endereços fixos da Serafim Technologies/Bonfim (ver `CLAUDE.md` §Relatório Diário) — não haveria isolamento nem mesmo na comunicação por e-mail.
 - **Risco**: financeiro e de confidencialidade (LGPD) — dados pessoais e financeiros de uma organização processados/expostos a operações disparadas por outra. É uma falha "silenciosa": nada quebra visualmente, os dados só passam a se misturar.
 - **Dependências**: nenhuma — pode e deve ser corrigido **antes** de qualquer trabalho de domínio/hospedagem, porque não depende de resolução de tenant nenhuma: essas funções já recebem `context.auth.uid`, de onde dá para derivar `orgId` do chamador e filtrar.
-- **Complexidade**: Baixa a Média por função (adicionar `.where('orgId','==', callerOrgId)` a cada uma), mas exige revisão cuidadosa de cada uma (algumas fazem `get()` sem paginação — ver [PERFORMANCE.md](PERFORMANCE.md) — e algumas alimentam relatórios que precisam ser segmentados por destinatário, não só por filtro de query).
+- **Complexidade**: Baixa a Média por função (adicionar `.where('orgId','==', callerOrgId)` a cada uma), mas exige revisão cuidadosa de cada uma (algumas fazem `get()` sem paginação — ver [PERFORMANCE.md](../PERFORMANCE.md) — e algumas alimentam relatórios que precisam ser segmentados por destinatário, não só por filtro de query).
 
 #### G3 — Firestore Security Rules não isolam por organização
 - **O quê**: a função `canOperate()` (`firestore.rules:37`, usada por praticamente toda regra de escrita do sistema — `memberServices`, `memberProducts`, todas as `cms_*`, `eventRegistrations.update`, e o `update`/`get`/`list` de `users`) verifica **apenas o papel** (`admin`/`master`), nunca a organização. A única regra que de fato compara `orgId` é a leitura de `organizations/{orgId}` (`firestore.rules:360`, via helper `userOrgId()` definido em `firestore.rules:22-26`, mas usado só ali).
@@ -100,7 +102,7 @@ Cada item abaixo foi observado diretamente no código (arquivo/linha citados). O
   - `allow list: if canOperate();` em `users` (`firestore.rules:228`) — qualquer `admin`, de qualquer organização, pode listar **todos** os usuários de **todas** as organizações diretamente pelo SDK do cliente, sem passar por nenhuma Cloud Function.
   - `allow update: if (isSelf(userId) && noSensitiveFieldChange()) || canOperate();` (`firestore.rules:238-240`) — um admin da organização A pode editar (nome, telefone, e até `ativo`/`role` via `canOperate()`, que ignora `noSensitiveFieldChange()`) o cadastro de um associado da organização B.
   - O mesmo padrão se repete em `memberServices`/`memberProducts` (`firestore.rules:113-121`) e em todas as coleções `cms_*` (`firestore.rules:388-428`): qualquer admin pode escrever conteúdo em qualquer organização.
-  - **Storage** tem o mesmo problema em outro ponto: `tenants/{orgId}/cms/{category}/{fileName}` aceita escrita de **qualquer usuário autenticado** (nem precisa ser admin) — `storage.rules:48-51`. Este item específico já está registrado em [SECURITY.md](SECURITY.md) achado #5.
+  - **Storage** tem o mesmo problema em outro ponto: `tenants/{orgId}/cms/{category}/{fileName}` aceita escrita de **qualquer usuário autenticado** (nem precisa ser admin) — `storage.rules:48-51`. Este item específico já está registrado em [SECURITY.md](../SECURITY.md) achado #5.
 - **Por que hoje não dói**: existe apenas uma organização real (`org_bonfim`), então "vazar para outra org" não tem com quem acontecer. O gap é adormecido, não inofensivo.
 - **Risco**: é o gap de **segurança** mais sério de toda a análise — pior que G1 e G2 porque, diferente deles, um cliente comprometido (ou um admin mal-intencionado de uma organização pequena) poderia explorá-lo manualmente via SDK do Firebase sem depender de nenhuma tela do sistema.
 - **Dependências**: nenhuma — corrigível e testável independentemente de domínio/hospedagem, assim que existir uma segunda organização de teste.
@@ -136,7 +138,7 @@ Cada item abaixo foi observado diretamente no código (arquivo/linha citados). O
 - **Complexidade**: Alta se decidido migrar para conta por organização (múltiplas credenciais no Secret Manager, roteamento de qual chave usar por `orgId` em cada Cloud Function que fala com o Asaas — hoje `getSecret()` é chamado sem parametrização por org).
 
 #### G8 — KPIs e telas do Painel Master não segregam dados entre organizações
-- **O quê**: `admin_master.html` soma `users` com `role != "master"` e `auctionLots` com `status == "publicado"` **sem filtrar por `orgId`** (já registrado em [ADMIN.md](ADMIN.md) item 4). `admin_master_faturamento.html` trata `orgId` como texto livre no formulário de assinatura SaaS, sem vínculo com `organizations` reais (ADMIN.md item 3).
+- **O quê**: `admin_master.html` soma `users` com `role != "master"` e `auctionLots` com `status == "publicado"` **sem filtrar por `orgId`** (já registrado em [ADMIN.md](../ADMIN.md) item 4). `admin_master_faturamento.html` trata `orgId` como texto livre no formulário de assinatura SaaS, sem vínculo com `organizations` reais (ADMIN.md item 3).
 - **Impacto**: hoje é só uma métrica "errada" (soma 1 org como se fossem N, mas N=1). Em produção multi-tenant, os KPIs do master (que é, por definição, cross-tenant — o master *deveria* ver o total de todas as orgs) continuam corretos em soma, mas a tela não oferece nenhuma quebra por organização, o que a torna pouco útil operacionalmente com múltiplos clientes.
 - **Dependências**: nenhuma técnica direta com G1-G4.
 - **Complexidade**: Baixa-Média — é uma tela, não uma mudança estrutural.
@@ -150,27 +152,27 @@ Cada item abaixo foi observado diretamente no código (arquivo/linha citados). O
 - **Complexidade**: Média.
 
 #### G10 — `seedMultiTenantData`/`migrateToMultiTenant` chamadas pela UI mas ausentes no backend
-- Já documentado em [TECH_DEBT.md](TECH_DEBT.md) item 1. Relevante aqui porque `migrateToMultiTenant` é exatamente o tipo de ferramenta que a migração de dados legados (§9) precisaria — hoje é só um botão que falha.
+- Já documentado em [TECH_DEBT.md](../TECH_DEBT.md) item 1. Relevante aqui porque `migrateToMultiTenant` é exatamente o tipo de ferramenta que a migração de dados legados (§9) precisaria — hoje é só um botão que falha.
 - **Complexidade**: Média.
 
 #### G11 — `systemPlans` "fantasma" + `PLAN_MODULES` duplicado em 3 arquivos
-- Já documentado em [TECH_DEBT.md](TECH_DEBT.md) item 2. Relevante aqui porque, com múltiplas organizações reais, divergência entre os 3 hardcodes (`admin_master.html`, `admin_master_associacoes.html`, `admin_master_faturamento.html`) deixa de ser teórica.
+- Já documentado em [TECH_DEBT.md](../TECH_DEBT.md) item 2. Relevante aqui porque, com múltiplas organizações reais, divergência entre os 3 hardcodes (`admin_master.html`, `admin_master_associacoes.html`, `admin_master_faturamento.html`) deixa de ser teórica.
 - **Complexidade**: Média.
 
 #### G12 — Convenção de Storage inconsistente entre módulos (`uploads/*` fora do prefixo de tenant)
-- Já documentado em [TECH_DEBT.md](TECH_DEBT.md) item 8. Relevante aqui porque Produtos/Serviços/Classificados de organizações diferentes cairiam no mesmo prefixo `uploads/products/...`, `uploads/services/...`, `uploads/classifieds/...` — sem colisão de nome de arquivo (nomes são únicos por timestamp, `firebase.js:587-591`), mas sem qualquer possibilidade de aplicar regra de Storage por organização nesse caminho hoje.
+- Já documentado em [TECH_DEBT.md](../TECH_DEBT.md) item 8. Relevante aqui porque Produtos/Serviços/Classificados de organizações diferentes cairiam no mesmo prefixo `uploads/products/...`, `uploads/services/...`, `uploads/classifieds/...` — sem colisão de nome de arquivo (nomes são únicos por timestamp, `firebase.js:587-591`), mas sem qualquer possibilidade de aplicar regra de Storage por organização nesse caminho hoje.
 - **Complexidade**: Média.
 
 ### 🟢 Baixo
 
 #### G13 — Falta de paginação em telas que listam por organização
-- `admin_associados.html` carrega toda a coleção `users` da organização de uma vez ([DATABASE.md](DATABASE.md) §Consultas mais relevantes). Como já é filtrado por `orgId`, o problema não é de isolamento, só de escala — relevante apenas para organizações grandes, não é um bloqueio do multi-tenant em si.
+- `admin_associados.html` carrega toda a coleção `users` da organização de uma vez ([DATABASE.md](../DATABASE.md) §Consultas mais relevantes). Como já é filtrado por `orgId`, o problema não é de isolamento, só de escala — relevante apenas para organizações grandes, não é um bloqueio do multi-tenant em si.
 
 #### G14 — Auditoria (`systemLogs`) inconsistente
-- Já documentado em [TECH_DEBT.md](TECH_DEBT.md) item 11. Ganha importância em ambiente multi-tenant/LGPD com múltiplos clientes, mas não bloqueia a arquitetura.
+- Já documentado em [TECH_DEBT.md](../TECH_DEBT.md) item 11. Ganha importância em ambiente multi-tenant/LGPD com múltiplos clientes, mas não bloqueia a arquitetura.
 
 #### G15 — Ausência de testes de integração reais para 2 tenants simultâneos
-- A suíte Playwright atual é majoritariamente estática ([TECH_DEBT.md](TECH_DEBT.md) item 19). Qualquer trabalho de isolamento (G2, G3) deveria ganhar um teste que **prova negativamente** o isolamento (org A não consegue ler/escrever dados de org B) — inexistente hoje porque só existe uma org para testar.
+- A suíte Playwright atual é majoritariamente estática ([TECH_DEBT.md](../TECH_DEBT.md) item 19). Qualquer trabalho de isolamento (G2, G3) deveria ganhar um teste que **prova negativamente** o isolamento (org A não consegue ler/escrever dados de org B) — inexistente hoje porque só existe uma org para testar.
 
 ---
 
@@ -264,7 +266,7 @@ GitHub Pages, no modelo atual, associa **um domínio customizado por repositóri
 
 | Alternativa | Como resolveria | Vantagens | Limitações/custos |
 |---|---|---|---|
-| **Migrar para Firebase Hosting** | Firebase Hosting permite múltiplos domínios customizados apontando para o mesmo site/projeto, todos servindo o mesmo conteúdo, com TLS gerenciado automaticamente por domínio | Já é o mesmo projeto Firebase (`clubecavalobonfim`) usado por Auth/Firestore/Storage/Functions — reduz o número de fornecedores; continua servindo arquivos estáticos sem exigir build step, mantendo a arquitetura atual "sem servidor de aplicação"; suporta redirecionamento apex↔`www` nativamente | Exige processo de deploy próprio (`firebase deploy --only hosting`) além do `git push` atual — muda o fluxo de publicação do frontend (hoje é só `git push`, ver [DEPLOY.md](DEPLOY.md)); número de domínios customizados por site tem um teto (verificar limite vigente na conta/plano Firebase antes de comprometer a arquitetura a isso) |
+| **Migrar para Firebase Hosting** | Firebase Hosting permite múltiplos domínios customizados apontando para o mesmo site/projeto, todos servindo o mesmo conteúdo, com TLS gerenciado automaticamente por domínio | Já é o mesmo projeto Firebase (`clubecavalobonfim`) usado por Auth/Firestore/Storage/Functions — reduz o número de fornecedores; continua servindo arquivos estáticos sem exigir build step, mantendo a arquitetura atual "sem servidor de aplicação"; suporta redirecionamento apex↔`www` nativamente | Exige processo de deploy próprio (`firebase deploy --only hosting`) além do `git push` atual — muda o fluxo de publicação do frontend (hoje é só `git push`, ver [DEPLOY.md](../DEPLOY.md)); número de domínios customizados por site tem um teto (verificar limite vigente na conta/plano Firebase antes de comprometer a arquitetura a isso) |
 | **Proxy/CDN reverso na frente do GitHub Pages** (ex.: Cloudflare, com múltiplos domínios de clientes configurados como proxy para o GitHub Pages original) | Cada domínio de cliente é cadastrado no provedor de CDN, que repassa a requisição para o GitHub Pages existente | Mantém GitHub Pages e o fluxo de deploy atual intocados | Adiciona uma dependência de infraestrutura nova e uma camada extra de configuração por cliente (um registro por domínio no provedor); GitHub Pages, em alguns casos, rejeita tráfego cujo cabeçalho `Host` não seja o domínio configurado no `CNAME` — precisa ser validado tecnicamente antes de assumir que funciona sem ajuste adicional |
 | **Um repositório/site GitHub Pages por organização** (clone do código) | Cada cliente tem seu próprio `CNAME`, cada um servido por um site GitHub Pages distinto | Nenhuma mudança de plataforma | **Contraria diretamente o requisito** "todos acessando exatamente a mesma aplicação" — sem um mecanismo de sincronização, cada cópia diverge com o tempo; não é multi-tenant single-codebase, é N deploys manuais do mesmo código — não recomendado |
 
@@ -359,7 +361,7 @@ Esta é a mudança de maior alcance em todo o roadmap: **toda página HTML preci
 
 ### 5.5 Casos especiais de boot
 
-- **`login_master.html`**: não deveria passar pela resolução de tenant (é a porta de entrada do time da Serafim Technologies, cross-tenant por definição) — hoje já duplica a configuração do Firebase inline em vez de importar `firebase.js` ([TECH_DEBT.md](TECH_DEBT.md) item 13); ao corrigir essa duplicação, importante não introduzir ali uma dependência de resolução de tenant que não faz sentido para esse fluxo.
+- **`login_master.html`**: não deveria passar pela resolução de tenant (é a porta de entrada do time da Serafim Technologies, cross-tenant por definição) — hoje já duplica a configuração do Firebase inline em vez de importar `firebase.js` ([TECH_DEBT.md](../TECH_DEBT.md) item 13); ao corrigir essa duplicação, importante não introduzir ali uma dependência de resolução de tenant que não faz sentido para esse fluxo.
 - **Ambiente local/desenvolvimento** (`npm run serve`, `localhost:3333`): `localhost` não corresponderá a nenhum documento em `domains`. É necessário um mecanismo de override para desenvolvimento/teste (ex.: parâmetro de URL `?org=org_bonfim` ou uma variável configurável localmente) — sem isso, todo desenvolvimento e todos os testes Playwright atuais (que rodam contra `localhost:3333`, ver `playwright.config.js`) param de funcionar no primeiro passo do boot.
 - **Testes e2e (Playwright)**: precisam do mesmo mecanismo de override acima, ou de um domínio de teste específico cadastrado em `domains` apontando para uma organização de teste.
 
@@ -554,7 +556,7 @@ Ao contrário de uma migração típica de "sistema single-tenant virando multi-
 | **Eventos** | `createEventRegistration` deixa de ter `orgId` hardcoded (`functions/index.js:3255`), passa a receber/derivar da organização do evento consultado | Fluxo de inscrição, QR Code, check-in, controle de vagas | `functions/index.js`, `admin_eventos.html`, `events.html`, `event_inscricao.html`, `event_comprovante.html`, `event_checkin.html` |
 | **CMS** (banners/diretoria/parceiros/galeria/sobre) | Regras de Storage e Firestore passam a exigir correspondência de `orgId` (G3, G12); branding (logo/cores) migra de HTML estático fallback para o Tenant Context (§6) | Padrão de CRUD + soft delete, estrutura de subcoleção `fotos` da galeria | Todas as páginas `admin_banners.html`, `admin_diretoria.html`, `admin_eventos.html`, `admin_galeria.html`, `admin_parceiros.html`, `admin_sobre.html`, `admin_conteudo.html`, `firestore.rules`, `storage.rules` |
 | **Leilões** | Nenhuma Cloud Function do módulo filtra por `orgId` hoje (`placeBid`, `liberarRepasse`, etc. operam por `lotId`/`saleId`, não por coleção inteira, então o risco de G2 é menor aqui, mas ainda vale revisar); regras de Firestore de `auctionLots`/`auctionSales` precisam do mesmo tratamento de G3 | Máquina de estados de lote/venda, transação atômica de lance, anti-sniper, comissão | `admin_leiloes.html`, `leiloes.html`, `leilao_lote.html`, `lote_form.html`, `meus_lotes.html`, `functions/index.js`, `firestore.rules` |
-| **Marketplace (Classificados)** | Mesma revisão de regras (G3); oportunidade de resolver a duplicação `classificados`/`memberClassifieds` ([TECH_DEBT.md](TECH_DEBT.md) item 7) no mesmo momento em que as regras forem revisadas por outro motivo | Moderação, monetização por dia, upload de imagens | `classificados.html`, `admin_classificados.html`, `pg_associado.html`, `firestore.rules` |
+| **Marketplace (Classificados)** | Mesma revisão de regras (G3); oportunidade de resolver a duplicação `classificados`/`memberClassifieds` ([TECH_DEBT.md](../TECH_DEBT.md) item 7) no mesmo momento em que as regras forem revisadas por outro motivo | Moderação, monetização por dia, upload de imagens | `classificados.html`, `admin_classificados.html`, `pg_associado.html`, `firestore.rules` |
 | **Produtos** | Storage sai de `uploads/products/...` para um caminho com prefixo de tenant (G12); regras de Firestore (G3) | CRUD, compressão de imagem, campo `price` | `admin_produtos.html`, `produtos_associado.html`, `storage.rules`, `firestore.rules` |
 | **Serviços** | Mesmo tratamento de Produtos | CRUD, compressão de imagem | `admin_servicos.html`, `servicos_associado.html`, `storage.rules`, `firestore.rules` |
 | **Parceiros** | Regras de Firestore/Storage (G3, já parcialmente coberto pelo padrão `tenants/{orgId}/cms/...`) | CRUD, destaque na home | `admin_parceiros.html`, `partners.html`, `index.html` |
@@ -634,7 +636,7 @@ flowchart LR
 - **Pré-requisitos**: nenhum técnico direto das fases anteriores — pode ser conduzida em paralelo, especialmente se a decisão for por um site separado (§4.3, opção 2).
 - **Entregáveis**: domínio institucional no ar, com login master funcional contra a mesma base de usuários `master`.
 - **Riscos**: baixo, se tratado como site separado; médio, se integrado ao mesmo boot da aplicação de tenant (exigiria coordenação com a Fase 3).
-- **Dependências**: login master precisa continuar funcionando (`login_master.html`) — se migrado, revisar junto o item de dívida técnica ([TECH_DEBT.md](TECH_DEBT.md) item 13, configuração Firebase duplicada).
+- **Dependências**: login master precisa continuar funcionando (`login_master.html`) — se migrado, revisar junto o item de dívida técnica ([TECH_DEBT.md](../TECH_DEBT.md) item 13, configuração Firebase duplicada).
 - **Critérios de conclusão**: `portal-associativo.com.br` no ar com o conteúdo comercial completo e login master operacional.
 
 ### Fase 7 — Migração formal do Bonfim

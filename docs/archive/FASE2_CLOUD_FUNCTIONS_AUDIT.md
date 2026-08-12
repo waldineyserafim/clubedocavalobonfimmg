@@ -1,5 +1,7 @@
 # Fase 2 — Auditoria de Cloud Functions e Plano de Migração Multi-Tenant
 
+> **Arquivado (agosto de 2026).** Documento histórico — auditoria pontual que precedeu a migração multi-tenant. O estado atual do backend está em `CLAUDE.md` (raiz do repositório) e, para a evolução de plataforma que veio depois, em `portal-associativo/docs/roadmap/`. Mantido aqui como registro do ponto de partida, não como referência de estado atual.
+
 **Status:** Auditoria concluída. Nenhum código foi alterado, nenhum commit foi criado, nada foi publicado — conforme restrição desta fase.
 **Escopo analisado:** `functions/index.js` (arquivo único, 3421 linhas, 35 Cloud Functions exportadas + 27 funções auxiliares internas). Não há outros arquivos de functions no projeto (confirmado: `functions/` só contém `index.js`, `package.json`, `package-lock.json`, `node_modules/`).
 **Runtime:** Node.js 22, `firebase-functions@^4.9.0` (API de 1ª geração — `functions.https.onCall`/`onRequest`, `functions.firestore.document().onCreate/onUpdate`, `functions.pubsub.schedule`), `firebase-admin@^12.7.0`.

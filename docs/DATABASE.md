@@ -1,5 +1,7 @@
 # Banco de Dados (Firestore)
 
+> **Nota de escopo (agosto de 2026)**: levantamento de 2026-07-21, portanto anterior às coleções de plataforma (`platformAdmins`, `provisioningRuns`, `domains`, `featureFlags`, `organizations/{orgId}/public/branding`) e aos campos de `organizations/{orgId}` adicionados nas Fases 3.3–3.12/4 (`billing.*`, `business.*`, `isSandbox` etc.). Schema completo e atual em `CLAUDE.md` (raiz deste repositório), seção "Firestore Schema".
+
 Firestore é um banco de documentos sem esquema forçado — os campos abaixo foram extraídos da leitura de todo código que grava/lê cada coleção (frontend + Cloud Functions), não de um schema declarado. Tipos e obrigatoriedade são inferidos do uso real.
 
 ## Diagrama de relacionamento (visão lógica)
