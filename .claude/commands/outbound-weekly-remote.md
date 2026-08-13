@@ -14,9 +14,9 @@ Siga, sem pular nenhum passo:
 
 ```
 cd functions-prospecting && node -e "
-const admin = require('firebase-admin');
-admin.initializeApp({ projectId: 'clubecavalobonfim' });
-admin.firestore().collection('outboundRemoteRuns').doc(process.env.OUTBOUND_RUN_ID).get().then(s => {
+const { Firestore } = require('@google-cloud/firestore');
+const db = new Firestore({ projectId: 'clubecavalobonfim' });
+db.collection('outboundRemoteRuns').doc(process.env.OUTBOUND_RUN_ID).get().then(s => {
   console.log(JSON.stringify(s.data(), null, 2));
   process.exit(0);
 });
@@ -29,9 +29,9 @@ Isso devolve `leadIdsPlanned` — a lista EXATA de leads a processar (já calcul
 
 ```
 node -e "
-const admin = require('firebase-admin');
-admin.initializeApp({ projectId: 'clubecavalobonfim' });
-admin.firestore().collection('systemConfig').doc('salesContext').get().then(s => {
+const { Firestore } = require('@google-cloud/firestore');
+const db = new Firestore({ projectId: 'clubecavalobonfim' });
+db.collection('systemConfig').doc('salesContext').get().then(s => {
   console.log(JSON.stringify(s.data(), null, 2));
   process.exit(0);
 });
@@ -43,9 +43,9 @@ admin.firestore().collection('systemConfig').doc('salesContext').get().then(s =>
 1. Busque o lead completo:
    ```
    node -e "
-   const admin = require('firebase-admin');
-   admin.initializeApp({ projectId: 'clubecavalobonfim' });
-   admin.firestore().collection('leads').doc('<leadId>').get().then(s => { console.log(JSON.stringify(s.data(), null, 2)); process.exit(0); });
+   const { Firestore } = require('@google-cloud/firestore');
+   const db = new Firestore({ projectId: 'clubecavalobonfim' });
+   db.collection('leads').doc('<leadId>').get().then(s => { console.log(JSON.stringify(s.data(), null, 2)); process.exit(0); });
    "
    ```
 2. Escreva a abordagem seguindo as mesmas regras de `.claude/commands/outbound-weekly.md` (seção 4) e o `salesContext` lido acima — nunca invente fatos, nunca pesquise a web adicionalmente, use só as evidências já presentes no lead (`aiProspecting.evidence`).

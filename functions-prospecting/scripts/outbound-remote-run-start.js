@@ -8,8 +8,16 @@
 // outros scripts deste diretório.
 //
 // Uso: node scripts/outbound-remote-run-start.js --runId=abc123
+//
+// Usa @google-cloud/firestore DIRETO, não firebase-admin: o SDK do
+// firebase-admin não suporta credenciais de Workload Identity Federation
+// exportadas pelo google-github-actions/auth ("This option is not supported
+// by Firebase Admin SDK" — doc oficial da action; confirmado também na
+// prática, "Invalid contents in the credentials file"). @google-cloud/
+// firestore fala com o google-auth-library por baixo, que suporta WIF
+// nativamente — funciona igual com ADC local e com WIF no runner.
 
-const admin = require('firebase-admin');
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const { createRemoteRunsService } = require('../lib/outbound/remoteRuns');
 
 function parseArgs(argv) {
@@ -25,9 +33,8 @@ async function main() {
   const { runId } = parseArgs(process.argv.slice(2));
   if (!runId) throw new Error('--runId é obrigatório.');
 
-  if (!admin.apps.length) admin.initializeApp({ projectId: 'clubecavalobonfim' });
-  const db = admin.firestore();
-  const remoteRunsService = createRemoteRunsService({ db, serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp() });
+  const db = new Firestore({ projectId: 'clubecavalobonfim' });
+  const remoteRunsService = createRemoteRunsService({ db, serverTimestamp: () => FieldValue.serverTimestamp() });
 
   await remoteRunsService.markStarted(runId);
   console.log(`outbound-remote-run-start: runId=${runId} marcado como "running".`);

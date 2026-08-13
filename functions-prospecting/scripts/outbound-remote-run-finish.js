@@ -11,7 +11,10 @@
 //   node scripts/outbound-remote-run-finish.js --runId=abc123 --status=completed --summary='{"total":3,"gerados":3,"falharam":0}'
 //   node scripts/outbound-remote-run-finish.js --runId=abc123 --fallback   (só finaliza se ainda "running", ver markFinishedIfStillRunning)
 
-const admin = require('firebase-admin');
+// @google-cloud/firestore direto, não firebase-admin — ver comentário em
+// outbound-remote-run-start.js (firebase-admin não suporta credenciais de
+// Workload Identity Federation do GitHub Actions).
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const { createRemoteRunsService } = require('../lib/outbound/remoteRuns');
 
 function parseArgs(argv) {
@@ -28,9 +31,8 @@ async function main() {
   const { runId, status, summary, error, fallback } = parseArgs(process.argv.slice(2));
   if (!runId) throw new Error('--runId é obrigatório.');
 
-  if (!admin.apps.length) admin.initializeApp({ projectId: 'clubecavalobonfim' });
-  const db = admin.firestore();
-  const remoteRunsService = createRemoteRunsService({ db, serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp() });
+  const db = new Firestore({ projectId: 'clubecavalobonfim' });
+  const remoteRunsService = createRemoteRunsService({ db, serverTimestamp: () => FieldValue.serverTimestamp() });
 
   if (fallback) {
     const result = await remoteRunsService.markFinishedIfStillRunning(runId, {

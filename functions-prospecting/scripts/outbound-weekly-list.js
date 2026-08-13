@@ -18,7 +18,14 @@
 // Uso: node scripts/outbound-weekly-list.js [--limit=20]
 // Saída: JSON em stdout — { totalQualificados, jaAbordados, elegiveis: [...], selecionados: [...] }
 
-const admin = require('firebase-admin');
+// Usa @google-cloud/firestore DIRETO (não firebase-admin) — o SDK do
+// firebase-admin não suporta credenciais de Workload Identity Federation
+// exportadas pelo google-github-actions/auth ("This option is not supported
+// by Firebase Admin SDK", doc oficial da action). @google-cloud/firestore
+// fala com o google-auth-library por baixo, que suporta WIF nativamente —
+// funciona igual com ADC local (gcloud auth application-default login) e
+// com WIF dentro do runner do GitHub Actions, sem trocar nada.
+const { Firestore } = require('@google-cloud/firestore');
 const { getEligibleLeads } = require('../lib/outbound/eligibility');
 
 function parseArgs(argv) {
@@ -33,10 +40,7 @@ function parseArgs(argv) {
 async function main() {
   const { limit } = parseArgs(process.argv.slice(2));
 
-  if (!admin.apps.length) {
-    admin.initializeApp({ projectId: 'clubecavalobonfim' });
-  }
-  const db = admin.firestore();
+  const db = new Firestore({ projectId: 'clubecavalobonfim' });
 
   const { totalQualificados, jaAbordados, elegiveis, selecionados: selecionadosBrutos } = await getEligibleLeads({ db, limit });
 

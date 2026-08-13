@@ -14,7 +14,10 @@
 // primeira versão do fluxo manual).
 
 const fs = require('fs');
-const admin = require('firebase-admin');
+// @google-cloud/firestore direto, não firebase-admin — ver comentário em
+// outbound-weekly-list.js (firebase-admin não suporta credenciais de
+// Workload Identity Federation do GitHub Actions).
+const { Firestore, FieldValue } = require('@google-cloud/firestore');
 const { createOutboundMessagesService } = require('../lib/outbound/messages');
 
 function parseArgs(argv) {
@@ -36,11 +39,8 @@ async function main() {
     throw new Error('O JSON precisa ter, no mínimo, "message" e "personalizationSummary".');
   }
 
-  if (!admin.apps.length) {
-    admin.initializeApp({ projectId: 'clubecavalobonfim' });
-  }
-  const db = admin.firestore();
-  const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
+  const db = new Firestore({ projectId: 'clubecavalobonfim' });
+  const serverTimestamp = () => FieldValue.serverTimestamp();
   const messagesService = createOutboundMessagesService({ db, serverTimestamp });
 
   const generatedBy = process.env.OUTBOUND_WEEKLY_OPERATOR || 'claude_code_local';
