@@ -7,6 +7,8 @@ node_modules/
 
 !package.json
 
+!package-lock.json
+
 !firestore.indexes.json
 
 .env
@@ -24,3 +26,4 @@ firebase-debug.log*
 playwright-report/
 test-results/
 
+.tmp-docs-scripts/
