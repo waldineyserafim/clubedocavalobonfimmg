@@ -1,0 +1,53 @@
+{
+
+  "name": "functions-prospecting",
+
+  "description": "Cloud Functions for Firebase — codebase 'prospecting' (Prospecção IA + Agente de Outbound)",
+
+  "scripts": {
+
+    "serve": "firebase emulators:start --only functions",
+
+    "shell": "firebase functions:shell",
+
+    "start": "npm run shell",
+
+    "deploy": "firebase deploy --only functions:prospecting",
+
+    "logs": "firebase functions:log",
+
+    "test": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 GCLOUD_PROJECT=clubecavalobonfim node test/run-all.js"
+
+  },
+
+  "engines": {
+
+    "node": "22"
+
+  },
+
+  "main": "index.js",
+
+  "dependencies": {
+
+    "@google-cloud/secret-manager": "^6.1.1",
+
+    "firebase-admin": "^12.7.0",
+
+    "google-auth-library": "^9.15.1",
+
+    "firebase-functions": "^4.9.0",
+
+    "nodemailer": "^8.0.5"
+
+  },
+
+  "private": true,
+
+  "devDependencies": {
+
+    "@firebase/rules-unit-testing": "^5.0.1"
+
+  }
+
+}

@@ -1,0 +1,78 @@
+name: Outbound IA — execução remota
+
+# Disparado pela Cloud Function requestOutboundRemoteRun (botão "Executar
+# Outbound IA" em admin/leads.html) via POST .../dispatches — nunca manual
+# no dia a dia, mas pode ser rodado manualmente por um admin do repositório
+# em Actions > Outbound IA > Run workflow, se necessário para debug.
+#
+# Autenticação:
+#   - Firestore: Workload Identity Federation (google-github-actions/auth,
+#     sem chave JSON) — impersona a service account dedicada
+#     outbound-remote-runner@clubecavalobonfim.iam.gserviceaccount.com
+#     (roles/datastore.user, escopo mínimo disponível — IAM do Firestore não
+#     segmenta por coleção, ver CLAUDE.md "Botão Executar Outbound IA" pra
+#     essa ressalva).
+#   - Claude: CLAUDE_CODE_OAUTH_TOKEN (GitHub Secret), gerado via
+#     `claude setup-token` a partir da assinatura Claude Pro do operador —
+#     NUNCA ANTHROPIC_API_KEY, nunca API billing.
+on:
+  workflow_dispatch:
+    inputs:
+      runId:
+        description: 'ID do doc outboundRemoteRuns a processar'
+        required: true
+      maxLeads:
+        description: 'Máximo de leads a processar nesta execução'
+        required: false
+        default: '20'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: outbound-weekly
+  cancel-in-progress: false
+
+jobs:
+  outbound:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      OUTBOUND_RUN_ID: ${{ inputs.runId }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: clubecavalobonfim
+          workload_identity_provider: projects/115015503370/locations/global/workloadIdentityPools/github/providers/outbound-remote
+          service_account: outbound-remote-runner@clubecavalobonfim.iam.gserviceaccount.com
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependências
+        run: cd functions-prospecting && npm ci --omit=dev
+
+      - name: Marcar execução como "running"
+        run: cd functions-prospecting && node scripts/outbound-remote-run-start.js --runId="${{ inputs.runId }}"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: "/outbound-weekly-remote"
+          claude_args: |
+            --allowedTools "Bash,Read,Write"
+            --max-turns 80
+
+      # Fallback de segurança: se o Claude Code terminou (com sucesso, erro,
+      # ou foi cortado pelo timeout) sem chamar outbound-remote-run-finish.js
+      # explicitamente, isto garante que o lock NUNCA fica travado em
+      # "running" pra sempre — idempotente, não faz nada se já finalizado.
+      - name: Garantir finalização (fallback)
+        if: always()
+        run: cd functions-prospecting && node scripts/outbound-remote-run-finish.js --runId="${{ inputs.runId }}" --fallback

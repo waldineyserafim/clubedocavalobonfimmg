@@ -621,9 +621,80 @@ service cloud.firestore {
       }
     }
 
+    // Prospecção IA — agente autônomo que alimenta o funil comercial acima
+    // (leads/{leadId}), nunca um CRM por organização (ver
+    // docs/roadmap/PROSPECCAO_IA_REPORT.md no repositório portal-associativo
+    // pra decisão de escopo). Mesmo par leitura/escrita de `leads`: só
+    // administrator/owner leem, escrita sempre via Cloud Function (Admin SDK).
+    match /prospectingCampaigns/{campaignId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+    }
+
+    match /prospectingRuns/{runId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+    }
+
+    // Índice auxiliar de deduplicação (domínio/telefone/nome normalizados →
+    // leadId) — nunca lido pelo cliente, só pela própria Cloud Function
+    // durante uma execução de prospecção.
+    match /leadDedupIndex/{dedupKey} {
+      allow read, write: if false;
+    }
+
+    // Agente de Outbound — transforma leads qualificados (achados pela
+    // Prospecção IA acima, ou cadastrados manualmente) em abordagens
+    // comerciais revisadas por humano antes de qualquer contato externo (ver
+    // CLAUDE.md "Agente de Outbound"). Mesmo par leitura/escrita de
+    // `leads`/`prospectingCampaigns`: só administrator/owner leem, escrita
+    // sempre via Cloud Function (Admin SDK).
+    match /outboundMessages/{messageId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+
+      // Histórico append-only de versões (geração inicial, regeneração,
+      // edição humana) — nunca apagado, mesmo padrão de leads/{id}/history.
+      match /versions/{versionId} {
+        allow read: if isPlatformAdministrator();
+        allow write: if false;
+      }
+    }
+
+    match /outboundBatches/{batchId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+    }
+
+    // Botão "Executar Outbound IA" (admin/leads.html) — estado do disparo
+    // remoto via GitHub Actions (ver CLAUDE.md "Botão Executar Outbound
+    // IA"). Mesmo par leitura/escrita de outboundMessages/outboundBatches:
+    // só administrator/owner leem (inclui o doc singleton `_lock`), escrita
+    // sempre via Cloud Function (Admin SDK) ou pelos scripts rodando DENTRO
+    // do runner do GitHub Actions (também Admin SDK, via Workload Identity
+    // Federation — nunca o cliente/browser).
+    match /outboundRemoteRuns/{runId} {
+      allow read: if isPlatformAdministrator();
+      allow write: if false;
+    }
+
+    // Catálogo comercial (Planos/Módulos): antes isLoggedIn() vazava todo o
+    // catálogo de preços/módulos a qualquer associado de qualquer
+    // organização — restrito a leitura de plataforma (confirmado: nenhuma
+    // tela de organização depende disso). Escrita movida inteiramente pra
+    // Cloud Function (createPlan/updatePlan/archivePlan/
+    // createModuleCatalogEntry/updateModuleCatalogEntry/
+    // archiveModuleCatalogEntry, index.js) — dá validação de dependência
+    // entre módulos e preço server-side, e auditoria por construção (mesma
+    // garantia estrutural de featureFlags acima).
     match /systemPlans/{planId} {
-      allow read: if isLoggedIn();
-      allow write: if isPlatformAdministrator();
+      allow read: if isPlatformStaff();
+      allow write: if false;
+    }
+
+    match /moduleCatalog/{moduleKey} {
+      allow read: if isPlatformStaff();
+      allow write: if false;
     }
 
     match /systemLogs/{logId} {
@@ -635,7 +706,26 @@ service cloud.firestore {
 
     match /organizationSubscriptions/{subId} {
       allow read: if isPlatformStaff();
-      allow write: if isPlatformAdministrator();
+      // Campos de isenção (exempt/exemptReason/exemptUntil/exemptBy/exemptAt/
+      // exemptRevokedBy/exemptRevokedAt) só mudam via grantOrgExemption/
+      // revokeOrgExemption (Admin SDK, ignora Rules) — mesmo um Platform
+      // Administrator legítimo não consegue setá-los por escrita direta do
+      // cliente. O restante do ledger (plan/valorMensal/status/dataInicio/
+      // proximaCobranca/customPlan) mantém o padrão de escrita direta já
+      // existente em organization-detail.html. create/update separados
+      // porque resource.data.diff() exige resource existente (erro em
+      // create, onde resource == null).
+      allow create: if isPlatformAdministrator()
+        && !request.resource.data.keys().hasAny([
+          'exempt', 'exemptReason', 'exemptUntil', 'exemptBy', 'exemptAt',
+          'exemptRevokedBy', 'exemptRevokedAt'
+        ]);
+      allow update: if isPlatformAdministrator()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'exempt', 'exemptReason', 'exemptUntil', 'exemptBy', 'exemptAt',
+          'exemptRevokedBy', 'exemptRevokedAt'
+        ]);
+      allow delete: if false;
     }
 
     match /systemConfig/{docId} {
