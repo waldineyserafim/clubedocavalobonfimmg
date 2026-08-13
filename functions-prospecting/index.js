@@ -16,11 +16,16 @@
 // suporta até 1800s oficialmente. Por isso requestProspectingRun/
 // requestOutboundBatch, depois de criar o doc "queued" (pro cliente
 // acompanhar via onSnapshot, como antes), agora também enfileiram
-// explicitamente uma task com `getFunctions().taskQueue(...).enqueue(...)`
-// (SDK cuida da autenticação OIDC sozinho, sem IAM manual) — os motores de
-// execução (executeProspectingRun/executeOutboundBatch) leem `request.data`
-// em vez de `event.params`, mas continuam chamando engine.executeRun/
-// executeBatch exatamente como antes.
+// explicitamente uma task — via lib/cloudTasksDispatch.js (REST direto ao
+// Cloud Tasks), NÃO `getFunctions().taskQueue(...).enqueue(...)`: achado
+// real (confirmado por depuração, não hipótese) é que esse wrapper do
+// firebase-admin falha consistentemente neste ambiente com "Queue does not
+// exist" mesmo com IAM correto e a mesma chamada funcionando via REST puro —
+// o botão "Gerar Leads IA"/scheduler nunca tinham sido exercidos de ponta a
+// ponta antes disso ser descoberto. Os motores de execução
+// (executeProspectingRun/executeOutboundBatch) leem `request.data` em vez de
+// `event.params`, mas continuam chamando engine.executeRun/executeBatch
+// exatamente como antes.
 //
 // Este arquivo é uma extração 1:1 do que já existia em functions/index.js —
 // nenhuma lógica de negócio foi alterada (ver lib/prospecting/*, lib/outbound/*,
@@ -37,7 +42,8 @@ const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { onTaskDispatched } = require('firebase-functions/v2/tasks');
-const { getFunctions } = require('firebase-admin/functions');
+const { GoogleAuth } = require('google-auth-library');
+const { createCloudTasksDispatcher } = require('./lib/cloudTasksDispatch');
 
 const { createPlatformResolver, createPlatformAuthorizationHelpers } = require('./lib/platform');
 const { createLeadsService } = require('./lib/leads');
@@ -76,6 +82,19 @@ async function getSecret(name) {
   const [version] = await secretClient.accessSecretVersion({ name });
   return version.payload.data.toString();
 }
+
+// Cloud Tasks via REST direto (ver lib/cloudTasksDispatch.js pro achado real
+// de por que não usamos getFunctions().taskQueue()). Mesma identidade
+// (Application Default Credentials do runtime da function) que já é usada
+// implicitamente pelo admin.initializeApp() acima.
+const cloudTasksAuth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+const cloudTasksDispatcher = createCloudTasksDispatcher({
+  getAccessToken: async () => {
+    const client = await cloudTasksAuth.getClient();
+    const { token } = await client.getAccessToken();
+    return token;
+  },
+});
 
 // Plano de identidade de PLATAFORMA (Fase 3.2) — idêntico ao bootstrap de
 // functions/index.js (mesmo lib/platform.js, cópia — ver comentário no topo).
@@ -241,11 +260,11 @@ exports.archiveProspectingCampaign = functions.https.onCall(async (data, context
 });
 
 // Enfileira a task que dispara executeProspectingRun (ver comentário no topo
-// do arquivo — task queue function, não gatilho de evento). `region` explícita
-// pra bater com a region da function abaixo; nome curto de function resolve
-// pro projeto corrente automaticamente (sem precisar do nome do codebase).
+// do arquivo — task queue function, não gatilho de evento). Usa
+// lib/cloudTasksDispatch.js (REST direto), não getFunctions().taskQueue() —
+// ver comentário no topo do próprio arquivo pro achado real de por quê.
 async function enqueueProspectingRun(runId) {
-  await getFunctions().taskQueue('executeProspectingRun', 'us-central1').enqueue({ runId });
+  await cloudTasksDispatcher.enqueueCloudTask({ queueName: 'executeProspectingRun', payload: { runId } });
 }
 
 // "Executar agora" — deliberadamente RÁPIDO (ver lib/prospecting/engine.js):
@@ -353,7 +372,7 @@ exports.generateOutboundMessage = functions.https.onCall(async (data, context) =
 // Enfileira a task que dispara executeOutboundBatch — mesmo mecanismo de
 // enqueueProspectingRun acima (ver comentário no topo do arquivo).
 async function enqueueOutboundBatch(batchId) {
-  await getFunctions().taskQueue('executeOutboundBatch', 'us-central1').enqueue({ batchId });
+  await cloudTasksDispatcher.enqueueCloudTask({ queueName: 'executeOutboundBatch', payload: { batchId } });
 }
 
 // Geração em lote — deliberadamente RÁPIDO (mesmo padrão de

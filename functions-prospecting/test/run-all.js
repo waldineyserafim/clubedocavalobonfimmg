@@ -27,6 +27,7 @@ const TEST_FILES = [
   'prospecting-campaigns.test.js',
   'prospecting-engine.test.js',
   'prospecting-callables.test.js',
+  'cloud-tasks-dispatch.test.js',
   'gemini-provider.test.js',
   'outbound-messages.test.js',
   'outbound-engine.test.js',
