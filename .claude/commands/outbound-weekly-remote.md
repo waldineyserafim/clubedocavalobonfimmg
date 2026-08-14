@@ -1,10 +1,10 @@
 ---
-description: Variante NÃO-INTERATIVA de /outbound-weekly, para rodar dentro do GitHub Actions (disparada pelo botão "Executar Outbound IA" do Portal). Nunca usar interativamente.
+description: Variante NÃO-INTERATIVA de /outbound-weekly, para rodar dentro do GitHub Actions (disparada pelo botão "Executar Outbound IA" em admin/leads.html OU pelo botão "Gerar abordagem com IA"/"Gerar novamente" em admin/lead-detail.html — mesmo workflow, mesmo mecanismo, só muda quantos leads vêm em `leadIdsPlanned`). Nunca usar interativamente.
 ---
 
 # Outbound remoto (GitHub Actions — sem confirmação interativa)
 
-Esta execução já foi confirmada por um humano no Portal (modal "Executar o Outbound IA agora?" em `admin/leads.html`) — **nunca peça confirmação aqui**, não há ninguém pra responder.
+Esta execução já foi confirmada por um humano no Portal (modal de "Executar Outbound IA" em `admin/leads.html`, ou o clique direto em "Gerar abordagem com IA"/"Gerar novamente" em `admin/lead-detail.html` — nesse segundo caso `leadIdsPlanned` tem só 1 item) — **nunca peça confirmação aqui**, não há ninguém pra responder.
 
 O `runId` está disponível como variável de ambiente `OUTBOUND_RUN_ID` (setada pelo workflow `.github/workflows/outbound-weekly.yml`). O passo `outbound-remote-run-start.js` já rodou antes de você começar (o run já está `"running"`).
 
@@ -23,7 +23,7 @@ db.collection('outboundRemoteRuns').doc(process.env.OUTBOUND_RUN_ID).get().then(
 "
 ```
 
-Isso devolve `leadIdsPlanned` — a lista EXATA de leads a processar (já calculada e travada no momento do clique no botão; não recalcule, não adicione leads).
+Isso devolve `leadIdsPlanned` — a lista EXATA de leads a processar (já calculada e travada no momento do clique no botão; não recalcule, não adicione leads) — e, quando presente, `channelOverride`: se não for `null`, use ESSE canal pra todos os leads desta execução (veio do seletor de canal do disparo individual em lead-detail.html), em vez de inferir a partir dos dados de cada lead.
 
 ## 2. Buscar o contexto comercial
 
@@ -49,7 +49,7 @@ db.collection('systemConfig').doc('salesContext').get().then(s => {
    "
    ```
 2. Escreva a abordagem seguindo as mesmas regras de `.claude/commands/outbound-weekly.md` (seção 4) e o `salesContext` lido acima — nunca invente fatos, nunca pesquise a web adicionalmente, use só as evidências já presentes no lead (`aiProspecting.evidence`).
-3. Monte o JSON `{channel, subject, message, cta, personalizationSummary, motivos, evidence}`, salve num arquivo temporário, grave:
+3. Monte o JSON `{channel, subject, message, cta, personalizationSummary, motivos, evidence}` — `channel` é o `channelOverride` do run (passo 1) se ele não for `null`; senão, infira a partir dos dados do lead (e-mail se `contatoEmail` existir, senão WhatsApp) — salve num arquivo temporário, grave:
    ```
    node scripts/outbound-weekly-write.js --leadId=<leadId> --file=<caminho-do-json>
    ```

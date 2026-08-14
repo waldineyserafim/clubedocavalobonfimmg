@@ -40,8 +40,10 @@ function createRemoteRunsService({ db, serverTimestamp } = {}) {
    * @param {number} params.jaAbordados
    * @param {string} params.requestedBy
    * @param {string} [params.requestedByEmail]
+   * @param {string} [params.channelOverride] — só usado no disparo individual (lead-detail.html);
+   *   quando setado, o Claude Code usa esse canal em vez de inferir a partir dos dados do lead.
    */
-  async function requestRun({ leadIdsPlanned, totalQualificados, jaAbordados, requestedBy, requestedByEmail }) {
+  async function requestRun({ leadIdsPlanned, totalQualificados, jaAbordados, requestedBy, requestedByEmail, channelOverride }) {
     const lockRef = col().doc(LOCK_DOC_ID);
 
     return db.runTransaction(async (tx) => {
@@ -60,6 +62,7 @@ function createRemoteRunsService({ db, serverTimestamp } = {}) {
       tx.set(runRef, {
         status: 'pending',
         leadIdsPlanned, totalQualificados, jaAbordados,
+        channelOverride: channelOverride || null,
         requestedBy: requestedBy || null, requestedByEmail: requestedByEmail || null,
         workflowRunUrl: null,
         startedAt: null, finishedAt: null, summary: null, error: null,

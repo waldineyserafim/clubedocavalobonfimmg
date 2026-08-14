@@ -69,4 +69,27 @@ module.exports = async function run({ db, authInstance, fns, t }) {
     }
     await assertRejectsWithCode(() => fns.requestOutboundRemoteRun.run({}, ctx('orc_admin_1')), 'failed-precondition');
   });
+
+  /* =======================================================================
+     Disparo individual (leadId explícito) — botão "Gerar abordagem com IA"/
+     "Gerar novamente" em admin/lead-detail.html. Mesma callable, mesmo
+     mecanismo — só os dois casos que rejeitam ANTES de reivindicar o lock
+     ou chamar o GitHub são seguros de testar aqui (ver nota no topo do arquivo).
+     ======================================================================= */
+
+  await t('requestOutboundRemoteRun: leadId explícito inexistente rejeita not-found (nunca chega a chamar o GitHub)', async () => {
+    await assertRejectsWithCode(
+      () => fns.requestOutboundRemoteRun.run({ leadId: 'orc_lead_nao_existe' }, ctx('orc_admin_1')),
+      'not-found'
+    );
+  });
+
+  await t('requestOutboundRemoteRun: leadId explícito de lead arquivado rejeita failed-precondition', async () => {
+    await seedLead(db, { id: 'orc_lead_arquivado_individual', organizacaoNome: 'Arquivado Individual', archived: true });
+    await assertRejectsWithCode(
+      () => fns.requestOutboundRemoteRun.run({ leadId: 'orc_lead_arquivado_individual' }, ctx('orc_admin_1')),
+      'failed-precondition'
+    );
+    await db.collection('leads').doc('orc_lead_arquivado_individual').delete();
+  });
 };

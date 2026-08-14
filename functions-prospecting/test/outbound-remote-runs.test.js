@@ -17,6 +17,7 @@ module.exports = async function run({ db, t }) {
     const run = await service.getRun(runId);
     assert.strictEqual(run.status, 'pending');
     assert.deepStrictEqual(run.leadIdsPlanned, ['lead_a', 'lead_b']);
+    assert.strictEqual(run.channelOverride, null, 'sem channelOverride explícito, deve ficar null (disparo em lote, não individual)');
 
     const lockSnap = await db.collection('outboundRemoteRuns').doc('_lock').get();
     assert.strictEqual(lockSnap.data().status, 'pending');
@@ -87,5 +88,14 @@ module.exports = async function run({ db, t }) {
     assert.strictEqual(result.skipped, false);
     const run = await service.getRun(runId);
     assert.strictEqual(run.status, 'failed');
+  });
+
+  await t('requestRun: channelOverride é persistido quando informado (disparo individual, lead-detail.html)', async () => {
+    const { runId } = await service.requestRun({
+      leadIdsPlanned: ['lead_i'], totalQualificados: 1, jaAbordados: 0, requestedBy: 'admin_8', channelOverride: 'whatsapp',
+    });
+    const run = await service.getRun(runId);
+    assert.strictEqual(run.channelOverride, 'whatsapp');
+    await service.markFinished(runId, 'completed', { summary: { total: 1, gerados: 1, falharam: 0 } });
   });
 };

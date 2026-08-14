@@ -506,25 +506,53 @@ exports.previewOutboundRemoteRun = functions.https.onCall(async (data, context) 
   };
 });
 
+const OUTBOUND_REMOTE_CHANNELS = ['email', 'whatsapp', 'linkedin', 'sms', 'outro'];
+
 // Reivindica o lock, cria o doc de execução e dispara o workflow do GitHub
 // Actions — RÁPIDO (mesmo raciocínio de requestProspectingRun): quem gera as
 // abordagens de verdade é o runner do GitHub Actions, não esta function.
+//
+// Dois modos, mesma infraestrutura (nunca um segundo mecanismo de disparo):
+//   - data.leadId ausente: "Executar Outbound IA" em admin/leads.html — até
+//     20 leads elegíveis, selecionados automaticamente (ver eligibility.js).
+//   - data.leadId presente: "Gerar abordagem com IA"/"Gerar novamente" em
+//     admin/lead-detail.html — SEMPRE o lead pedido explicitamente, nunca
+//     passa pelo filtro de elegibilidade (mesma exceção que "Gerar
+//     novamente" já tinha no caminho antigo via Anthropic API — regenerar é
+//     uma ação explícita do usuário sobre UM lead, não uma seleção automática
+//     em lote). Só valida que o lead existe e não está arquivado.
 exports.requestOutboundRemoteRun = functions.https.onCall(async (data, context) => {
   const caller = await platformAuth.requirePlatformAdministrator(context);
 
-  const { totalQualificados, jaAbordados, selecionados } = await getEligibleLeads({ db, limit: OUTBOUND_REMOTE_MAX_LEADS });
-  if (!selecionados.length) {
-    throw new functions.https.HttpsError('failed-precondition', 'Nenhum lead elegível pra Outbound no momento.');
+  const explicitLeadId = String(data?.leadId || '').trim();
+  let leadIdsPlanned, totalQualificados, jaAbordados;
+
+  if (explicitLeadId) {
+    const leadSnap = await db.collection('leads').doc(explicitLeadId).get();
+    if (!leadSnap.exists) throw new functions.https.HttpsError('not-found', `Lead "${explicitLeadId}" não existe.`);
+    if (leadSnap.data().archived) throw new functions.https.HttpsError('failed-precondition', 'Lead arquivado — não é possível gerar abordagem.');
+    leadIdsPlanned = [explicitLeadId];
+    totalQualificados = 1;
+    jaAbordados = 0;
+  } else {
+    const result = await getEligibleLeads({ db, limit: OUTBOUND_REMOTE_MAX_LEADS });
+    if (!result.selecionados.length) {
+      throw new functions.https.HttpsError('failed-precondition', 'Nenhum lead elegível pra Outbound no momento.');
+    }
+    leadIdsPlanned = result.selecionados.map((lead) => lead.id);
+    totalQualificados = result.totalQualificados;
+    jaAbordados = result.jaAbordados;
   }
-  const leadIdsPlanned = selecionados.map((lead) => lead.id);
+
+  const channelOverride = OUTBOUND_REMOTE_CHANNELS.includes(data?.channel) ? data.channel : null;
 
   const { runId } = await remoteRunsService.requestRun({
-    leadIdsPlanned, totalQualificados, jaAbordados,
+    leadIdsPlanned, totalQualificados, jaAbordados, channelOverride,
     requestedBy: caller.uid, requestedByEmail: context.auth?.token?.email || null,
   });
 
   try {
-    await githubDispatchService.dispatchOutboundWorkflow({ runId, maxLeads: OUTBOUND_REMOTE_MAX_LEADS });
+    await githubDispatchService.dispatchOutboundWorkflow({ runId, maxLeads: leadIdsPlanned.length });
   } catch (e) {
     // Se o disparo falhar, o run nunca chega a rodar — libera o lock na hora
     // em vez de deixar "pending" travado até o self-heal por staleness.
@@ -532,7 +560,7 @@ exports.requestOutboundRemoteRun = functions.https.onCall(async (data, context) 
     throw e;
   }
 
-  await writePlatformAuditLog('outbound_remote_run_solicitado', { runId, leadIds: leadIdsPlanned }, context);
+  await writePlatformAuditLog('outbound_remote_run_solicitado', { runId, leadIds: leadIdsPlanned, leadId: explicitLeadId || null }, context);
   console.log(`requestOutboundRemoteRun: runId=${runId} leads=${leadIdsPlanned.length} por caller=${caller.uid}`);
   return { runId, leadsPlanejados: leadIdsPlanned.length };
 });
