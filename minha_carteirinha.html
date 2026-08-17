@@ -9,7 +9,7 @@
   <link href="assets/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <style>
     :root{--brand:#111279;--brand-dark:#0a0c55;--accent:#2a9d8f;}
     .bg-primary{background-color:var(--brand)!important;}
@@ -92,6 +92,7 @@
         <p id="mcVigencia" class="mc-vigencia">—</p>
 
         <div class="mc-qr-wrap"><canvas id="qrCanvas" width="150" height="150"></canvas></div>
+        <p id="qrError" class="small d-none" style="color:#ffe3a1;">Não foi possível gerar o QR Code agora. Recarregue a página em instantes.</p>
 
         <div>
           <span id="mcStatus" class="mc-status mc-status-ativo"><span class="dot"></span><span id="mcStatusText">Associado ativo</span></span>
@@ -246,18 +247,26 @@
 
       // Token do QR — lê o próprio doc primeiro (evita chamar a Cloud
       // Function toda visita); só cria via callable na primeira vez.
-      let token = null;
-      const cardSnap = await getDoc(doc(db, "users", uid, "membershipCard", "card"));
-      if (cardSnap.exists() && !cardSnap.data().revokedAt) {
-        token = cardSnap.data().token;
-      } else {
-        const ensure = httpsCallable(functionsInstance, "ensureMembershipCardToken");
-        const res = await ensure();
-        token = res.data.token;
-      }
+      // Isolado em try/catch próprio: uma falha aqui (ex.: lib de QR fora do
+      // ar) não pode derrubar o resto da carteirinha, que já carregou.
+      try {
+        let token = null;
+        const cardSnap = await getDoc(doc(db, "users", uid, "membershipCard", "card"));
+        if (cardSnap.exists() && !cardSnap.data().revokedAt) {
+          token = cardSnap.data().token;
+        } else {
+          const ensure = httpsCallable(functionsInstance, "ensureMembershipCardToken");
+          const res = await ensure();
+          token = res.data.token;
+        }
 
-      const verifyUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}carteirinha_verificar.html?token=${encodeURIComponent(token)}`;
-      await QRCode.toCanvas(document.getElementById("qrCanvas"), verifyUrl, { width: 150, margin: 1 });
+        const verifyUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}carteirinha_verificar.html?token=${encodeURIComponent(token)}`;
+        await QRCode.toCanvas(document.getElementById("qrCanvas"), verifyUrl, { width: 150, margin: 1 });
+        document.getElementById("qrError").classList.add("d-none");
+      } catch (qrErr) {
+        console.error("loadCard: falha ao gerar QR", qrErr);
+        document.getElementById("qrError").classList.remove("d-none");
+      }
 
       showState("stateOk");
     } catch (err) {
