@@ -72,6 +72,15 @@ service firebase.storage {
       allow write: if isSignedIn() && request.auth.uid == uid && isImage();
     }
 
+    // ===== Carteirinha Digital — foto de perfil do associado =====
+    // Mesmo padrão de products/services: leitura pública (a carteirinha e a
+    // tela de verificação exibem a foto sem exigir login — mesmo princípio
+    // de organizations/{orgId}/public/branding), escrita só do próprio uid.
+    match /membershipCards/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == uid && isImage();
+    }
+
     // ===== Módulo de Leilões =====
     // Imagens de lotes: auctionLots/{uid}/{fileName}
     match /auctionLots/{uid}/{fileName} {

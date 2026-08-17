@@ -410,6 +410,17 @@ service cloud.firestore {
         }
       }
 
+      // -------- Carteirinha Digital (Fase Core) --------
+      // Mesmo padrão estrutural de finance/summary: dono e admin/master/
+      // viewer da própria org LEEM (o dono precisa do token cru pra
+      // redesenhar o QR sem chamar Cloud Function toda vez); só
+      // ensureMembershipCardToken (Admin SDK) ESCREVE — o cliente nunca
+      // grava/revoga o próprio token diretamente.
+      match /membershipCard/{docId} {
+        allow read:  if isSelf(userId) || canReadOrgOfUser(userId);
+        allow write: if false;
+      }
+
       // -------- NOVA COLEÇÃO DE FATURAS --------
       // Subcoleção direta para faturas: users/{uid}/financeInvoices/{invoiceId}
       match /financeInvoices/{invId} {
@@ -807,6 +818,16 @@ service cloud.firestore {
       // Atualização por admin/master da mesma org (check-in, cancelamento) — G3
       allow update: if canOperateOrg(resource.data.orgId);
       allow delete: if false;
+    }
+
+    // Carteirinha Digital — índice reverso hash(token) → uid/orgId (Fase
+    // Core, ver CLAUDE.md e functions/lib/membershipCard.js). Nunca lido
+    // pelo cliente (mesmo padrão de leadDedupIndex acima): a validação
+    // pública/administrativa sempre passa pela callable verifyMembershipCard
+    // (Admin SDK, ignora Rules), que já devolve só o payload mínimo — expor
+    // esta coleção diretamente permitiria list()/enumeração de hashes.
+    match /membershipCardTokens/{tokenHash} {
+      allow read, write: if false;
     }
   }
 }

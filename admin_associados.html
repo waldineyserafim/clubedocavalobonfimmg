@@ -491,6 +491,12 @@
     opRoleEl.classList.remove("d-none");
     operatorProfile = { uid:user.uid, nome: d.nome || "", cpf: (d.cpf||"").replace(/\D/g,"") };
     try { if (document.getElementById("resultsWrap")) listUsers(""); } catch(e){ console.error(e); }
+
+    // Deep-link vindo de admin_carteirinha_verificar.html ("Ver cadastro do
+    // associado") — abre direto o modal do associado, respeitando as mesmas
+    // permissões de sempre (requireAuth já rodou acima).
+    const deepUid = new URLSearchParams(location.search).get("uid");
+    if (deepUid) { try { openUserModal(deepUid); } catch(e){ console.error(e); } }
   });
 
   document.getElementById("btnLogout")?.addEventListener("click", async ()=>{

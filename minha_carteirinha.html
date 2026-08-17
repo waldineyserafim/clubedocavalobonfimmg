@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Minha Carteirinha</title>
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    :root{--brand:#111279;--brand-dark:#0a0c55;--accent:#2a9d8f;}
+    .bg-primary{background-color:var(--brand)!important;}
+    .btn-primary{background-color:var(--brand)!important;border-color:var(--brand)!important;}
+    .brand-logo{height:36px;width:auto;object-fit:contain;filter:brightness(0) invert(1);}
+    html,body{height:100%;} body{min-height:100dvh;display:flex;flex-direction:column;background:#f4f5fa;} main{flex:1 0 auto;}
+
+    .card-wrap{max-width:380px;margin:0 auto;}
+    .membership-card{
+      background:linear-gradient(160deg,var(--brand) 0%,var(--brand-dark) 100%);
+      color:#fff; border-radius:20px; padding:1.75rem 1.5rem 1.5rem;
+      box-shadow:0 12px 30px rgba(17,18,121,.28); text-align:center;
+    }
+    .mc-logo{height:44px;max-width:70%;object-fit:contain;margin-bottom:.5rem;}
+    .mc-tenant-name{
+      font-weight:700; font-size:1.02rem; line-height:1.2; margin:0 0 1.1rem;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+      text-wrap:balance; padding:0 .25rem;
+    }
+    .mc-photo-wrap{width:112px;height:112px;margin:0 auto .9rem;border-radius:50%;overflow:hidden;background:rgba(255,255,255,.12);border:3px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;}
+    .mc-photo-wrap img{width:100%;height:100%;object-fit:cover;}
+    .mc-photo-wrap i{font-size:2.6rem;color:rgba(255,255,255,.55);}
+    .mc-nome{font-weight:700;font-size:1.08rem;margin-bottom:.15rem;overflow-wrap:anywhere;}
+    .mc-categoria{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin-bottom:.85rem;}
+    .mc-vigencia{font-size:.82rem;opacity:.9;margin-bottom:1rem;}
+    .mc-qr-wrap{background:#fff;border-radius:12px;padding:.75rem;display:inline-block;margin-bottom:1rem;}
+    .mc-qr-wrap canvas{display:block;}
+    .mc-status{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;font-weight:600;padding:.3rem .8rem;border-radius:999px;}
+    .mc-status .dot{width:.55rem;height:.55rem;border-radius:50%;display:inline-block;}
+    .mc-status-ativo{background:rgba(40,167,69,.18);color:#eafff0;} .mc-status-ativo .dot{background:#3ddc73;}
+    .mc-status-invalido{background:rgba(220,53,69,.2);color:#ffe3e6;} .mc-status-invalido .dot{background:#ff6b7a;}
+
+    .photo-placeholder-cta{background:#fff3cd;border:1px solid #ffe69c;border-radius:12px;padding:.85rem 1rem;font-size:.86rem;color:#664d03;}
+    #photoPreview{max-width:100%;max-height:280px;border-radius:12px;}
+    .section-card{background:#fff;border-radius:16px;padding:1.25rem 1.35rem;box-shadow:0 1px 8px rgba(0,0,0,.06);}
+  </style>
+</head>
+<body data-page-title="Minha Carteirinha">
+<nav class="navbar navbar-dark bg-primary shadow-sm">
+  <div class="container d-flex align-items-center gap-2 flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="pg_associado.html">
+      <img class="brand-logo me-2" src="assets/img/logo_CCBMG.png" alt="Logo" data-tenant-logo>
+      <span style="font-size:.9rem;" data-tenant-name>Clube do Cavalo</span>
+    </a>
+    <a class="btn btn-sm btn-outline-light ms-auto" href="pg_associado.html">
+      <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+  </div>
+</nav>
+
+<main class="container py-4">
+
+  <div id="stateLoading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="mt-2 text-secondary small">Carregando sua carteirinha…</p>
+  </div>
+
+  <div id="stateError" class="d-none text-center py-5">
+    <i class="bi bi-exclamation-triangle text-danger" style="font-size:2.5rem;"></i>
+    <p class="mt-3 text-secondary">Não foi possível carregar sua carteirinha agora. Tente novamente em instantes.</p>
+    <button id="btnRetry" class="btn btn-outline-primary btn-sm">Tentar novamente</button>
+  </div>
+
+  <div id="stateOk" class="d-none">
+    <h1 class="h5 fw-bold mb-3 text-center" style="color:var(--brand);">
+      <i class="bi bi-person-vcard me-1"></i>Minha Carteirinha
+    </h1>
+
+    <div class="card-wrap mb-4">
+      <div class="membership-card">
+        <img id="mcLogo" class="mc-logo" src="assets/img/logo_CCBMG.png" alt="Logo">
+        <p id="mcTenantName" class="mc-tenant-name">—</p>
+
+        <div class="mc-photo-wrap" id="mcPhotoWrap">
+          <i class="bi bi-person-fill"></i>
+        </div>
+
+        <p id="mcNome" class="mc-nome">—</p>
+        <p id="mcCategoria" class="mc-categoria">Associado</p>
+        <p id="mcVigencia" class="mc-vigencia">—</p>
+
+        <div class="mc-qr-wrap"><canvas id="qrCanvas" width="150" height="150"></canvas></div>
+
+        <div>
+          <span id="mcStatus" class="mc-status mc-status-ativo"><span class="dot"></span><span id="mcStatusText">Associado ativo</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="photoCta" class="photo-placeholder-cta text-center mb-4 d-none">
+      <i class="bi bi-camera me-1"></i>Adicione sua foto para completar sua carteirinha.
+      <div class="mt-2"><button class="btn btn-sm btn-warning" id="btnCtaAddPhoto">Adicionar foto</button></div>
+    </div>
+
+    <div class="section-card mx-auto" style="max-width:480px;">
+      <h2 class="h6 fw-bold mb-3">Minha foto</h2>
+
+      <div id="photoStateIdle">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="mc-photo-wrap" id="idlePhotoPreviewWrap" style="width:64px;height:64px;background:#eef0f5;border-color:#dfe3ee;">
+            <i class="bi bi-person-fill" style="color:#adb5bd;font-size:1.6rem;"></i>
+          </div>
+          <div class="small text-secondary">Esta é a mesma foto usada na sua carteirinha digital.</div>
+        </div>
+        <label class="btn btn-primary w-100" for="filePhotoInput">
+          <i class="bi bi-camera me-1"></i><span id="btnAddPhotoLabel">Adicionar foto</span>
+        </label>
+        <input type="file" id="filePhotoInput" accept="image/*" capture="environment" class="d-none">
+      </div>
+
+      <div id="photoStatePreview" class="d-none text-center">
+        <img id="photoPreview" class="mb-3" alt="Pré-visualização">
+        <div class="d-flex gap-2 justify-content-center">
+          <button class="btn btn-outline-secondary" id="btnCancelPhoto">Cancelar</button>
+          <button class="btn btn-primary" id="btnConfirmPhoto"><i class="bi bi-check2 me-1"></i>Confirmar</button>
+        </div>
+      </div>
+
+      <div id="photoStateUploading" class="d-none text-center py-3">
+        <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+        <p class="small text-secondary mt-2 mb-0">Enviando foto… <span id="uploadPct">0%</span></p>
+      </div>
+
+      <div id="photoStateSuccess" class="d-none text-center py-2">
+        <i class="bi bi-check-circle-fill text-success" style="font-size:1.8rem;"></i>
+        <p class="small text-secondary mt-2 mb-0">Foto salva!</p>
+      </div>
+
+      <div id="photoStateError" class="d-none text-center py-2">
+        <i class="bi bi-x-circle-fill text-danger" style="font-size:1.8rem;"></i>
+        <p class="small text-danger mt-2 mb-2" id="photoErrorMsg">Não foi possível salvar sua foto.</p>
+        <button class="btn btn-sm btn-outline-primary" id="btnRetryPhoto">Tentar novamente</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="mt-auto py-3 border-top" style="background:var(--brand-dark);">
+  <div class="container text-center text-white" style="font-size:.72rem;opacity:.65;">
+    <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>
+  </div>
+</footer>
+
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script src="./tenant.config.js"></script>
+<script type="module">
+  import { auth, db, getOrgBranding, compressImage, uploadImageFile }
+    from "./firebase.js";
+  import { onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+  import { doc, getDoc, updateDoc, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+  import { getApp }       from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFunctions, httpsCallable }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
+
+  const functionsInstance = getFunctions(getApp(), "us-central1");
+
+  function showState(id) {
+    ["stateLoading", "stateError", "stateOk"].forEach(s => document.getElementById(s).classList.add("d-none"));
+    document.getElementById(id).classList.remove("d-none");
+  }
+
+  function fmtDateBR(d) {
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  // Mesma decisão de validade do backend (functions/lib/membershipCard.js,
+  // computeCardStatus) — aqui só para exibição imediata ao próprio dono, que
+  // já tem permissão de ler esses campos; não concede acesso a nada novo.
+  // Quem decide de verdade "esta carteirinha é válida" é sempre o backend,
+  // via verifyMembershipCard (usado pela verificação pública/administrativa).
+  function computeLocalStatus(user, summary) {
+    if (user.ativo === false) return { valid: false, reason: "desativado" };
+    const until = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
+    if (!until || until.getTime() < Date.now()) return { valid: false, reason: "expirado" };
+    return { valid: true, reason: "ativo" };
+  }
+
+  let currentUid = null;
+  let currentUser = null;
+
+  async function loadCard() {
+    showState("stateLoading");
+    try {
+      const uid = currentUid;
+      const [userSnap, summarySnap, branding] = await Promise.all([
+        getDoc(doc(db, "users", uid)),
+        getDoc(doc(db, "users", uid, "finance", "summary")),
+        getOrgBranding().catch(() => null),
+      ]);
+
+      if (!userSnap.exists()) { showState("stateError"); return; }
+      currentUser = userSnap.data();
+      const summary = summarySnap.exists() ? summarySnap.data() : {};
+
+      // Branding do tenant — nunca hard-coded.
+      if (branding) {
+        if (branding.logoUrl) document.getElementById("mcLogo").src = branding.logoUrl;
+        document.getElementById("mcTenantName").textContent = branding.nomeCurto || branding.nome || document.title;
+      }
+
+      document.getElementById("mcNome").textContent = currentUser.nome || "—";
+      document.getElementById("mcCategoria").textContent = currentUser.categoriaAssociado === "mirim" ? "Associado Mirim" : "Associado";
+
+      const until = summary?.activeUntil?.toDate ? summary.activeUntil.toDate() : (summary?.activeUntil ? new Date(summary.activeUntil) : null);
+      document.getElementById("mcVigencia").textContent = until ? `Vigência até ${fmtDateBR(until)}` : "Vigência não disponível";
+
+      const status = computeLocalStatus(currentUser, summary);
+      const statusEl = document.getElementById("mcStatus");
+      const statusTextEl = document.getElementById("mcStatusText");
+      if (status.valid) {
+        statusEl.className = "mc-status mc-status-ativo";
+        statusTextEl.textContent = "Associado ativo";
+      } else {
+        statusEl.className = "mc-status mc-status-invalido";
+        statusTextEl.textContent = status.reason === "desativado" ? "Associado desativado" : "Vigência expirada";
+      }
+
+      // Foto
+      const photoWrap = document.getElementById("mcPhotoWrap");
+      const idlePreviewWrap = document.getElementById("idlePhotoPreviewWrap");
+      if (currentUser.fotoUrl) {
+        photoWrap.innerHTML = `<img src="${currentUser.fotoUrl}" alt="Foto do associado">`;
+        idlePreviewWrap.innerHTML = `<img src="${currentUser.fotoUrl}" alt="Foto atual" style="width:100%;height:100%;object-fit:cover;">`;
+        document.getElementById("photoCta").classList.add("d-none");
+        document.getElementById("btnAddPhotoLabel").textContent = "Alterar foto";
+      } else {
+        photoWrap.innerHTML = `<i class="bi bi-person-fill"></i>`;
+        idlePreviewWrap.innerHTML = `<i class="bi bi-person-fill" style="color:#adb5bd;font-size:1.6rem;"></i>`;
+        document.getElementById("photoCta").classList.remove("d-none");
+        document.getElementById("btnAddPhotoLabel").textContent = "Adicionar foto";
+      }
+
+      // Token do QR — lê o próprio doc primeiro (evita chamar a Cloud
+      // Function toda visita); só cria via callable na primeira vez.
+      let token = null;
+      const cardSnap = await getDoc(doc(db, "users", uid, "membershipCard", "card"));
+      if (cardSnap.exists() && !cardSnap.data().revokedAt) {
+        token = cardSnap.data().token;
+      } else {
+        const ensure = httpsCallable(functionsInstance, "ensureMembershipCardToken");
+        const res = await ensure();
+        token = res.data.token;
+      }
+
+      const verifyUrl = `${location.origin}${location.pathname.replace(/[^/]*$/, "")}carteirinha_verificar.html?token=${encodeURIComponent(token)}`;
+      await QRCode.toCanvas(document.getElementById("qrCanvas"), verifyUrl, { width: 150, margin: 1 });
+
+      showState("stateOk");
+    } catch (err) {
+      console.error("loadCard", err);
+      showState("stateError");
+    }
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    if (!user) { location.href = "login.html"; return; }
+    currentUid = user.uid;
+    loadCard();
+  });
+
+  document.getElementById("btnRetry")?.addEventListener("click", loadCard);
+
+  /* ===== Fluxo de foto ===== */
+  let selectedFile = null;
+
+  function showPhotoState(id) {
+    ["photoStateIdle", "photoStatePreview", "photoStateUploading", "photoStateSuccess", "photoStateError"]
+      .forEach(s => document.getElementById(s).classList.add("d-none"));
+    document.getElementById(id).classList.remove("d-none");
+  }
+
+  function resetPhotoFlow() {
+    selectedFile = null;
+    document.getElementById("filePhotoInput").value = "";
+    showPhotoState("photoStateIdle");
+  }
+
+  function openFilePicker() { document.getElementById("filePhotoInput").click(); }
+  document.getElementById("btnCtaAddPhoto")?.addEventListener("click", openFilePicker);
+
+  document.getElementById("filePhotoInput").addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    selectedFile = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById("photoPreview").src = url;
+    showPhotoState("photoStatePreview");
+  });
+
+  document.getElementById("btnCancelPhoto").addEventListener("click", resetPhotoFlow);
+  document.getElementById("btnRetryPhoto").addEventListener("click", resetPhotoFlow);
+
+  document.getElementById("btnConfirmPhoto").addEventListener("click", async () => {
+    if (!selectedFile || !currentUid) return;
+    showPhotoState("photoStateUploading");
+    document.getElementById("uploadPct").textContent = "0%";
+    try {
+      const compressed = await compressImage(selectedFile, { maxWidth: 800, maxHeight: 800, targetKB: 200 });
+      const { url } = await uploadImageFile(compressed, `membershipCards/${currentUid}`, (pct) => {
+        document.getElementById("uploadPct").textContent = `${pct}%`;
+      }, { autoCompress: false });
+
+      await updateDoc(doc(db, "users", currentUid), { fotoUrl: url, fotoUpdatedAt: serverTimestamp() });
+
+      showPhotoState("photoStateSuccess");
+      setTimeout(() => { resetPhotoFlow(); loadCard(); }, 900);
+    } catch (err) {
+      console.error("upload foto", err);
+      document.getElementById("photoErrorMsg").textContent = "Não foi possível salvar sua foto. Tente novamente.";
+      showPhotoState("photoStateError");
+    }
+  });
+</script>
+</body>
+</html>

@@ -35,6 +35,7 @@ const TEST_FILES = [
   'auth-backup.test.js',
   'features.test.js',
   'leads.test.js',
+  'membershipCard.test.js',
 ];
 
 let passed = 0;

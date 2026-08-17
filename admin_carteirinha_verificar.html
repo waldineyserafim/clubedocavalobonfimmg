@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Verificar Carteirinha</title>
+  <link rel="icon" type="image/png" href="assets/img/logo_CCBMG.png">
+  <link rel="shortcut icon" href="assets/img/logo_CCBMG.png" type="image/png">
+  <link href="assets/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/design-system.css?v=ccbmg-2026-01">
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    :root{--brand:#111279;--brand-dark:#0a0c55;--accent:#2a9d8f;}
+    .bg-primary{background-color:var(--brand)!important;}
+    .btn-primary{background-color:var(--brand)!important;border-color:var(--brand)!important;}
+    .brand-logo{height:36px;width:auto;object-fit:contain;filter:brightness(0) invert(1);}
+    html,body{height:100%;} body{min-height:100dvh;display:flex;flex-direction:column;background:#f4f5fa;} main{flex:1 0 auto;}
+
+    .scan-wrap{max-width:420px;margin:0 auto;}
+    .camera-box{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:340px;margin:0 auto;}
+    .camera-box video{width:100%;height:100%;object-fit:cover;display:block;}
+    .camera-box .scan-frame{position:absolute;inset:12%;border:3px solid rgba(255,255,255,.85);border-radius:16px;pointer-events:none;box-shadow:0 0 0 999px rgba(0,0,0,.35);}
+
+    .verify-box{border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.12);}
+    .verify-head{padding:1.75rem 1.5rem 1.25rem;text-align:center;color:#fff;}
+    .verify-head.valid{background:linear-gradient(160deg,#1e8e3e 0%,#146c2e 100%);}
+    .verify-head.invalid{background:linear-gradient(160deg,#c62828 0%,#8e1a1a 100%);}
+    .verify-head i{font-size:2.6rem;display:block;margin-bottom:.4rem;}
+    .verify-title{font-weight:800;font-size:1.15rem;letter-spacing:.02em;margin:0;}
+    .verify-body{background:#fff;padding:1.5rem;text-align:center;}
+    .vf-photo-wrap{width:100px;height:100px;margin:0 auto .9rem;border-radius:50%;overflow:hidden;background:#eef0f5;border:3px solid #e9ecef;display:flex;align-items:center;justify-content:center;}
+    .vf-photo-wrap img{width:100%;height:100%;object-fit:cover;}
+    .vf-photo-wrap i{font-size:2.4rem;color:#adb5bd;}
+    .vf-nome{font-weight:700;font-size:1.1rem;margin-bottom:.1rem;}
+    .vf-categoria{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#6c757d;margin-bottom:.6rem;}
+    .vf-tenant{font-size:.85rem;color:#495057;margin-bottom:.5rem;}
+    .vf-vigencia{font-size:.85rem;color:#6c757d;margin-bottom:.75rem;}
+    .vf-status{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;font-weight:600;padding:.3rem .8rem;border-radius:999px;margin-bottom:.5rem;}
+    .vf-status .dot{width:.55rem;height:.55rem;border-radius:50%;display:inline-block;}
+    .vf-status-ativo{background:#e6f6ec;color:#1e8e3e;} .vf-status-ativo .dot{background:#1e8e3e;}
+    .vf-status-inativo{background:#fdeaea;color:#c62828;} .vf-status-inativo .dot{background:#c62828;}
+    .vf-timestamp{font-size:.74rem;color:#adb5bd;}
+  </style>
+</head>
+<body data-page-title="Verificar Carteirinha">
+<nav class="navbar navbar-dark bg-primary shadow-sm">
+  <div class="container d-flex align-items-center gap-2 flex-nowrap">
+    <a class="navbar-brand d-flex align-items-center fw-bold text-truncate" href="admin_associados.html">
+      <img class="brand-logo me-2" src="assets/img/logo_CCBMG.png" alt="Logo" data-tenant-logo>
+      <span style="font-size:.9rem;" data-tenant-name>Clube do Cavalo</span>
+    </a>
+    <a class="btn btn-sm btn-outline-light ms-auto" href="admin_associados.html">
+      <i class="bi bi-arrow-left me-1"></i>Associados
+    </a>
+  </div>
+</nav>
+
+<main class="container py-4">
+  <div class="scan-wrap">
+    <h1 class="h5 fw-bold mb-3 text-center" style="color:var(--brand);">
+      <i class="bi bi-qr-code-scan me-1"></i>Verificar Carteirinha
+    </h1>
+
+    <!-- ===== Estado: câmera ===== -->
+    <div id="stateScan">
+      <p class="text-center text-secondary small mb-3">Aponte a câmera para o QR Code da carteirinha do associado.</p>
+
+      <div class="camera-box mb-3" id="cameraBox">
+        <video id="scanVideo" playsinline muted></video>
+        <div class="scan-frame"></div>
+      </div>
+      <canvas id="scanCanvas" class="d-none"></canvas>
+
+      <div id="cameraError" class="alert alert-warning small d-none" role="alert">
+        Não foi possível acessar a câmera.
+      </div>
+
+      <div class="text-center">
+        <button class="btn btn-link btn-sm text-secondary" id="btnManualToggle">
+          <i class="bi bi-keyboard me-1"></i>Digitar código manualmente
+        </button>
+      </div>
+
+      <div id="manualEntry" class="d-none mt-2">
+        <div class="d-flex gap-2 justify-content-center flex-wrap">
+          <input type="text" id="manualToken" class="form-control form-control-sm" placeholder="Código da carteirinha" style="max-width:280px;">
+          <button id="btnManualVerify" class="btn btn-primary btn-sm">Verificar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Estado: verificando ===== -->
+    <div id="stateChecking" class="d-none text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-2 text-secondary small">Verificando carteirinha…</p>
+    </div>
+
+    <!-- ===== Estado: resultado ===== -->
+    <div id="stateResult" class="d-none">
+      <div class="verify-box">
+        <div id="verifyHead" class="verify-head">
+          <i id="verifyIcon" class="bi"></i>
+          <p id="verifyTitle" class="verify-title">—</p>
+        </div>
+        <div class="verify-body">
+          <div class="vf-photo-wrap" id="vfPhotoWrap"><i class="bi bi-person-fill"></i></div>
+          <p id="vfNome" class="vf-nome d-none">—</p>
+          <p id="vfCategoria" class="vf-categoria d-none">—</p>
+          <p id="vfTenant" class="vf-tenant d-none">—</p>
+          <p id="vfVigencia" class="vf-vigencia d-none">—</p>
+          <div id="vfStatusWrap" class="d-none">
+            <span id="vfStatus" class="vf-status"><span class="dot"></span><span id="vfStatusText">—</span></span>
+          </div>
+          <p id="vfMessage" class="text-secondary small mb-1"></p>
+          <p id="vfTimestamp" class="vf-timestamp mb-0"></p>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2 mt-3">
+        <a id="btnVerCadastro" href="#" class="btn btn-outline-primary d-none">
+          <i class="bi bi-person-lines-fill me-1"></i>Ver cadastro do associado
+        </a>
+        <button id="btnVerificarOutra" class="btn btn-primary">
+          <i class="bi bi-qr-code-scan me-1"></i>Verificar outra carteirinha
+        </button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="mt-auto py-3 border-top" style="background:var(--brand-dark);">
+  <div class="container text-center text-white" style="font-size:.72rem;opacity:.65;">
+    Verificação de Carteirinha — <span data-tenant-name>Clube do Cavalo de Bonfim MG</span>
+  </div>
+</footer>
+
+<script src="assets/js/bootstrap.bundle.min.js"></script>
+<script src="./tenant.config.js"></script>
+<script type="module">
+  import { requireAuth } from "./firebase.js";
+  import { getApp }       from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFunctions, httpsCallable }
+    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-functions.js";
+
+  requireAuth({ requiredRole: ["admin","Admin","master","Master","operador","Operador","Admin View","adminView"] });
+
+  const functionsInstance = getFunctions(getApp(), "us-central1");
+
+  function showState(id) {
+    ["stateScan", "stateChecking", "stateResult"].forEach(s => document.getElementById(s).classList.add("d-none"));
+    document.getElementById(id).classList.remove("d-none");
+  }
+
+  function fmtDateBR(iso) {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function fmtNow() {
+    return new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  }
+
+  /* ===================== Câmera + leitura de QR (jsQR) ===================== */
+  let stream = null;
+  let scanning = false;
+  const video = document.getElementById("scanVideo");
+  const canvas = document.getElementById("scanCanvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  async function startCamera() {
+    document.getElementById("cameraError").classList.add("d-none");
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      video.srcObject = stream;
+      await video.play();
+      scanning = true;
+      requestAnimationFrame(scanLoop);
+    } catch (err) {
+      console.error("getUserMedia", err);
+      document.getElementById("cameraError").classList.remove("d-none");
+      document.getElementById("manualEntry").classList.remove("d-none");
+    }
+  }
+
+  function stopCamera() {
+    scanning = false;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+  }
+
+  function scanLoop() {
+    if (!scanning) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = window.jsQR ? window.jsQR(imageData.data, imageData.width, imageData.height) : null;
+      if (code && code.data) {
+        stopCamera();
+        handleScanned(code.data);
+        return;
+      }
+    }
+    requestAnimationFrame(scanLoop);
+  }
+
+  function extractToken(raw) {
+    try {
+      const url = new URL(raw);
+      const fromQuery = url.searchParams.get("token");
+      if (fromQuery) return fromQuery;
+    } catch (_) {
+      // não é uma URL — trata o próprio conteúdo como token
+    }
+    return raw;
+  }
+
+  function handleScanned(rawData) {
+    const token = extractToken(rawData);
+    verify(token);
+  }
+
+  /* ===================== Entrada manual ===================== */
+  document.getElementById("btnManualToggle").addEventListener("click", () => {
+    document.getElementById("manualEntry").classList.toggle("d-none");
+  });
+
+  document.getElementById("btnManualVerify").addEventListener("click", () => {
+    const tok = document.getElementById("manualToken").value.trim();
+    if (!tok) return;
+    stopCamera();
+    verify(tok);
+  });
+
+  /* ===================== Verificação (backend) ===================== */
+  let lastUid = null;
+
+  function renderResult(data) {
+    showState("stateResult");
+    const head = document.getElementById("verifyHead");
+    const icon = document.getElementById("verifyIcon");
+    const title = document.getElementById("verifyTitle");
+    const msg = document.getElementById("vfMessage");
+    const verCadastroBtn = document.getElementById("btnVerCadastro");
+
+    head.className = "verify-head";
+    document.getElementById("vfNome").classList.add("d-none");
+    document.getElementById("vfCategoria").classList.add("d-none");
+    document.getElementById("vfTenant").classList.add("d-none");
+    document.getElementById("vfVigencia").classList.add("d-none");
+    document.getElementById("vfStatusWrap").classList.add("d-none");
+    document.getElementById("vfTimestamp").textContent = "";
+    verCadastroBtn.classList.add("d-none");
+    msg.textContent = "";
+    lastUid = null;
+
+    if (!data || (!data.valid && data.reason === "not_found")) {
+      head.classList.add("invalid");
+      icon.className = "bi bi-x-octagon-fill";
+      title.textContent = "CARTEIRINHA NÃO ENCONTRADA";
+      msg.textContent = "Não foi possível validar esta carteirinha.";
+      return;
+    }
+
+    lastUid = data.uid || null;
+
+    const photoWrap = document.getElementById("vfPhotoWrap");
+    photoWrap.innerHTML = data.fotoUrl ? `<img src="${data.fotoUrl}" alt="Foto do associado">` : `<i class="bi bi-person-fill"></i>`;
+
+    const nomeEl = document.getElementById("vfNome");
+    nomeEl.textContent = data.nome || "—";
+    nomeEl.classList.remove("d-none");
+
+    const catEl = document.getElementById("vfCategoria");
+    catEl.textContent = data.categoria === "mirim" ? "Associado Mirim" : "Associado";
+    catEl.classList.remove("d-none");
+
+    if (data.tenantNome) {
+      const tEl = document.getElementById("vfTenant");
+      tEl.textContent = data.tenantNome;
+      tEl.classList.remove("d-none");
+    }
+
+    const vigEl = document.getElementById("vfVigencia");
+    const vigDate = fmtDateBR(data.activeUntil);
+    vigEl.textContent = vigDate ? `Vigência até ${vigDate}` : "Vigência não disponível";
+    vigEl.classList.remove("d-none");
+
+    const statusWrap = document.getElementById("vfStatusWrap");
+    const statusEl = document.getElementById("vfStatus");
+    const statusTextEl = document.getElementById("vfStatusText");
+    statusWrap.classList.remove("d-none");
+
+    if (data.valid) {
+      head.classList.add("valid");
+      icon.className = "bi bi-check-circle-fill";
+      title.textContent = "CARTEIRINHA VÁLIDA";
+      statusEl.className = "vf-status vf-status-ativo";
+      statusTextEl.textContent = "Associado ativo";
+    } else {
+      head.classList.add("invalid");
+      icon.className = "bi bi-x-octagon-fill";
+      title.textContent = "CARTEIRINHA INVÁLIDA";
+      statusEl.className = "vf-status vf-status-inativo";
+      if (data.reason === "desativado") {
+        statusTextEl.textContent = "Associado desativado";
+        msg.textContent = "Este associado está atualmente desativado.";
+      } else {
+        statusTextEl.textContent = "Vigência expirada";
+        msg.textContent = vigDate ? `Esta carteirinha está expirada. Vigência encerrada em ${vigDate}.` : "Esta carteirinha está expirada.";
+      }
+    }
+
+    document.getElementById("vfTimestamp").textContent = `Verificado agora — ${fmtNow()}`;
+
+    if (lastUid) {
+      verCadastroBtn.href = `admin_associados.html?uid=${encodeURIComponent(lastUid)}`;
+      verCadastroBtn.classList.remove("d-none");
+    }
+  }
+
+  async function verify(token) {
+    showState("stateChecking");
+    try {
+      const fn = httpsCallable(functionsInstance, "verifyMembershipCard");
+      const res = await fn({ token });
+      renderResult(res.data);
+    } catch (err) {
+      console.error("verifyMembershipCard", err);
+      renderResult(null);
+      document.getElementById("vfMessage").textContent = "Ocorreu um problema temporário. Tente novamente.";
+    }
+  }
+
+  document.getElementById("btnVerificarOutra").addEventListener("click", () => {
+    document.getElementById("manualToken").value = "";
+    document.getElementById("manualEntry").classList.add("d-none");
+    showState("stateScan");
+    startCamera();
+  });
+
+  startCamera();
+</script>
+</body>
+</html>

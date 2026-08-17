@@ -16,6 +16,7 @@ const { createLeadsService } = require('./lib/leads');
 const { createSandboxBrandingService } = require('./lib/sandboxBranding');
 const { computePublicBrandingProjection } = require('./lib/organizationPublicSync');
 const { runAuthBackup } = require('./lib/authBackup');
+const { createMembershipCardService } = require('./lib/membershipCard');
 
 const ASAAS_SECRET                = 'projects/clubecavalobonfim/secrets/asaas-api-key/versions/latest';
 const ASAAS_WEBHOOK_TOKEN         = 'projects/clubecavalobonfim/secrets/asaas-webhook-token/versions/latest';
@@ -3363,4 +3364,39 @@ exports.confirmEventCheckin = functions.https.onCall(async (data, context) => {
   });
 
   return { result: 'confirmed', nome: reg.nome, eventoTitulo: reg.eventoTitulo };
+});
+
+/* =======================================================================
+   Carteirinha Digital do Associado — Fase Core (mecanismo de plataforma,
+   ver functions/lib/membershipCard.js e CLAUDE.md).
+   ======================================================================= */
+const membershipCardService = createMembershipCardService({
+  db,
+  serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+});
+
+// ensureMembershipCardToken — self-service, idempotente: qualquer membro
+// autenticado da organização (associado, mas também admin/master, sem
+// necessidade de checagem extra de role) garante/recupera o token da
+// PRÓPRIA carteirinha. Nunca aceita uid de payload.
+exports.ensureMembershipCardToken = functions.https.onCall(async (data, context) => {
+  const caller = await auth.requireOrganizationMember(context);
+  return membershipCardService.ensureToken(caller.uid, caller.orgId);
+});
+
+// verifyMembershipCard — PÚBLICA de propósito (mesmo modelo de
+// eventRegistrations get:true / confirmEventCheckin): tanto a página de
+// verificação pública quanto a tela administrativa "Verificar Carteirinha"
+// chamam esta mesma callable — nunca decide validade no cliente, sempre
+// recalcula a partir de users/{uid}+finance/summary no momento da chamada.
+// O payload de retorno já é mínimo por construção (ver membershipCard.js);
+// acesso ao cadastro completo do associado continua exigindo login e role
+// admin/master/adminView/operador da própria organização, via
+// admin_associados.html — nenhuma autorização paralela nasce aqui.
+exports.verifyMembershipCard = functions.https.onCall(async (data) => {
+  const token = data?.token;
+  if (!token || typeof token !== 'string') {
+    throw new functions.https.HttpsError('invalid-argument', 'Token ausente.');
+  }
+  return membershipCardService.verifyToken(token);
 });
